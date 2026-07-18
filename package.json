@@ -1,0 +1,54 @@
+{
+  "name": "@slothmoney/agent-cli",
+  "version": "0.1.0",
+  "description": "Command-line access to the Sloth Money Agent API.",
+  "type": "module",
+  "bin": {
+    "sloth-agent": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "test:package": "node scripts/test-package.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:package"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RathBala/sloth-agent-cli.git"
+  },
+  "homepage": "https://slothmoney.app/developers/",
+  "bugs": {
+    "url": "https://github.com/RathBala/sloth-agent-cli/issues"
+  },
+  "keywords": [
+    "sloth-money",
+    "personal-finance",
+    "agent",
+    "cli"
+  ],
+  "author": "Rath Bala",
+  "license": "MIT",
+  "packageManager": "npm@11.18.0",
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@types/node": "^22.15.0",
+    "eslint": "^9.30.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.1",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,276 @@
+import { UsageError } from './errors.js';
+
+export interface CliEnvironment {
+  SLOTH_AGENT_API_BASE_URL?: string;
+  SLOTH_AGENT_TOKEN?: string;
+}
+
+interface GlobalOptions {
+  args: string[];
+  baseUrl?: string;
+}
+
+export interface TransactionFilters {
+  uncategorized?: boolean;
+  limit?: number;
+  startDate?: string;
+  endDate?: string;
+  q?: string;
+  accountId?: string;
+  categoryId?: string;
+  cursor?: string;
+}
+
+export type ParsedCommand =
+  | { command: 'help' }
+  | { command: 'version' }
+  | { command: 'categories'; baseUrl?: string }
+  | {
+    command: 'transactions';
+    baseUrl?: string;
+    filters: TransactionFilters;
+  }
+  | { command: 'assign'; baseUrl?: string; input: string; apply: boolean }
+  | { command: 'ask-partner'; baseUrl?: string; transactionRef: string };
+
+const PRODUCTION_BASE_URL = 'https://budget.slothmoney.app';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+function readOptionValue(args: string[], index: number, name: string): string {
+  const value = args[index + 1];
+  if (value === undefined || value.length === 0 || value.startsWith('--')) {
+    throw new UsageError(`${name} requires a value`);
+  }
+  return value;
+}
+
+function setOnce<T>(
+  current: T | undefined,
+  value: T,
+  name: string,
+): T {
+  if (current !== undefined) {
+    throw new UsageError(`${name} may only be provided once`);
+  }
+  return value;
+}
+
+function parseGlobalOptions(argv: string[]): GlobalOptions {
+  const args = [...argv];
+  let baseUrl: string | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--base-url') {
+      baseUrl = setOnce(baseUrl, readOptionValue(args, index, '--base-url'), '--base-url');
+      args.splice(index, 2);
+      index -= 1;
+      continue;
+    }
+    if (argument?.startsWith('--base-url=')) {
+      const value = argument.slice('--base-url='.length);
+      if (!value) throw new UsageError('--base-url requires a value');
+      baseUrl = setOnce(baseUrl, value, '--base-url');
+      args.splice(index, 1);
+      index -= 1;
+    }
+  }
+
+  return baseUrl === undefined ? { args } : { args, baseUrl };
+}
+
+function isValidDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function requireNonEmpty(value: string, name: string): string {
+  if (!value.trim()) throw new UsageError(`${name} requires a value`);
+  return value;
+}
+
+function parseTransactions(args: string[]): TransactionFilters {
+  const filters: TransactionFilters = {};
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!;
+    if (argument === '--uncategorized') {
+      filters.uncategorized = setOnce(filters.uncategorized, true, '--uncategorized');
+      continue;
+    }
+    if (argument.startsWith('--uncategorized=')) {
+      const value = argument.slice('--uncategorized='.length);
+      if (value !== 'true' && value !== 'false') {
+        throw new UsageError('--uncategorized must be true or false');
+      }
+      filters.uncategorized = setOnce(filters.uncategorized, value === 'true', '--uncategorized');
+      continue;
+    }
+
+    const [name, inlineValue] = argument.includes('=')
+      ? argument.split(/=(.*)/s, 2)
+      : [argument, undefined];
+    const supported = new Set([
+      '--limit',
+      '--start-date',
+      '--end-date',
+      '--q',
+      '--account-id',
+      '--category-id',
+      '--cursor',
+    ]);
+    if (!name || !supported.has(name)) {
+      throw new UsageError(`Unknown transactions option: ${argument}`);
+    }
+    const value = requireNonEmpty(
+      inlineValue ?? readOptionValue(args, index, name),
+      name,
+    );
+    if (inlineValue === undefined) index += 1;
+
+    if (name === '--limit') {
+      const limit = Number(value);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+        throw new UsageError('--limit must be an integer between 1 and 200');
+      }
+      filters.limit = setOnce(filters.limit, limit, name);
+    } else if (name === '--start-date' || name === '--end-date') {
+      if (!isValidDate(value)) {
+        throw new UsageError(`${name} must be a valid YYYY-MM-DD date`);
+      }
+      if (name === '--start-date') {
+        filters.startDate = setOnce(filters.startDate, value, name);
+      } else {
+        filters.endDate = setOnce(filters.endDate, value, name);
+      }
+    } else if (name === '--q') {
+      filters.q = setOnce(filters.q, value, name);
+    } else if (name === '--account-id') {
+      filters.accountId = setOnce(filters.accountId, value, name);
+    } else if (name === '--category-id') {
+      filters.categoryId = setOnce(filters.categoryId, value, name);
+    } else if (name === '--cursor') {
+      filters.cursor = setOnce(filters.cursor, value, name);
+    }
+  }
+
+  if (
+    filters.startDate !== undefined
+    && filters.endDate !== undefined
+    && filters.endDate < filters.startDate
+  ) {
+    throw new UsageError('--end-date must not be before --start-date');
+  }
+
+  return filters;
+}
+
+function withBaseUrl<T extends object>(value: T, baseUrl?: string): T & { baseUrl?: string } {
+  return baseUrl === undefined ? value : { ...value, baseUrl };
+}
+
+export function parseArgs(argv: string[]): ParsedCommand {
+  if (argv.includes('--help') || argv.includes('-h')) return { command: 'help' };
+  if (argv.includes('--version') || argv.includes('-V')) return { command: 'version' };
+
+  const { args, baseUrl } = parseGlobalOptions(argv);
+  const command = args.shift();
+  if (!command) return { command: 'help' };
+
+  if (command === 'categories') {
+    if (args.length > 0) {
+      throw new UsageError(`Unknown categories option: ${args[0]}`);
+    }
+    return withBaseUrl({ command }, baseUrl);
+  }
+
+  if (command === 'transactions') {
+    return withBaseUrl({ command, filters: parseTransactions(args) }, baseUrl);
+  }
+
+  if (command === 'assign') {
+    let input: string | undefined;
+    let apply = false;
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+      } else if (argument === '--input') {
+        input = setOnce(input, readOptionValue(args, index, '--input'), '--input');
+        index += 1;
+      } else if (argument.startsWith('--input=')) {
+        input = setOnce(
+          input,
+          requireNonEmpty(argument.slice('--input='.length), '--input'),
+          '--input',
+        );
+      } else {
+        throw new UsageError(`Unknown assign option: ${argument}`);
+      }
+    }
+    if (!input) throw new UsageError('assign requires --input <file>');
+    return withBaseUrl({ command, input, apply }, baseUrl);
+  }
+
+  if (command === 'ask-partner') {
+    let transactionRef: string | undefined;
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--transaction-ref') {
+        transactionRef = setOnce(
+          transactionRef,
+          readOptionValue(args, index, '--transaction-ref'),
+          '--transaction-ref',
+        );
+        index += 1;
+      } else if (argument.startsWith('--transaction-ref=')) {
+        transactionRef = setOnce(
+          transactionRef,
+          requireNonEmpty(
+            argument.slice('--transaction-ref='.length),
+            '--transaction-ref',
+          ),
+          '--transaction-ref',
+        );
+      } else {
+        throw new UsageError(`Unknown ask-partner option: ${argument}`);
+      }
+    }
+    if (!transactionRef) {
+      throw new UsageError('ask-partner requires --transaction-ref <ref>');
+    }
+    return withBaseUrl({ command, transactionRef }, baseUrl);
+  }
+
+  throw new UsageError(`Unknown command: ${command}`);
+}
+
+export function resolveBaseUrl(
+  environment: CliEnvironment,
+  override: string | undefined,
+): string {
+  const rawValue = override || environment.SLOTH_AGENT_API_BASE_URL || PRODUCTION_BASE_URL;
+  let url: URL;
+  try {
+    url = new URL(rawValue);
+  } catch {
+    throw new UsageError('--base-url must be a valid URL');
+  }
+
+  if (url.username || url.password) {
+    throw new UsageError('--base-url must not include credentials');
+  }
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new UsageError('--base-url must be an origin only');
+  }
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && LOCAL_HOSTS.has(url.hostname))) {
+    throw new UsageError('--base-url must use HTTPS unless it targets localhost');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new UsageError('--base-url must use HTTPS unless it targets localhost');
+  }
+
+  return url.origin;
+}
