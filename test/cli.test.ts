@@ -8,6 +8,12 @@ import {
   CLI_VERSION,
   runCli,
 } from '../src/cli.js';
+import {
+  agentApiV1AssignmentResponse,
+  agentApiV1CategoriesResponse,
+  agentApiV1ExplanationResponse,
+  agentApiV1TransactionsResponse,
+} from './fixtures/agent-api-v1.js';
 
 const tempDirectories: string[] = [];
 
@@ -63,11 +69,9 @@ describe('CLI execution', () => {
 
   it('uses the production API by default and emits JSON', async () => {
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      categories: [],
-      personalLineItemsByCategoryId: {},
-      jointLineItemsByCategoryId: {},
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1CategoriesResponse,
+    ));
 
     expect(await runCli(['categories'], {
       env: { SLOTH_AGENT_TOKEN: 'sloth_pat_v1_secret' },
@@ -84,19 +88,16 @@ describe('CLI execution', () => {
         }),
       }),
     );
-    expect(JSON.parse(io.stdout.join(''))).toEqual({
-      categories: [],
-      personalLineItemsByCategoryId: {},
-      jointLineItemsByCategoryId: {},
-    });
+    expect(JSON.parse(io.stdout.join(''))).toEqual(
+      agentApiV1CategoriesResponse,
+    );
   });
 
   it('emits the documented transaction query shape', async () => {
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      transactions: [],
-      nextCursor: null,
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1TransactionsResponse,
+    ));
 
     expect(await runCli([
       'transactions',
@@ -151,10 +152,9 @@ describe('CLI execution', () => {
       assignments: [{ transactionRef: 'sloth_txn_1', categoryId: 'groceries' }],
     });
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      succeeded: [],
-      failed: [{ transactionRef: 'sloth_txn_1', error: 'Invalid category' }],
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1AssignmentResponse,
+    ));
 
     expect(await runCli(['assign', '--input', input, '--apply'], {
       env: { SLOTH_AGENT_TOKEN: 'token' },
@@ -166,13 +166,9 @@ describe('CLI execution', () => {
 
   it('creates a partner explanation request', async () => {
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      requestId: 'ter_1',
-      publicUrl: 'https://budget.slothmoney.app/transaction-explanations/token',
-      message: 'Share this link',
-      expiresAt: '2026-07-21T10:00:00.000Z',
-      status: 'open',
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1ExplanationResponse,
+    ));
 
     expect(await runCli(['ask-partner', '--transaction-ref', 'sloth_txn_1'], {
       env: { SLOTH_AGENT_TOKEN: 'token' },
@@ -197,6 +193,21 @@ describe('CLI execution', () => {
     expect(io.stdout).toEqual([]);
     expect(io.stderr.join('')).toContain('[REDACTED]');
     expect(io.stderr.join('')).not.toContain(secret);
+  });
+
+  it('returns an API failure for a malformed success response', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      categories: [],
+    }));
+
+    expect(await runCli(['categories'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toContain('Invalid categories response');
   });
 
   it('uses distinct exit codes for usage and configuration failures', async () => {

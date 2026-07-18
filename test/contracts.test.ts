@@ -4,6 +4,12 @@ import {
   parseApiResponse,
   validateAssignmentPayload,
 } from '../src/contracts.js';
+import {
+  agentApiV1AssignmentResponse,
+  agentApiV1CategoriesResponse,
+  agentApiV1ExplanationResponse,
+  agentApiV1TransactionsResponse,
+} from './fixtures/agent-api-v1.js';
 
 describe('assignment payload validation', () => {
   it('accepts single, split, and clear assignments', () => {
@@ -53,40 +59,22 @@ describe('assignment payload validation', () => {
 
 describe('API response validation', () => {
   it('validates documented response envelopes while preserving fields', () => {
-    const transactions = {
-      transactions: [{
-        transactionRef: 'sloth_txn_1',
-        id: 'tx-1',
-        name: 'Tesco',
-        amount: -20.32,
-        currency: 'GBP',
-        date: '2026-05-01',
-        status: 'booked',
-        accountId: 'account-1',
-        accountDocId: 'account-doc-1',
-        requisitionId: 'req-1',
-        scope: 'personal',
-        categoryId: null,
-        lineItemId: null,
-        categorySplits: [],
-        incomeSubtype: null,
-      }],
-      nextCursor: null,
-    };
-
-    expect(parseApiResponse('transactions', transactions)).toBe(transactions);
-    expect(parseApiResponse('categories', {
-      categories: [{ id: 'groceries', name: 'Groceries', source: 'default' }],
-      personalLineItemsByCategoryId: {},
-      jointLineItemsByCategoryId: {},
-    })).toBeTruthy();
-    expect(parseApiResponse('ask-partner', {
-      requestId: 'ter_1',
-      publicUrl: 'https://budget.slothmoney.app/transaction-explanations/token',
-      message: 'Share this link',
-      expiresAt: '2026-07-21T10:00:00.000Z',
-      status: 'open',
-    })).toBeTruthy();
+    expect(parseApiResponse(
+      'transactions',
+      agentApiV1TransactionsResponse,
+    )).toBe(agentApiV1TransactionsResponse);
+    expect(parseApiResponse(
+      'categories',
+      agentApiV1CategoriesResponse,
+    )).toBe(agentApiV1CategoriesResponse);
+    expect(parseApiResponse(
+      'assign',
+      agentApiV1AssignmentResponse,
+    )).toBe(agentApiV1AssignmentResponse);
+    expect(parseApiResponse(
+      'ask-partner',
+      agentApiV1ExplanationResponse,
+    )).toBe(agentApiV1ExplanationResponse);
   });
 
   it('rejects malformed success responses', () => {

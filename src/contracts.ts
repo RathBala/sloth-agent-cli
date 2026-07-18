@@ -1,4 +1,7 @@
-import { UsageError } from './errors.js';
+import {
+  ApiError,
+  UsageError,
+} from './errors.js';
 
 export interface AgentCategorySplit {
   categoryId: string;
@@ -255,7 +258,7 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
 
   if (!valid) {
     const label = command === 'assign' ? 'assignment' : command;
-    throw new UsageError(`Invalid ${label} response from the Agent API`);
+    throw new ApiError(`Invalid ${label} response from the Agent API`);
   }
   return value;
 }
