@@ -4,7 +4,10 @@
 
 - `@slothmoney/agent-cli` exposes one executable: `sloth-agent`.
 - Keep command results as JSON on stdout and diagnostics on stderr.
-- Never persist, print, or include `SLOTH_AGENT_TOKEN` in errors or fixtures.
+- Persist PATs only through the native OS credential store. Never write them to
+  files, print them, or include them in errors, logs, argv, or fixtures.
+- Keep `SLOTH_AGENT_TOKEN` as the highest-precedence credential source and do
+  not load the native credential addon on environment-only paths.
 - The production API origin is `https://budget.slothmoney.app`; allow HTTP only
   for localhost development.
 - Do not add telemetry or automatic categorisation without explicit product and

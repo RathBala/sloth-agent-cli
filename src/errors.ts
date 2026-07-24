@@ -20,7 +20,10 @@ export class ConfigError extends CliError {
 }
 
 export class ApiError extends CliError {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
     super(message, 1);
   }
 }

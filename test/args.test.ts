@@ -66,6 +66,42 @@ describe('CLI arguments', () => {
     });
   });
 
+  it('parses auth commands and their login input modes', () => {
+    expect(parseArgs(['auth', 'login'])).toEqual({
+      command: 'auth-login',
+      input: 'prompt',
+    });
+    expect(parseArgs(['auth', 'login', '--token-stdin'])).toEqual({
+      command: 'auth-login',
+      input: 'stdin',
+    });
+    expect(parseArgs(['auth', 'login', '--from-env', '--base-url', 'https://api.example.com'])).toEqual({
+      command: 'auth-login',
+      input: 'environment',
+      baseUrl: 'https://api.example.com',
+    });
+    expect(parseArgs(['auth', 'status'])).toEqual({ command: 'auth-status' });
+    expect(parseArgs(['auth', 'logout'])).toEqual({ command: 'auth-logout' });
+  });
+
+  it('rejects ambiguous or unsupported auth input', () => {
+    expect(() => parseArgs([
+      'auth',
+      'login',
+      '--token-stdin',
+      '--from-env',
+    ])).toThrow(/mutually exclusive/);
+    expect(() => parseArgs([
+      'auth',
+      'login',
+      '--token-stdin',
+      '--token-stdin',
+    ])).toThrow(/may only be provided once/);
+    expect(() => parseArgs(['auth', 'status', '--from-env'])).toThrow(/Unknown auth status option/);
+    expect(() => parseArgs(['auth', 'unknown'])).toThrow(/Unknown auth command/);
+    expect(() => parseArgs(['auth'])).toThrow(/requires login, status, or logout/);
+  });
+
   it('rejects unknown commands and options', () => {
     expect(() => parseArgs(['unknown'])).toThrow(/Unknown command/);
     expect(() => parseArgs(['categories', '--wat'])).toThrow(/Unknown categories option/);

@@ -24,6 +24,13 @@ export interface TransactionFilters {
 export type ParsedCommand =
   | { command: 'help' }
   | { command: 'version' }
+  | {
+    command: 'auth-login';
+    baseUrl?: string;
+    input: 'prompt' | 'stdin' | 'environment';
+  }
+  | { command: 'auth-status'; baseUrl?: string }
+  | { command: 'auth-logout'; baseUrl?: string }
   | { command: 'categories'; baseUrl?: string }
   | {
     command: 'transactions';
@@ -170,6 +177,48 @@ function withBaseUrl<T extends object>(value: T, baseUrl?: string): T & { baseUr
   return baseUrl === undefined ? value : { ...value, baseUrl };
 }
 
+function parseAuth(args: string[], baseUrl?: string): ParsedCommand {
+  const authCommand = args.shift();
+  if (!authCommand) {
+    throw new UsageError('auth requires login, status, or logout');
+  }
+
+  if (authCommand === 'login') {
+    let input: 'stdin' | 'environment' | undefined;
+    for (const argument of args) {
+      if (argument === '--token-stdin') {
+        if (input === 'stdin') {
+          throw new UsageError('--token-stdin may only be provided once');
+        }
+        if (input === 'environment') {
+          throw new UsageError('--token-stdin and --from-env are mutually exclusive');
+        }
+        input = 'stdin';
+      } else if (argument === '--from-env') {
+        if (input === 'environment') {
+          throw new UsageError('--from-env may only be provided once');
+        }
+        if (input === 'stdin') {
+          throw new UsageError('--token-stdin and --from-env are mutually exclusive');
+        }
+        input = 'environment';
+      } else {
+        throw new UsageError(`Unknown auth login option: ${argument}`);
+      }
+    }
+    return withBaseUrl({ command: 'auth-login', input: input ?? 'prompt' }, baseUrl);
+  }
+
+  if (authCommand === 'status' || authCommand === 'logout') {
+    if (args.length > 0) {
+      throw new UsageError(`Unknown auth ${authCommand} option: ${args[0]}`);
+    }
+    return withBaseUrl({ command: `auth-${authCommand}` }, baseUrl);
+  }
+
+  throw new UsageError(`Unknown auth command: ${authCommand}`);
+}
+
 export function parseArgs(argv: string[]): ParsedCommand {
   if (argv.includes('--help') || argv.includes('-h')) return { command: 'help' };
   if (argv.includes('--version') || argv.includes('-V')) return { command: 'version' };
@@ -177,6 +226,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
   const { args, baseUrl } = parseGlobalOptions(argv);
   const command = args.shift();
   if (!command) return { command: 'help' };
+
+  if (command === 'auth') {
+    return parseAuth(args, baseUrl);
+  }
 
   if (command === 'categories') {
     if (args.length > 0) {
