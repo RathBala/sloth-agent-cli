@@ -151,6 +151,7 @@ describe('CLI execution', () => {
         '--achieved=true|false',
         'at least one field',
         'Without --apply',
+        'Change active shared pot target amounts',
       ]],
       [['goals', 'delete', '--help'], [
         '--goal-id ID',

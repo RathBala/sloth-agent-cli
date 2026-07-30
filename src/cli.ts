@@ -458,6 +458,8 @@ export function goalsUpdateHelpText(): string {
     '  Set and clear options for the same field are mutually exclusive.',
     '  Marking a goal achieved removes its forecast assignment.',
     '  Marking it active again does not restore the previous assignment.',
+    '  Change active shared pot target amounts in the Sloth Budget app, where',
+    '  account balances can be reconciled across goals in priority order.',
     '  Sharing remains app-managed. Updates to an already shared goal remain visible',
     '  to the connected partner.',
     '',

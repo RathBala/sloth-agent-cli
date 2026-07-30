@@ -211,7 +211,9 @@ sloth-agent goals delete --goal-id goal-id --apply
 Updates are partial. Use `--clear-target-amount` or `--clear-target-month` to
 remove an optional value. Marking a goal achieved removes its forecast
 assignment. Deleting a goal also removes its forecast assignments and drift
-history. Goal sharing remains app-managed.
+history. Goal sharing remains app-managed. Change an active shared goal's
+pot-tracked target amount in the Sloth Budget app, where account balances can
+be reallocated across goals in priority order.
 
 Read uncategorised contributions to the joint budget:
 
