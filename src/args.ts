@@ -31,6 +31,11 @@ export type HelpTopic =
   | 'transactions'
   | 'assign'
   | 'joint-budget-settings'
+  | 'goals'
+  | 'goals-list'
+  | 'goals-create'
+  | 'goals-update'
+  | 'goals-delete'
   | 'ask-partner';
 
 export type ParsedCommand =
@@ -54,6 +59,31 @@ export type ParsedCommand =
     command: 'joint-budget-settings';
     baseUrl?: string;
     includeSharedPersonalTransactions?: boolean;
+    apply: boolean;
+  }
+  | { command: 'goals-list'; baseUrl?: string }
+  | {
+    command: 'goals-create';
+    baseUrl?: string;
+    name: string;
+    targetAmount?: number;
+    targetMonthKey?: string;
+    apply: boolean;
+  }
+  | {
+    command: 'goals-update';
+    baseUrl?: string;
+    goalId: string;
+    name?: string;
+    targetAmount?: number | null;
+    targetMonthKey?: string | null;
+    isAchieved?: boolean;
+    apply: boolean;
+  }
+  | {
+    command: 'goals-delete';
+    baseUrl?: string;
+    goalId: string;
     apply: boolean;
   }
   | { command: 'ask-partner'; baseUrl?: string; transactionRef: string };
@@ -113,6 +143,47 @@ function isValidDate(value: string): boolean {
 function requireNonEmpty(value: string, name: string): string {
   if (!value.trim()) throw new UsageError(`${name} requires a value`);
   return value;
+}
+
+function parseGoalAmount(value: string, name: string): number {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) {
+    throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
+  }
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
+  }
+  return amount;
+}
+
+function parseGoalMonthKey(value: string, name: string): string {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+    throw new UsageError(`${name} must be a valid YYYY-MM month`);
+  }
+  return value;
+}
+
+function parseExplicitBoolean(value: string, name: string): boolean {
+  if (value !== 'true' && value !== 'false') {
+    throw new UsageError(`${name} must be true or false`);
+  }
+  return value === 'true';
+}
+
+function parseGoalName(value: string): string {
+  const name = value.trim();
+  if (name.length > 200) {
+    throw new UsageError('--name must be at most 200 characters');
+  }
+  return name;
+}
+
+function parseGoalId(value: string): string {
+  const goalId = value.trim();
+  if (goalId.length > 500) {
+    throw new UsageError('--goal-id must be at most 500 characters');
+  }
+  return goalId;
 }
 
 function parseTransactions(args: string[]): TransactionFilters {
@@ -243,6 +314,212 @@ function parseAuth(args: string[], baseUrl?: string): ParsedCommand {
   throw new UsageError(`Unknown auth command: ${authCommand}`);
 }
 
+function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand === undefined || subcommand === 'list') {
+    if (args.length > 0) {
+      throw new UsageError(`Unknown goals list option: ${args[0]}`);
+    }
+    return withBaseUrl({ command: 'goals-list' }, baseUrl);
+  }
+
+  if (subcommand === 'create') {
+    let name: string | undefined;
+    let targetAmount: number | undefined;
+    let targetMonthKey: string | undefined;
+    let apply = false;
+
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+        continue;
+      }
+
+      const [option, inlineValue] = argument.includes('=')
+        ? argument.split(/=(.*)/s, 2)
+        : [argument, undefined];
+      if (
+        option !== '--name'
+        && option !== '--target-amount'
+        && option !== '--target-month'
+      ) {
+        throw new UsageError(`Unknown goals create option: ${argument}`);
+      }
+
+      const value = requireNonEmpty(
+        inlineValue ?? readOptionValue(args, index, option),
+        option,
+      );
+      if (inlineValue === undefined) index += 1;
+
+      if (option === '--name') {
+        name = setOnce(name, parseGoalName(value), option);
+      } else if (option === '--target-amount') {
+        targetAmount = setOnce(
+          targetAmount,
+          parseGoalAmount(value, option),
+          option,
+        );
+      } else {
+        targetMonthKey = setOnce(
+          targetMonthKey,
+          parseGoalMonthKey(value, option),
+          option,
+        );
+      }
+    }
+
+    if (!name) throw new UsageError('goals create requires --name <name>');
+    return withBaseUrl({
+      command: 'goals-create',
+      name,
+      ...(targetAmount === undefined ? {} : { targetAmount }),
+      ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
+      apply,
+    }, baseUrl);
+  }
+
+  if (subcommand === 'update') {
+    let goalId: string | undefined;
+    let name: string | undefined;
+    let targetAmount: number | null | undefined;
+    let targetMonthKey: string | null | undefined;
+    let isAchieved: boolean | undefined;
+    let apply = false;
+
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+        continue;
+      }
+      if (argument === '--clear-target-amount') {
+        if (targetAmount !== undefined) {
+          throw new UsageError(
+            '--target-amount and --clear-target-amount are mutually exclusive',
+          );
+        }
+        targetAmount = null;
+        continue;
+      }
+      if (argument === '--clear-target-month') {
+        if (targetMonthKey !== undefined) {
+          throw new UsageError(
+            '--target-month and --clear-target-month are mutually exclusive',
+          );
+        }
+        targetMonthKey = null;
+        continue;
+      }
+
+      const [option, inlineValue] = argument.includes('=')
+        ? argument.split(/=(.*)/s, 2)
+        : [argument, undefined];
+      if (
+        option !== '--goal-id'
+        && option !== '--name'
+        && option !== '--target-amount'
+        && option !== '--target-month'
+        && option !== '--achieved'
+      ) {
+        throw new UsageError(`Unknown goals update option: ${argument}`);
+      }
+
+      const value = requireNonEmpty(
+        inlineValue ?? readOptionValue(args, index, option),
+        option,
+      );
+      if (inlineValue === undefined) index += 1;
+
+      if (option === '--goal-id') {
+        goalId = setOnce(goalId, parseGoalId(value), option);
+      } else if (option === '--name') {
+        name = setOnce(name, parseGoalName(value), option);
+      } else if (option === '--target-amount') {
+        if (targetAmount !== undefined) {
+          throw new UsageError(
+            '--target-amount and --clear-target-amount are mutually exclusive',
+          );
+        }
+        targetAmount = parseGoalAmount(value, option);
+      } else if (option === '--target-month') {
+        if (targetMonthKey !== undefined) {
+          throw new UsageError(
+            '--target-month and --clear-target-month are mutually exclusive',
+          );
+        }
+        targetMonthKey = parseGoalMonthKey(value, option);
+      } else {
+        isAchieved = setOnce(
+          isAchieved,
+          parseExplicitBoolean(value, option),
+          option,
+        );
+      }
+    }
+
+    if (!goalId) throw new UsageError('goals update requires --goal-id <id>');
+    if (
+      name === undefined
+      && targetAmount === undefined
+      && targetMonthKey === undefined
+      && isAchieved === undefined
+    ) {
+      throw new UsageError('goals update requires at least one field to update');
+    }
+
+    return withBaseUrl({
+      command: 'goals-update',
+      goalId,
+      ...(name === undefined ? {} : { name }),
+      ...(targetAmount === undefined ? {} : { targetAmount }),
+      ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
+      ...(isAchieved === undefined ? {} : { isAchieved }),
+      apply,
+    }, baseUrl);
+  }
+
+  if (subcommand === 'delete') {
+    let goalId: string | undefined;
+    let apply = false;
+
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+        continue;
+      }
+
+      const [option, inlineValue] = argument.includes('=')
+        ? argument.split(/=(.*)/s, 2)
+        : [argument, undefined];
+      if (option !== '--goal-id') {
+        throw new UsageError(`Unknown goals delete option: ${argument}`);
+      }
+
+      const value = requireNonEmpty(
+        inlineValue ?? readOptionValue(args, index, option),
+        option,
+      );
+      if (inlineValue === undefined) index += 1;
+      goalId = setOnce(goalId, parseGoalId(value), option);
+    }
+
+    if (!goalId) throw new UsageError('goals delete requires --goal-id <id>');
+    return withBaseUrl({
+      command: 'goals-delete',
+      goalId,
+      apply,
+    }, baseUrl);
+  }
+
+  throw new UsageError(`Unknown goals command: ${subcommand}`);
+}
+
 function helpTopic(argv: string[]): HelpTopic | undefined {
   const positionals: string[] = [];
 
@@ -259,16 +536,23 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     positionals.push(argument);
   }
 
-  const [command, authCommand] = positionals;
+  const [command, subcommand] = positionals;
   if (command === 'auth') {
     if (
-      authCommand === 'login'
-      || authCommand === 'status'
-      || authCommand === 'logout'
+      subcommand === 'login'
+      || subcommand === 'status'
+      || subcommand === 'logout'
     ) {
-      return `auth-${authCommand}`;
+      return `auth-${subcommand}`;
     }
     return 'auth';
+  }
+  if (command === 'goals') {
+    if (subcommand === 'list') return 'goals-list';
+    if (subcommand === 'create') return 'goals-create';
+    if (subcommand === 'update') return 'goals-update';
+    if (subcommand === 'delete') return 'goals-delete';
+    return 'goals';
   }
   if (
     command === 'categories'
@@ -295,6 +579,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'auth') {
     return parseAuth(args, baseUrl);
+  }
+
+  if (command === 'goals') {
+    return parseGoals(args, baseUrl);
   }
 
   if (command === 'categories') {

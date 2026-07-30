@@ -79,6 +79,10 @@ try {
   assert.match(help, /sloth-agent auth status/);
   assert.match(help, /sloth-agent auth logout/);
   assert.match(help, /sloth-agent transactions/);
+  assert.match(help, /sloth-agent joint-budget-settings/);
+  assert.match(help, /sloth-agent goals create/);
+  assert.match(help, /sloth-agent goals update/);
+  assert.match(help, /sloth-agent goals delete/);
 
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
@@ -91,6 +95,15 @@ try {
       /Sloth Money → Transactions/,
       /Assignments do not create a separate list\./,
     ]],
+    [['joint-budget-settings', '--help'], [
+      /--include-shared-personal-transactions=true/,
+      /Without --apply/,
+      /read-only/,
+    ]],
+    [['goals', 'list', '--help'], [/No filters or singular get/]],
+    [['goals', 'create', '--help'], [/--name NAME\s+Required/]],
+    [['goals', 'update', '--help'], [/--clear-target-amount/]],
+    [['goals', 'delete', '--help'], [/removes its goal drift history/]],
     [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
   ];
   for (const [args, expectedPatterns] of commandHelpCases) {

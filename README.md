@@ -100,6 +100,8 @@ sloth-agent categories --help
 sloth-agent transactions --help
 sloth-agent assign --help
 sloth-agent joint-budget-settings --help
+sloth-agent goals create --help
+sloth-agent goals update --help
 sloth-agent ask-partner --help
 ```
 
@@ -172,6 +174,45 @@ query. Assignments do not create a separate list.
 
 ### Other workflows
 
+List your goals:
+
+```bash
+sloth-agent goals
+```
+
+Goal writes are previews unless `--apply` is present:
+
+```bash
+sloth-agent goals create \
+  --name "Emergency fund" \
+  --target-amount 12000 \
+  --target-month 2027-06
+
+sloth-agent goals create \
+  --name "Emergency fund" \
+  --target-amount 12000 \
+  --target-month 2027-06 \
+  --apply
+```
+
+Use the `id` from list or create output to update or delete a goal:
+
+```bash
+sloth-agent goals update \
+  --goal-id goal-id \
+  --clear-target-amount \
+  --target-month 2027-12 \
+  --achieved=false \
+  --apply
+
+sloth-agent goals delete --goal-id goal-id --apply
+```
+
+Updates are partial. Use `--clear-target-amount` or `--clear-target-month` to
+remove an optional value. Marking a goal achieved removes its forecast
+assignment. Deleting a goal also removes its forecast assignments and drift
+history. Goal sharing remains app-managed.
+
 Read uncategorised contributions to the joint budget:
 
 ```bash
@@ -219,7 +260,7 @@ Command results are JSON on stdout. Diagnostics are written to stderr.
 | --- | --- |
 | `0` | Success |
 | `1` | API, network, credential-store, response-validation, or partial assignment failure |
-| `2` | Invalid command, option, URL, date, auth input, or assignment input |
+| `2` | Invalid command, option, URL, date, auth input, goal input, or assignment input |
 | `3` | No credential or native secure storage is unavailable |
 
 Assignment writes are best-effort. A response containing any failed assignment

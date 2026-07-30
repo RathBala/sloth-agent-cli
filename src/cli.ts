@@ -63,11 +63,18 @@ export function usageText(): string {
     '    [--account-id ID] [--category-id ID] [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent joint-budget-settings [--include-shared-personal-transactions=true|false] [--apply]',
+    '  sloth-agent goals [list] [--base-url URL]',
+    '  sloth-agent goals create --name NAME [--target-amount AMOUNT]',
+    '    [--target-month YYYY-MM] [--apply] [--base-url URL]',
+    '  sloth-agent goals update --goal-id ID [fields] [--apply] [--base-url URL]',
+    '  sloth-agent goals delete --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent ask-partner --transaction-ref REF [--base-url URL]',
     '',
     'Help:',
     '  Run sloth-agent <command> --help for options, inputs, output, and examples.',
-    '  Auth subcommands also have help, for example sloth-agent auth login --help.',
+    '  Auth and goal subcommands also have help, for example:',
+    '  sloth-agent auth login --help',
+    '  sloth-agent goals update --help',
     '',
     'Global options:',
     '  -h, --help       Show top-level or command-specific help',
@@ -350,6 +357,146 @@ export function jointBudgetSettingsHelpText(): string {
   ].join('\n');
 }
 
+export function goalsHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals',
+    '',
+    'List, create, update, or delete your savings goals.',
+    '',
+    'Commands:',
+    '  sloth-agent goals list      List goals; "sloth-agent goals" is equivalent.',
+    '  sloth-agent goals create    Preview or create a goal.',
+    '  sloth-agent goals update    Preview or update selected goal fields.',
+    '  sloth-agent goals delete    Preview or permanently delete a goal.',
+    '',
+    'Help:',
+    '  Run sloth-agent goals <command> --help for command-specific details.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function goalsListHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals list',
+    '',
+    'List your goals in their display order.',
+    '',
+    'Usage:',
+    '  sloth-agent goals [list] [--base-url URL]',
+    '',
+    'Options:',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Constraints:',
+    '  No filters or singular get are supported.',
+    '  This command is read-only.',
+    '',
+    'Output:',
+    '  JSON containing currency and goals. Each goal contains id, name,',
+    '  targetAmount, targetMonthKey, isAchieved, and sharedWithPartner.',
+  ].join('\n');
+}
+
+export function goalsCreateHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals create',
+    '',
+    'Preview or create a goal.',
+    '',
+    'Usage:',
+    '  sloth-agent goals create --name NAME [options]',
+    '',
+    'Options:',
+    '  --name NAME                 Required. Goal name, 1 to 200 characters.',
+    '  --target-amount AMOUNT      Optional. Positive major-unit amount with up to 2 decimals.',
+    '  --target-month YYYY-MM      Optional. Target calendar month.',
+    '  --apply                     Optional. Create the goal in Sloth Money.',
+    '  --base-url URL              Optional. Override the API origin.',
+    '  -h, --help                  Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Safety:',
+    '  Without --apply, the command returns a dry-run preview and does not write.',
+    '  New goals are private to the owner and appended to the existing goal order.',
+    '',
+    'Example:',
+    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000',
+    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000 --apply',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, endpoint, and payload.',
+    '  Apply mode returns the persisted goal and currency from the 201 response.',
+  ].join('\n');
+}
+
+export function goalsUpdateHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals update',
+    '',
+    'Preview or partially update a goal.',
+    '',
+    'Usage:',
+    '  sloth-agent goals update --goal-id ID [fields] [--apply] [--base-url URL]',
+    '',
+    'Options:',
+    '  --goal-id ID                 Required. Goal ID from goals list or create output.',
+    '  --name NAME                  Optional. Replacement name, 1 to 200 characters.',
+    '  --target-amount AMOUNT       Optional. Positive amount with up to 2 decimals.',
+    '  --clear-target-amount        Optional. Remove the target amount.',
+    '  --target-month YYYY-MM       Optional. Replace the target month.',
+    '  --clear-target-month         Optional. Remove the target month.',
+    '  --achieved=true|false        Optional. Mark the goal achieved or active.',
+    '  --apply                      Optional. Write the partial update.',
+    '  --base-url URL               Optional. Override the API origin.',
+    '  -h, --help                   Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Constraints:',
+    '  Provide at least one field to update.',
+    '  Set and clear options for the same field are mutually exclusive.',
+    '  Marking a goal achieved removes its forecast assignment.',
+    '  Marking it active again does not restore the previous assignment.',
+    '  Sharing remains app-managed. Updates to an already shared goal remain visible',
+    '  to the connected partner.',
+    '',
+    'Safety:',
+    '  Without --apply, the command returns a dry-run preview and does not write.',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, endpoint, and payload.',
+    '  Apply mode returns the complete persisted goal and currency.',
+  ].join('\n');
+}
+
+export function goalsDeleteHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals delete',
+    '',
+    'Preview or permanently delete a goal.',
+    '',
+    'Usage:',
+    '  sloth-agent goals delete --goal-id ID [--apply] [--base-url URL]',
+    '',
+    'Options:',
+    '  --goal-id ID    Required. Goal ID from goals list or create output.',
+    '  --apply         Optional. Permanently delete the goal.',
+    '  --base-url URL  Optional. Override the API origin.',
+    '  -h, --help      Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Safety:',
+    '  Without --apply, the command returns a dry-run preview and does not write.',
+    '  Applying deletion also removes the goal from forecast assignments and',
+    '  removes its goal drift history. This operation cannot be undone.',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, and endpoint.',
+    '  Apply mode returns deleted and deletedGoalId.',
+  ].join('\n');
+}
+
 export function askPartnerHelpText(): string {
   return [
     'Sloth Agent CLI — ask-partner',
@@ -388,6 +535,11 @@ export function commandHelpText(topic: HelpTopic): string {
     transactions: transactionsHelpText,
     assign: assignHelpText,
     'joint-budget-settings': jointBudgetSettingsHelpText,
+    goals: goalsHelpText,
+    'goals-list': goalsListHelpText,
+    'goals-create': goalsCreateHelpText,
+    'goals-update': goalsUpdateHelpText,
+    'goals-delete': goalsDeleteHelpText,
     'ask-partner': askPartnerHelpText,
   };
   return helpByTopic[topic]();
@@ -667,6 +819,109 @@ export async function runCli(
     token = credential.token;
     const headers = requestHeaders(token);
 
+    if (parsed.command === 'goals-create') {
+      const endpoint = `${baseUrl}/api/agent/v1/goals`;
+      const payload = {
+        name: parsed.name,
+        ...(parsed.targetAmount === undefined
+          ? {}
+          : { targetAmount: parsed.targetAmount }),
+        ...(parsed.targetMonthKey === undefined
+          ? {}
+          : { targetMonthKey: parsed.targetMonthKey }),
+      };
+      if (!parsed.apply) {
+        writeJson(writeStdout, {
+          dryRun: true,
+          endpoint,
+          method: 'POST',
+          payload,
+        });
+        return 0;
+      }
+
+      const response = await fetchImplementation(endpoint, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        'goals-create',
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'goals-update') {
+      const endpoint = `${baseUrl}/api/agent/v1/goals/${encodeURIComponent(parsed.goalId)}`;
+      const payload = {
+        ...(parsed.name === undefined ? {} : { name: parsed.name }),
+        ...(parsed.targetAmount === undefined
+          ? {}
+          : { targetAmount: parsed.targetAmount }),
+        ...(parsed.targetMonthKey === undefined
+          ? {}
+          : { targetMonthKey: parsed.targetMonthKey }),
+        ...(parsed.isAchieved === undefined
+          ? {}
+          : { isAchieved: parsed.isAchieved }),
+      };
+      if (!parsed.apply) {
+        writeJson(writeStdout, {
+          dryRun: true,
+          endpoint,
+          method: 'PATCH',
+          payload,
+        });
+        return 0;
+      }
+
+      const response = await fetchImplementation(endpoint, {
+        method: 'PATCH',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        'goals-update',
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'goals-delete') {
+      const endpoint = `${baseUrl}/api/agent/v1/goals/${encodeURIComponent(parsed.goalId)}`;
+      if (!parsed.apply) {
+        writeJson(writeStdout, {
+          dryRun: true,
+          endpoint,
+          method: 'DELETE',
+        });
+        return 0;
+      }
+
+      const response = await fetchImplementation(endpoint, {
+        method: 'DELETE',
+        headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        'goals-delete',
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
     if (parsed.command === 'assign') {
       const payload = validateAssignmentPayload(readAssignmentFile(parsed.input));
       const endpoint = `${baseUrl}/api/agent/v1/transaction-assignments`;
@@ -737,6 +992,23 @@ export async function runCli(
         },
       );
       const data = parseApiResponse('ask-partner', await parseHttpResponse(response, token));
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'goals-list') {
+      const response = await fetchImplementation(
+        `${baseUrl}/api/agent/v1/goals`,
+        {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+      const data = parseApiResponse(
+        'goals-list',
+        await parseHttpResponse(response, token),
+      );
       writeJson(writeStdout, data);
       return 0;
     }

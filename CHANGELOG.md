@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add goal listing, creation, partial updates, and deletion through the Agent API.
+- Keep goal writes in preview mode unless `--apply` is provided.
+- Validate goal request options and API responses, including explicit amount and
+  month clearing.
+
 ## 0.3.0 - 2026-07-30
 
 - Read and preview or apply the linked joint-budget shared-transaction setting.

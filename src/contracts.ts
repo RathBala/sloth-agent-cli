@@ -22,7 +22,15 @@ export interface AssignmentPayload {
   assignments: AgentAssignment[];
 }
 
-type ApiCommand = 'categories' | 'transactions' | 'assign' | 'ask-partner';
+type ApiCommand =
+  | 'categories'
+  | 'transactions'
+  | 'assign'
+  | 'ask-partner'
+  | 'goals-list'
+  | 'goals-create'
+  | 'goals-update'
+  | 'goals-delete';
 type JsonObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is JsonObject {
@@ -313,6 +321,75 @@ function isPartnerResponse(value: unknown): boolean {
   );
 }
 
+function hasOnlyFields(value: JsonObject, fields: readonly string[]): boolean {
+  const allowed = new Set(fields);
+  return Object.keys(value).every((key) => allowed.has(key));
+}
+
+function isGoal(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, [
+      'id',
+      'name',
+      'targetAmount',
+      'targetMonthKey',
+      'isAchieved',
+      'sharedWithPartner',
+    ])
+    && typeof value.id === 'string'
+    && value.id.trim().length > 0
+    && typeof value.name === 'string'
+    && value.name.trim().length > 0
+    && (
+      value.targetAmount === null
+      || (typeof value.targetAmount === 'number' && Number.isFinite(value.targetAmount))
+    )
+    && (
+      value.targetMonthKey === null
+      || (
+        typeof value.targetMonthKey === 'string'
+        && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.targetMonthKey)
+      )
+    )
+    && typeof value.isAchieved === 'boolean'
+    && typeof value.sharedWithPartner === 'boolean'
+  );
+}
+
+function isCurrency(value: unknown): boolean {
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
+}
+
+function isGoalsResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['currency', 'goals'])
+    && isCurrency(value.currency)
+    && Array.isArray(value.goals)
+    && value.goals.every(isGoal)
+  );
+}
+
+function isGoalMutationResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['currency', 'goal'])
+    && isCurrency(value.currency)
+    && isGoal(value.goal)
+  );
+}
+
+function isGoalDeleteResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['deleted', 'deletedGoalId'])
+    && value.deleted === true
+    && typeof value.deletedGoalId === 'string'
+    && value.deletedGoalId.trim().length > 0
+  );
+}
+
 export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
   const valid = command === 'categories'
     ? isCategoryResponse(value)
@@ -320,7 +397,13 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
       ? isTransactionsResponse(value)
       : command === 'assign'
         ? isAssignmentResponse(value)
-        : isPartnerResponse(value);
+        : command === 'ask-partner'
+          ? isPartnerResponse(value)
+          : command === 'goals-list'
+            ? isGoalsResponse(value)
+            : command === 'goals-delete'
+              ? isGoalDeleteResponse(value)
+              : isGoalMutationResponse(value);
 
   if (!valid) {
     const label = command === 'assign' ? 'assignment' : command;

@@ -50,3 +50,27 @@ export const agentApiV1ExplanationResponse = {
   expiresAt: '2026-07-21T10:00:00.000Z',
   status: 'open',
 } as const;
+
+export const agentApiV1Goal = {
+  id: 'goal-1',
+  name: 'Emergency fund',
+  targetAmount: 12_000,
+  targetMonthKey: '2027-06',
+  isAchieved: false,
+  sharedWithPartner: false,
+} as const;
+
+export const agentApiV1GoalsResponse = {
+  currency: 'GBP',
+  goals: [agentApiV1Goal],
+} as const;
+
+export const agentApiV1GoalMutationResponse = {
+  currency: 'GBP',
+  goal: agentApiV1Goal,
+} as const;
+
+export const agentApiV1GoalDeleteResponse = {
+  deleted: true,
+  deletedGoalId: 'goal-1',
+} as const;

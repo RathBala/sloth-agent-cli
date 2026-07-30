@@ -17,6 +17,8 @@ describe('CLI arguments', () => {
       parseArgs(['transactions', '--help']),
       parseArgs(['assign', '--help']),
       parseArgs(['joint-budget-settings', '--help']),
+      parseArgs(['goals', '--help']),
+      parseArgs(['goals', 'list', '--help']),
       parseArgs(['ask-partner', '--help']),
     ]).toEqual([
       { command: 'help', topic: 'auth' },
@@ -27,6 +29,8 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'transactions' },
       { command: 'help', topic: 'assign' },
       { command: 'help', topic: 'joint-budget-settings' },
+      { command: 'help', topic: 'goals' },
+      { command: 'help', topic: 'goals-list' },
       { command: 'help', topic: 'ask-partner' },
     ]);
     expect(parseArgs(['categories', '--help', '--base-url'])).toEqual({
@@ -44,6 +48,153 @@ describe('CLI arguments', () => {
       topic: 'auth-login',
     });
     expect(parseArgs(['--version'])).toEqual({ command: 'version' });
+  });
+
+  it('parses both goal list forms', () => {
+    expect(parseArgs(['goals'])).toEqual({ command: 'goals-list' });
+    expect(parseArgs(['goals', 'list'])).toEqual({ command: 'goals-list' });
+  });
+
+  it('parses goal creation options with preview as the default', () => {
+    expect(parseArgs([
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
+      '--target-amount=12000.50',
+      '--target-month',
+      '2027-06',
+    ])).toEqual({
+      command: 'goals-create',
+      name: 'Emergency fund',
+      targetAmount: 12_000.5,
+      targetMonthKey: '2027-06',
+      apply: false,
+    });
+
+    expect(parseArgs([
+      'goals',
+      'create',
+      '--name=Emergency fund',
+      '--apply',
+    ])).toEqual({
+      command: 'goals-create',
+      name: 'Emergency fund',
+      apply: true,
+    });
+  });
+
+  it('parses goal updates with explicit set and clear operations', () => {
+    expect(parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+      '--name=Six-month emergency fund',
+      '--clear-target-amount',
+      '--target-month',
+      '2027-12',
+      '--achieved=false',
+      '--apply',
+    ])).toEqual({
+      command: 'goals-update',
+      goalId: 'goal-1',
+      name: 'Six-month emergency fund',
+      targetAmount: null,
+      targetMonthKey: '2027-12',
+      isAchieved: false,
+      apply: true,
+    });
+
+    expect(parseArgs([
+      'goals',
+      'update',
+      '--goal-id=goal-1',
+      '--target-amount',
+      '15000.25',
+      '--clear-target-month',
+    ])).toEqual({
+      command: 'goals-update',
+      goalId: 'goal-1',
+      targetAmount: 15_000.25,
+      targetMonthKey: null,
+      apply: false,
+    });
+  });
+
+  it('parses goal deletion with preview as the default', () => {
+    expect(parseArgs([
+      'goals',
+      'delete',
+      '--goal-id=goal-1',
+    ])).toEqual({
+      command: 'goals-delete',
+      goalId: 'goal-1',
+      apply: false,
+    });
+
+    expect(parseArgs([
+      'goals',
+      'delete',
+      '--goal-id',
+      'goal-1',
+      '--apply',
+    ])).toEqual({
+      command: 'goals-delete',
+      goalId: 'goal-1',
+      apply: true,
+    });
+  });
+
+  it('rejects incomplete or ambiguous goal writes', () => {
+    expect(() => parseArgs([
+      'goals',
+      'create',
+      '--target-amount',
+      '12000',
+    ])).toThrow(/requires --name/);
+    expect(() => parseArgs([
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
+      '--target-amount',
+      '10.001',
+    ])).toThrow(/two decimal places/);
+    expect(() => parseArgs([
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
+      '--target-month',
+      '2027-13',
+    ])).toThrow(/valid YYYY-MM month/);
+    expect(() => parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+    ])).toThrow(/at least one field/);
+    expect(() => parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+      '--target-amount',
+      '12000',
+      '--clear-target-amount',
+    ])).toThrow(/mutually exclusive/);
+    expect(() => parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+      '--achieved=yes',
+    ])).toThrow(/true or false/);
+    expect(() => parseArgs(['goals', 'get', '--goal-id', 'goal-1']))
+      .toThrow(/Unknown goals command/);
+    expect(() => parseArgs(['goals', 'delete']))
+      .toThrow(/requires --goal-id/);
   });
 
   it('parses transaction filters and validates their values', () => {

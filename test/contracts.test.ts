@@ -9,6 +9,9 @@ import {
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
   agentApiV1ExplanationResponse,
+  agentApiV1GoalDeleteResponse,
+  agentApiV1GoalMutationResponse,
+  agentApiV1GoalsResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -93,6 +96,22 @@ describe('API response validation', () => {
       'ask-partner',
       agentApiV1ExplanationResponse,
     )).toBe(agentApiV1ExplanationResponse);
+    expect(parseApiResponse(
+      'goals-list',
+      agentApiV1GoalsResponse,
+    )).toBe(agentApiV1GoalsResponse);
+    expect(parseApiResponse(
+      'goals-create',
+      agentApiV1GoalMutationResponse,
+    )).toBe(agentApiV1GoalMutationResponse);
+    expect(parseApiResponse(
+      'goals-update',
+      agentApiV1GoalMutationResponse,
+    )).toBe(agentApiV1GoalMutationResponse);
+    expect(parseApiResponse(
+      'goals-delete',
+      agentApiV1GoalDeleteResponse,
+    )).toBe(agentApiV1GoalDeleteResponse);
   });
 
   it('rejects malformed success responses', () => {
@@ -106,5 +125,17 @@ describe('API response validation', () => {
       expiresAt: 'tomorrow',
       status: 'open',
     })).toThrow(/invalid ask-partner response/i);
+    expect(() => parseApiResponse('goals-list', {
+      currency: 'GBP',
+      goals: [{ ...agentApiV1GoalMutationResponse.goal, targetAmount: '12000' }],
+    })).toThrow(/invalid goals-list response/i);
+    expect(() => parseApiResponse('goals-update', {
+      currency: 'GBP',
+      goal: { ...agentApiV1GoalMutationResponse.goal, unexpected: true },
+    })).toThrow(/invalid goals-update response/i);
+    expect(() => parseApiResponse('goals-delete', {
+      deleted: false,
+      deletedGoalId: 'goal-1',
+    })).toThrow(/invalid goals-delete response/i);
   });
 });

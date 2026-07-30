@@ -12,6 +12,9 @@ import {
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
   agentApiV1ExplanationResponse,
+  agentApiV1GoalDeleteResponse,
+  agentApiV1GoalMutationResponse,
+  agentApiV1GoalsResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -119,6 +122,42 @@ describe('CLI execution', () => {
         '--include-shared-personal-transactions=true',
         'Without --apply',
         'read-only',
+      ]],
+      [['goals', '--help'], [
+        'goals list',
+        'goals create',
+        'goals update',
+        'goals delete',
+      ]],
+      [['goals', 'list', '--help'], [
+        'read-only',
+        'No filters',
+        'currency',
+        'goals',
+      ]],
+      [['goals', 'create', '--help'], [
+        '--name NAME',
+        'Required',
+        '--target-amount AMOUNT',
+        '--target-month YYYY-MM',
+        'Without --apply',
+        '201',
+      ]],
+      [['goals', 'update', '--help'], [
+        '--goal-id ID',
+        'Required',
+        '--clear-target-amount',
+        '--clear-target-month',
+        '--achieved=true|false',
+        'at least one field',
+        'Without --apply',
+      ]],
+      [['goals', 'delete', '--help'], [
+        '--goal-id ID',
+        'Required',
+        'forecast assignments',
+        'drift history',
+        'Without --apply',
       ]],
       [['ask-partner', '--help'], [
         '--transaction-ref REF',
@@ -360,6 +399,187 @@ describe('CLI execution', () => {
     );
     expect(JSON.parse(io.stdout.join(''))).toEqual(
       agentApiV1CategoriesResponse,
+    );
+  });
+
+  it('lists goals as validated JSON', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1GoalsResponse,
+    ));
+
+    expect(await runCli(['goals'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1GoalsResponse);
+    expect(io.stderr).toEqual([]);
+  });
+
+  it('previews and applies goal creation', async () => {
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    const argv = [
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
+      '--target-amount',
+      '12000',
+      '--target-month',
+      '2027-06',
+    ];
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: previewFetch,
+      ...previewIo,
+    })).toBe(0);
+
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals',
+      method: 'POST',
+      payload: {
+        name: 'Emergency fund',
+        targetAmount: 12_000,
+        targetMonthKey: '2027-06',
+      },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1GoalMutationResponse,
+      201,
+    ));
+    expect(await runCli([...argv, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Emergency fund',
+          targetAmount: 12_000,
+          targetMonthKey: '2027-06',
+        }),
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
+      agentApiV1GoalMutationResponse,
+    );
+  });
+
+  it('previews and applies a partial goal update', async () => {
+    const argv = [
+      'goals',
+      'update',
+      '--goal-id',
+      'goal 1',
+      '--clear-target-amount',
+      '--target-month',
+      '2027-12',
+      '--achieved=false',
+    ];
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: previewFetch,
+      ...previewIo,
+    })).toBe(0);
+
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
+      method: 'PATCH',
+      payload: {
+        targetAmount: null,
+        targetMonthKey: '2027-12',
+        isAchieved: false,
+      },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1GoalMutationResponse,
+    ));
+    expect(await runCli([...argv, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          targetAmount: null,
+          targetMonthKey: '2027-12',
+          isAchieved: false,
+        }),
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
+      agentApiV1GoalMutationResponse,
+    );
+  });
+
+  it('previews and applies goal deletion', async () => {
+    const argv = [
+      'goals',
+      'delete',
+      '--goal-id',
+      'goal 1',
+    ];
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: previewFetch,
+      ...previewIo,
+    })).toBe(0);
+
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
+      method: 'DELETE',
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1GoalDeleteResponse,
+    ));
+    expect(await runCli([...argv, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
+      expect.objectContaining({
+        method: 'DELETE',
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
+      agentApiV1GoalDeleteResponse,
     );
   });
 
