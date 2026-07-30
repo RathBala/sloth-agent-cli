@@ -180,8 +180,15 @@ function parseGoalName(value: string): string {
 
 function parseGoalId(value: string): string {
   const goalId = value.trim();
-  if (goalId.length > 500) {
-    throw new UsageError('--goal-id must be at most 500 characters');
+  if (
+    goalId.length > 500
+    || goalId.includes('/')
+    || Array.from(goalId).some((character) => {
+      const codePoint = character.codePointAt(0);
+      return codePoint !== undefined && (codePoint < 32 || codePoint === 127);
+    })
+  ) {
+    throw new UsageError('--goal-id must be a valid goal document ID');
   }
   return goalId;
 }

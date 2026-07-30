@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to read and categorise transactions through the
+Use your own agent to manage goals and categorise transactions through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install

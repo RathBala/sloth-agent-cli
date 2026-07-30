@@ -195,6 +195,12 @@ describe('CLI arguments', () => {
       .toThrow(/Unknown goals command/);
     expect(() => parseArgs(['goals', 'delete']))
       .toThrow(/requires --goal-id/);
+    expect(() => parseArgs([
+      'goals',
+      'delete',
+      '--goal-id',
+      'nested/goal/id',
+    ])).toThrow(/valid goal document ID/);
   });
 
   it('parses transaction filters and validates their values', () => {
