@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 - 2026-07-30
+
+- Read and preview or apply the linked joint-budget shared-transaction setting.
+- Filter transactions by personal or joint assignment scope.
+- Categorise shared personal-account contributions against the joint catalogue
+  with `assignmentScope: "joint"`.
+- Validate the nested `jointBudgetContribution` response contract.
+
 ## 0.2.1 - 2026-07-25
 
 - Explain that categories are parents and line items are scoped children.

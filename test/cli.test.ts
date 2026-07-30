@@ -96,17 +96,35 @@ describe('CLI execution', () => {
         'read-only',
       ]],
       [['assign', '--help'], [
+        'An assignment categorises an existing transaction e.g. assigning category Groceries to a transaction.',
         '--input FILE',
         'Required',
         'Without --apply',
+        'does not contact Sloth Money',
+        'A successful preview does not guarantee that applying it will succeed.',
         'categorySplits',
         'non-empty array or null',
         'lineItemId is optional',
+        'PASTE_THE_EXACT_TRANSACTION_REF_HERE',
+        'These are placeholders.',
+        'sloth-agent categories',
+        'sloth-agent transactions --uncategorized --limit 50',
+        'sloth-agent transactions --limit 50',
+        'Sloth Money → Transactions',
+        'succeeded and failed',
+        'Assignments do not create a separate list.',
         '1 to 100',
+      ]],
+      [['joint-budget-settings', '--help'], [
+        '--include-shared-personal-transactions=true',
+        'Without --apply',
+        'read-only',
       ]],
       [['ask-partner', '--help'], [
         '--transaction-ref REF',
         'Required',
+        'PASTE_THE_EXACT_TRANSACTION_REF_HERE',
+        'placeholder',
         'creates the request immediately',
         'no preview mode',
       ]],
@@ -540,6 +558,8 @@ describe('CLI execution', () => {
       'account-1',
       '--category-id',
       'groceries',
+      '--assignment-scope',
+      'joint',
       '--cursor',
       'cursor-1',
     ], {
@@ -549,8 +569,64 @@ describe('CLI execution', () => {
     })).toBe(0);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&cursor=cursor-1',
+      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&assignmentScope=joint&cursor=cursor-1',
       expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('reads, previews, and applies joint budget settings with JSON-only stdout', async () => {
+    const readIo = createIo();
+    const previewIo = createIo();
+    const applyIo = createIo();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        includeSharedPersonalTransactions: false,
+        updatedAt: null,
+        updatedBy: null,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        includeSharedPersonalTransactions: true,
+        updatedAt: '2026-07-30T12:00:00.000Z',
+        updatedBy: 'user-1',
+      }));
+
+    expect(await runCli(['joint-budget-settings'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...readIo,
+    })).toBe(0);
+    expect(JSON.parse(readIo.stdout.join(''))).toMatchObject({
+      includeSharedPersonalTransactions: false,
+    });
+
+    expect(await runCli([
+      'joint-budget-settings',
+      '--include-shared-personal-transactions=true',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...previewIo,
+    })).toBe(0);
+    expect(JSON.parse(previewIo.stdout.join(''))).toMatchObject({
+      dryRun: true,
+      payload: { includeSharedPersonalTransactions: true },
+    });
+
+    expect(await runCli([
+      'joint-budget-settings',
+      '--include-shared-personal-transactions=true',
+      '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...applyIo,
+    })).toBe(0);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/joint-budget-settings',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ includeSharedPersonalTransactions: true }),
+      }),
     );
   });
 

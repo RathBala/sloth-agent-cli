@@ -16,6 +16,7 @@ describe('CLI arguments', () => {
       parseArgs(['categories', '--help']),
       parseArgs(['transactions', '--help']),
       parseArgs(['assign', '--help']),
+      parseArgs(['joint-budget-settings', '--help']),
       parseArgs(['ask-partner', '--help']),
     ]).toEqual([
       { command: 'help', topic: 'auth' },
@@ -25,6 +26,7 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'categories' },
       { command: 'help', topic: 'transactions' },
       { command: 'help', topic: 'assign' },
+      { command: 'help', topic: 'joint-budget-settings' },
       { command: 'help', topic: 'ask-partner' },
     ]);
     expect(parseArgs(['categories', '--help', '--base-url'])).toEqual({
@@ -59,6 +61,8 @@ describe('CLI arguments', () => {
       'account-1',
       '--category-id',
       'groceries',
+      '--assignment-scope',
+      'joint',
       '--cursor',
       'cursor-1',
     ])).toEqual({
@@ -71,6 +75,7 @@ describe('CLI arguments', () => {
         q: 'tesco',
         accountId: 'account-1',
         categoryId: 'groceries',
+        assignmentScope: 'joint',
         cursor: 'cursor-1',
       },
     });
@@ -96,6 +101,19 @@ describe('CLI arguments', () => {
     expect(parseArgs(['ask-partner', '--transaction-ref=sloth_txn_123'])).toEqual({
       command: 'ask-partner',
       transactionRef: 'sloth_txn_123',
+    });
+    expect(parseArgs(['joint-budget-settings'])).toEqual({
+      command: 'joint-budget-settings',
+      apply: false,
+    });
+    expect(parseArgs([
+      'joint-budget-settings',
+      '--include-shared-personal-transactions=true',
+      '--apply',
+    ])).toEqual({
+      command: 'joint-budget-settings',
+      includeSharedPersonalTransactions: true,
+      apply: true,
     });
   });
 

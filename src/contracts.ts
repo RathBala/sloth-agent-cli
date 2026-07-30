@@ -11,6 +11,7 @@ export interface AgentCategorySplit {
 
 export interface AgentAssignment {
   transactionRef: string;
+  assignmentScope?: 'personal' | 'joint';
   categoryId?: string | null;
   lineItemId?: string | null;
   categorySplits?: AgentCategorySplit[] | null;
@@ -73,6 +74,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
     assignment,
     new Set([
       'transactionRef',
+      'assignmentScope',
       'categoryId',
       'lineItemId',
       'categorySplits',
@@ -82,6 +84,13 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
   );
 
   requireString(assignment.transactionRef, `${label}.transactionRef`);
+  if (
+    assignment.assignmentScope !== undefined
+    && assignment.assignmentScope !== 'personal'
+    && assignment.assignmentScope !== 'joint'
+  ) {
+    throw new UsageError(`${label}.assignmentScope must be personal or joint`);
+  }
   if (assignment.categoryId !== undefined && assignment.categoryId !== null) {
     requireString(assignment.categoryId, `${label}.categoryId`);
   }
@@ -118,6 +127,9 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
 
   return {
     transactionRef: assignment.transactionRef as string,
+    ...(assignment.assignmentScope !== undefined
+      ? { assignmentScope: assignment.assignmentScope as 'personal' | 'joint' }
+      : {}),
     ...(assignment.categoryId !== undefined ? { categoryId: assignment.categoryId as string | null } : {}),
     ...(assignment.lineItemId !== undefined ? { lineItemId: assignment.lineItemId as string | null } : {}),
     ...(categorySplits !== undefined ? { categorySplits } : {}),
@@ -187,6 +199,30 @@ function isTransaction(value: unknown): boolean {
     && (value.lineItemId === null || typeof value.lineItemId === 'string')
     && Array.isArray(value.categorySplits)
     && (
+      value.jointBudgetContribution === null
+      || (
+        isObject(value.jointBudgetContribution)
+        && typeof value.jointBudgetContribution.eligible === 'boolean'
+        && typeof value.jointBudgetContribution.included === 'boolean'
+        && Number.isInteger(value.jointBudgetContribution.amountPence)
+        && Number(value.jointBudgetContribution.amountPence) > 0
+        && (
+          value.jointBudgetContribution.categoryId === null
+          || typeof value.jointBudgetContribution.categoryId === 'string'
+        )
+        && (
+          value.jointBudgetContribution.lineItemId === null
+          || typeof value.jointBudgetContribution.lineItemId === 'string'
+        )
+        && Array.isArray(value.jointBudgetContribution.categorySplits)
+        && (
+          value.jointBudgetContribution.incomeSubtype === null
+          || value.jointBudgetContribution.incomeSubtype === 'pay'
+          || value.jointBudgetContribution.incomeSubtype === 'interest'
+        )
+      )
+    )
+    && (
       value.incomeSubtype === null
       || value.incomeSubtype === 'pay'
       || value.incomeSubtype === 'interest'
@@ -207,7 +243,11 @@ function isAssignmentResponse(value: unknown): boolean {
   return (
     isObject(value)
     && Array.isArray(value.succeeded)
-    && value.succeeded.every((item) => isObject(item) && typeof item.transactionRef === 'string')
+    && value.succeeded.every((item) => (
+      isObject(item)
+      && typeof item.transactionRef === 'string'
+      && (item.assignmentScope === 'personal' || item.assignmentScope === 'joint')
+    ))
     && Array.isArray(value.failed)
     && value.failed.every((item) => (
       isObject(item)
@@ -215,6 +255,32 @@ function isAssignmentResponse(value: unknown): boolean {
       && (item.transactionRef === undefined || typeof item.transactionRef === 'string')
     ))
   );
+}
+
+export interface JointBudgetSettingsResponse {
+  includeSharedPersonalTransactions: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export function validateJointBudgetSettingsResponse(
+  value: unknown,
+): JointBudgetSettingsResponse {
+  if (
+    !isObject(value)
+    || Object.keys(value).some((key) => !new Set([
+      'includeSharedPersonalTransactions',
+      'updatedAt',
+      'updatedBy',
+    ]).has(key))
+    || typeof value.includeSharedPersonalTransactions !== 'boolean'
+    || (value.updatedAt !== null && !isIsoDateTime(value.updatedAt))
+    || (value.updatedBy !== null && typeof value.updatedBy !== 'string')
+  ) {
+    throw new ApiError('Invalid joint budget settings response from the Agent API');
+  }
+
+  return value as unknown as JointBudgetSettingsResponse;
 }
 
 function isHttpUrl(value: unknown): boolean {

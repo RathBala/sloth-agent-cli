@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.2.1 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.3.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -88,6 +88,9 @@ remotely in **Sloth Money Settings > Developer access**.
 
 ## Commands
 
+An assignment categorises an existing transaction e.g. assigning category
+Groceries to a transaction.
+
 Every command has built-in reference documentation covering its inputs,
 options, output, and examples:
 
@@ -96,10 +99,13 @@ sloth-agent auth login --help
 sloth-agent categories --help
 sloth-agent transactions --help
 sloth-agent assign --help
+sloth-agent joint-budget-settings --help
 sloth-agent ask-partner --help
 ```
 
-Read categories and available budget line items:
+### Categorise a transaction end to end
+
+1. Read categories and available budget line items:
 
 ```bash
 sloth-agent categories
@@ -111,52 +117,90 @@ Line-item names such as `Other` may repeat, so preserve the full choice as
 matches the transaction scope. For example, `Bills → Other` and `Subscriptions
 → Other` are different choices.
 
-Read uncategorised transactions:
+2. Read uncategorised transactions:
 
 ```bash
 sloth-agent transactions --uncategorized --limit 50
 ```
 
-Search a date range:
-
-```bash
-sloth-agent transactions \
-  --q "tesco" \
-  --start-date 2026-05-01 \
-  --end-date 2026-05-31
-```
-
-Preview an assignment file without writing:
-
-```bash
-sloth-agent assign --input assignments.json
-```
-
-Apply the same file:
-
-```bash
-sloth-agent assign --input assignments.json --apply
-```
-
-Create a partner clarification link:
-
-```bash
-sloth-agent ask-partner --transaction-ref sloth_txn_...
-```
-
-Assignment files use the Agent API request shape:
+3. Copy the exact `transactionRef` for the transaction and a `categoryId` from
+   the earlier outputs into `assignments.json`:
 
 ```json
 {
   "assignments": [
     {
-      "transactionRef": "sloth_txn_...",
-      "categoryId": "groceries",
-      "lineItemId": "weekly"
+      "transactionRef": "PASTE_THE_EXACT_TRANSACTION_REF_HERE",
+      "categoryId": "PASTE_A_CATEGORY_ID_HERE"
     }
   ]
 }
 ```
+
+These are placeholders. Do not submit the example values.
+
+4. Preview the assignment without writing:
+
+```bash
+sloth-agent assign --input assignments.json
+```
+
+Without `--apply`, the CLI checks that the file is valid and returns the
+payload it would send. It does not contact Sloth Money, verify the
+`transactionRef` or category values, or write anything. A successful preview
+does not guarantee that applying it will succeed.
+
+5. Apply the same file:
+
+```bash
+sloth-agent assign --input assignments.json --apply
+```
+
+Inspect every item in the returned `succeeded` and `failed` arrays.
+
+6. Check the result. Successful assignments update the category and optional
+   budget line item on the original transaction. See the result in **Sloth
+   Money → Transactions**, or re-run the original transaction query without
+   `--uncategorized` and inspect its category fields:
+
+```bash
+sloth-agent transactions --limit 50
+```
+
+The transaction should also disappear from the matching `--uncategorized`
+query. Assignments do not create a separate list.
+
+### Other workflows
+
+Read uncategorised contributions to the joint budget:
+
+```bash
+sloth-agent transactions --assignment-scope joint --uncategorized
+```
+
+Set `"assignmentScope": "joint"` on an assignment to categorise the eligible
+shared portion for the joint budget.
+
+Set whether the shared portions of personal-account transactions count in the
+linked joint budget. The first command previews; the second applies:
+
+```bash
+sloth-agent joint-budget-settings \
+  --include-shared-personal-transactions=true
+sloth-agent joint-budget-settings \
+  --include-shared-personal-transactions=true \
+  --apply
+```
+
+Create a partner clarification link:
+
+```bash
+sloth-agent ask-partner \
+  --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE
+```
+
+The value shown is a placeholder. Copy the exact `transactionRef` from
+`sloth-agent transactions` output.
 
 ## Configuration and output
 

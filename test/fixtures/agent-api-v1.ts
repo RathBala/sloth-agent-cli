@@ -23,6 +23,7 @@ export const agentApiV1TransactionsResponse = {
     lineItemId: null,
     categorySplits: [],
     incomeSubtype: null,
+    jointBudgetContribution: null,
   }],
   nextCursor: null,
 } as const;
@@ -34,6 +35,7 @@ export const agentApiV1AssignmentResponse = {
     lineItemId: null,
     categorySplits: [{ categoryId: 'groceries', amountPence: 2000 }],
     incomeSubtype: null,
+    assignmentScope: 'personal',
   }],
   failed: [{
     transactionRef: 'bad-ref',

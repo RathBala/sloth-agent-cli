@@ -81,18 +81,26 @@ try {
   assert.match(help, /sloth-agent transactions/);
 
   const commandHelpCases = [
-    [['auth', 'login', '--help'], /hidden prompt/],
-    [['categories', '--help'], /A category is the broader parent\./],
-    [['transactions', '--help'], /1 to 200/],
-    [['assign', '--help'], /Without --apply/],
-    [['ask-partner', '--help'], /--transaction-ref REF\s+Required/],
+    [['auth', 'login', '--help'], [/hidden prompt/]],
+    [['categories', '--help'], [/A category is the broader parent\./]],
+    [['transactions', '--help'], [/1 to 200/]],
+    [['assign', '--help'], [
+      /An assignment categorises an existing transaction/,
+      /PASTE_THE_EXACT_TRANSACTION_REF_HERE/,
+      /does not contact Sloth Money/,
+      /Sloth Money → Transactions/,
+      /Assignments do not create a separate list\./,
+    ]],
+    [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
   ];
-  for (const [args, expected] of commandHelpCases) {
+  for (const [args, expectedPatterns] of commandHelpCases) {
     const commandHelp = execFileSync(executable, args, {
       encoding: 'utf8',
       ...commandOptions,
     });
-    assert.match(commandHelp, expected);
+    for (const expected of expectedPatterns) {
+      assert.match(commandHelp, expected);
+    }
   }
 
   fs.rmSync(

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseApiResponse,
   validateAssignmentPayload,
+  validateJointBudgetSettingsResponse,
 } from '../src/contracts.js';
 import {
   agentApiV1AssignmentResponse,
@@ -23,7 +24,7 @@ describe('assignment payload validation', () => {
             { categoryId: 'shopping', amountPence: 500, lineItemId: 'clothes' },
           ],
         },
-        { transactionRef: 'sloth_txn_3', categoryId: null },
+        { transactionRef: 'sloth_txn_3', assignmentScope: 'joint', categoryId: null },
       ],
     })).toEqual({
       assignments: [
@@ -35,9 +36,26 @@ describe('assignment payload validation', () => {
             { categoryId: 'shopping', amountPence: 500, lineItemId: 'clothes' },
           ],
         },
-        { transactionRef: 'sloth_txn_3', categoryId: null },
+        { transactionRef: 'sloth_txn_3', assignmentScope: 'joint', categoryId: null },
       ],
     });
+  });
+
+  it('validates joint budget settings responses strictly', () => {
+    expect(validateJointBudgetSettingsResponse({
+      includeSharedPersonalTransactions: true,
+      updatedAt: null,
+      updatedBy: null,
+    })).toEqual({
+      includeSharedPersonalTransactions: true,
+      updatedAt: null,
+      updatedBy: null,
+    });
+    expect(() => validateJointBudgetSettingsResponse({
+      includeSharedPersonalTransactions: 'yes',
+      updatedAt: null,
+      updatedBy: null,
+    })).toThrow(/invalid joint budget settings response/i);
   });
 
   it('rejects malformed or ambiguous assignment data', () => {

@@ -10,6 +10,7 @@ import {
 import {
   parseApiResponse,
   validateAssignmentPayload,
+  validateJointBudgetSettingsResponse,
 } from './contracts.js';
 import {
   type CredentialStoreFactory,
@@ -23,7 +24,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.2.1';
+export const CLI_VERSION = '0.3.0';
 const REQUEST_TIMEOUT_MS = 30_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -61,6 +62,7 @@ export function usageText(): string {
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
     '    [--account-id ID] [--category-id ID] [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
+    '  sloth-agent joint-budget-settings [--include-shared-personal-transactions=true|false] [--apply]',
     '  sloth-agent ask-partner --transaction-ref REF [--base-url URL]',
     '',
     'Help:',
@@ -229,6 +231,7 @@ export function transactionsHelpText(): string {
     '  --q TEXT                       Optional. Search transactions by text.',
     '  --account-id ID                Optional. Filter by account ID.',
     '  --category-id ID               Optional. Filter by category ID.',
+    '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
     '  --cursor CURSOR                Optional. Continue from a previous nextCursor.',
     '  --base-url URL                 Optional. Override the API origin.',
     '  -h, --help                     Show this help.',
@@ -245,6 +248,7 @@ export function transactionsHelpText(): string {
     '',
     'Examples:',
     '  sloth-agent transactions --uncategorized --limit 50',
+    '  sloth-agent transactions --assignment-scope joint --uncategorized',
     '  sloth-agent transactions --q "tesco" --start-date 2026-05-01 --end-date 2026-05-31',
   ].join('\n');
 }
@@ -253,6 +257,7 @@ export function assignHelpText(): string {
   return [
     'Sloth Agent CLI — assign',
     '',
+    'An assignment categorises an existing transaction e.g. assigning category Groceries to a transaction.',
     'Validate, preview, or apply category assignments from a JSON file.',
     '',
     'Usage:',
@@ -266,40 +271,82 @@ export function assignHelpText(): string {
     ...API_ORIGIN_HELP_LINES,
     '',
     'Safety:',
-    '  Without --apply, the command validates the file and returns a dry-run preview.',
+    '  Without --apply, the command checks that the file is valid and returns',
+    '  the payload it would send. It does not contact Sloth Money, verify the',
+    '  transactionRef or category values, or write anything.',
+    '  A successful preview does not guarantee that applying it will succeed.',
     '  With --apply, assignments are best-effort; any failed item makes the command',
     '  exit with code 1 while the complete result remains available on stdout.',
     '',
     'Input:',
     '  The top-level object must contain an assignments array.',
     '  Each assignment requires transactionRef and a categoryId or non-empty categorySplits.',
+    '  Copy the exact transactionRef from transactions output and categoryId from',
+    '  categories output. The example values below are placeholders.',
     '  Set categoryId to null to clear an assignment.',
     '  lineItemId is optional and accepts a non-empty string or null.',
     '  categorySplits is optional and accepts a non-empty array or null.',
     '  Each split requires categoryId and a positive integer amountPence;',
     '  a split lineItemId is optional.',
     '  incomeSubtype is optional and accepts "pay", "interest", or null.',
+    '  assignmentScope is optional and accepts "personal" or "joint".',
     '',
-    'Commands:',
+    'Workflow:',
+    '  sloth-agent categories',
+    '  sloth-agent transactions --uncategorized --limit 50',
     '  sloth-agent assign --input assignments.json          Preview only',
     '  sloth-agent assign --input assignments.json --apply  Write assignments',
+    '  sloth-agent transactions --limit 50                  Read back the result',
     '',
     'Example:',
     '  {',
     '    "assignments": [',
-    '      { "transactionRef": "sloth_txn_...", "categoryId": "groceries" },',
     '      {',
-    '        "transactionRef": "sloth_txn_...",',
-    '        "categorySplits": [',
-    '          { "categoryId": "groceries", "amountPence": 2000 }',
-    '        ]',
+    '        "transactionRef": "PASTE_THE_EXACT_TRANSACTION_REF_HERE",',
+    '        "categoryId": "PASTE_A_CATEGORY_ID_HERE"',
     '      }',
     '    ]',
     '  }',
+    '  These are placeholders. Replace both values with exact IDs from CLI output.',
     '',
     'Output:',
     '  Preview mode returns dryRun, endpoint, and the validated payload.',
     '  Apply mode returns succeeded and failed assignment arrays.',
+    '  Successful assignments update the original transaction. See the result in',
+    '  Sloth Money → Transactions or read the transaction again through the CLI.',
+    '  Assignments do not create a separate list.',
+  ].join('\n');
+}
+
+export function jointBudgetSettingsHelpText(): string {
+  return [
+    'Sloth Agent CLI — joint-budget-settings',
+    '',
+    'Read or update whether shared personal transactions count in the linked joint budget.',
+    '',
+    'Usage:',
+    '  sloth-agent joint-budget-settings [options]',
+    '',
+    'Options:',
+    '  --include-shared-personal-transactions=true|false',
+    '                      Optional. Preview the linked setting change.',
+    '  --apply             Optional. Apply the previewed setting change.',
+    '  --base-url URL      Optional. Override the API origin.',
+    '  -h, --help          Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Safety:',
+    '  With no setting option, the command is read-only.',
+    '  Without --apply, a setting option returns a dry-run preview and does not write.',
+    '  --apply requires an explicit true or false setting value.',
+    '',
+    'Examples:',
+    '  sloth-agent joint-budget-settings',
+    '  sloth-agent joint-budget-settings --include-shared-personal-transactions=true',
+    '  sloth-agent joint-budget-settings --include-shared-personal-transactions=true --apply',
+    '',
+    'Output:',
+    '  JSON containing the linked setting, audit metadata, or a dry-run payload.',
   ].join('\n');
 }
 
@@ -322,7 +369,9 @@ export function askPartnerHelpText(): string {
     '  Running this command creates the request immediately. There is no preview mode.',
     '',
     'Example:',
-    '  sloth-agent ask-partner --transaction-ref sloth_txn_...',
+    '  sloth-agent ask-partner --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE',
+    '  The value shown is a placeholder. Copy the exact transactionRef from',
+    '  sloth-agent transactions output.',
     '',
     'Output:',
     '  JSON containing requestId, publicUrl, message, expiresAt, and status.',
@@ -338,6 +387,7 @@ export function commandHelpText(topic: HelpTopic): string {
     categories: categoriesHelpText,
     transactions: transactionsHelpText,
     assign: assignHelpText,
+    'joint-budget-settings': jointBudgetSettingsHelpText,
     'ask-partner': askPartnerHelpText,
   };
   return helpByTopic[topic]();
@@ -440,6 +490,9 @@ function buildTransactionsQuery(
   if (filters.q !== undefined) params.set('q', filters.q);
   if (filters.accountId !== undefined) params.set('accountId', filters.accountId);
   if (filters.categoryId !== undefined) params.set('categoryId', filters.categoryId);
+  if (filters.assignmentScope !== undefined) {
+    params.set('assignmentScope', filters.assignmentScope);
+  }
   if (filters.cursor !== undefined) params.set('cursor', filters.cursor);
   return params.toString();
 }
@@ -633,6 +686,41 @@ export async function runCli(
       const data = parseApiResponse('assign', await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
       return hasFailures(data) ? 1 : 0;
+    }
+
+    if (parsed.command === 'joint-budget-settings') {
+      const endpoint = `${baseUrl}/api/agent/v1/joint-budget-settings`;
+      if (parsed.includeSharedPersonalTransactions !== undefined && !parsed.apply) {
+        writeJson(writeStdout, {
+          dryRun: true,
+          endpoint,
+          payload: {
+            includeSharedPersonalTransactions: parsed.includeSharedPersonalTransactions,
+          },
+        });
+        return 0;
+      }
+
+      const response = await fetchImplementation(endpoint, {
+        method: parsed.apply ? 'PUT' : 'GET',
+        headers: parsed.apply
+          ? { ...headers, 'Content-Type': 'application/json' }
+          : headers,
+        ...(parsed.apply
+          ? {
+              body: JSON.stringify({
+                includeSharedPersonalTransactions:
+                  parsed.includeSharedPersonalTransactions,
+              }),
+            }
+          : {}),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = validateJointBudgetSettingsResponse(
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
     }
 
     if (parsed.command === 'ask-partner') {
