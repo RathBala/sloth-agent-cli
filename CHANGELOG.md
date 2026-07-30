@@ -2,25 +2,25 @@
 
 ## Unreleased
 
-- Add goal listing, creation, partial updates, and deletion through the Agent API.
-- Keep goal writes in preview mode unless `--apply` is provided.
-- Validate goal request options and API responses, including explicit amount and
-  month clearing.
-
 ## 0.3.0 - 2026-07-30
 
+- Add command-specific help for every command and auth subcommand, including
+  required inputs, option constraints, output, examples, and write safety.
+- Explain that categories are parents and line items are scoped children, and
+  that line-item labels may repeat across categories.
+- Clarify local native credential storage and environment-only authentication
+  for containers, CI, and other headless systems.
 - Read and preview or apply the linked joint-budget shared-transaction setting.
 - Filter transactions by personal or joint assignment scope.
 - Categorise shared personal-account contributions against the joint catalogue
   with `assignmentScope: "joint"`.
 - Validate the nested `jointBudgetContribution` response contract.
-
-## 0.2.1 - 2026-07-25
-
-- Explain that categories are parents and line items are scoped children.
-- Document that line-item labels such as `Other` may repeat across categories.
-- Add command-specific help for every command and auth subcommand, including
-  required inputs, option constraints, output, examples, and write safety.
+- Add goal listing, creation, partial updates, and deletion through the Agent
+  API, with goal document ID validation and typed response validation.
+- Keep goal writes in preview mode unless `--apply` is provided, including
+  explicit amount and month clearing.
+- Explain that active shared goal target amounts remain app-managed so balance
+  allocations can be recalculated safely.
 
 ## 0.2.0 - 2026-07-23
 
