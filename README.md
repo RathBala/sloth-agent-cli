@@ -21,8 +21,13 @@ npm exec --yes --package=@slothmoney/agent-cli@0.2.1 -- sloth-agent --help
 ## Authenticate
 
 Create a personal access token in Sloth Money under
-**Settings > Developer access**, then save it in your operating system's
-secure credential store:
+**Settings > Developer access**, then choose the authentication method for
+where the CLI runs.
+
+### Local computer
+
+On an interactive desktop, save the token in your operating system's secure
+credential store:
 
 ```bash
 sloth-agent auth login
@@ -31,36 +36,45 @@ sloth-agent auth login
 The prompt hides the token. The CLI validates it before replacing any
 credential already stored for the selected API origin.
 
-For a non-interactive import, pass the token through stdin or import it from
-the environment:
+### Containers, CI, and headless systems
 
-```bash
-printf '%s' "$SLOTH_AGENT_TOKEN" | sloth-agent auth login --token-stdin
-sloth-agent auth login --from-env
-```
-
-Never put a token in a command argument. For CI and headless systems, keep
-using an environment secret:
+Native credential storage may be unavailable in a container or other headless
+environment. Inject `SLOTH_AGENT_TOKEN` at runtime through your platform's
+secret manager:
 
 ```bash
 export SLOTH_AGENT_TOKEN="sloth_pat_v1_..."
+sloth-agent auth status
 ```
+
+Keep using the environment variable for later commands. You do not need to run
+`sloth-agent auth login` in this setup. Do not put the token in a command
+argument, source file, or container image.
 
 `SLOTH_AGENT_TOKEN` always overrides a stored credential.
 
-To migrate from an existing environment-only setup:
+### Import an existing environment token
+
+To save an environment token in native credential storage on a local computer:
 
 ```bash
 sloth-agent auth login --from-env
 unset SLOTH_AGENT_TOKEN
-sloth-agent auth status
-sloth-agent categories
 ```
 
-Check the active credential with a live API request:
+You can also pass a token to the login command through stdin:
+
+```bash
+printf '%s' "$SLOTH_AGENT_TOKEN" | sloth-agent auth login --token-stdin
+```
+
+Both commands validate the token before replacing the stored credential.
+
+Check the active credential and read your categories:
 
 ```bash
 sloth-agent auth status
+sloth-agent categories
 ```
 
 This updates the PAT's `lastUsedAt` value. To remove the local credential:
