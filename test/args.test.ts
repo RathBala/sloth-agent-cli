@@ -8,6 +8,39 @@ import {
 describe('CLI arguments', () => {
   it('supports help and version without configuration', () => {
     expect(parseArgs(['--help'])).toEqual({ command: 'help' });
+    expect([
+      parseArgs(['auth', '--help']),
+      parseArgs(['auth', 'login', '--help']),
+      parseArgs(['auth', 'status', '--help']),
+      parseArgs(['auth', 'logout', '--help']),
+      parseArgs(['categories', '--help']),
+      parseArgs(['transactions', '--help']),
+      parseArgs(['assign', '--help']),
+      parseArgs(['ask-partner', '--help']),
+    ]).toEqual([
+      { command: 'help', topic: 'auth' },
+      { command: 'help', topic: 'auth-login' },
+      { command: 'help', topic: 'auth-status' },
+      { command: 'help', topic: 'auth-logout' },
+      { command: 'help', topic: 'categories' },
+      { command: 'help', topic: 'transactions' },
+      { command: 'help', topic: 'assign' },
+      { command: 'help', topic: 'ask-partner' },
+    ]);
+    expect(parseArgs(['categories', '--help', '--base-url'])).toEqual({
+      command: 'help',
+      topic: 'categories',
+    });
+    expect(parseArgs([
+      '--base-url',
+      'https://api.example.com',
+      'auth',
+      'login',
+      '-h',
+    ])).toEqual({
+      command: 'help',
+      topic: 'auth-login',
+    });
     expect(parseArgs(['--version'])).toEqual({ command: 'version' });
   });
 

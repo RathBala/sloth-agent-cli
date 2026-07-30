@@ -17,6 +17,10 @@
 
 - Use npm and commit `package-lock.json`.
 - Use Red / Green / Refactor for functional changes.
+- When adding or changing a command or option, update its command-specific
+  `-h`/`--help` in the same change. State required and optional inputs,
+  accepted formats or ranges, defaults, output, and write/dry-run behaviour,
+  then add a help-routing or packed-binary regression test.
 - Run `npm run verify` before publishing.
 - Inspect `npm pack --dry-run --json` and pass the clean-install package test.
 - Publish only from a reviewed version tag through the trusted GitHub workflow

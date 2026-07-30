@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.2.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.2.1 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -74,11 +74,28 @@ remotely in **Sloth Money Settings > Developer access**.
 
 ## Commands
 
+Every command has built-in reference documentation covering its inputs,
+options, output, and examples:
+
+```bash
+sloth-agent auth login --help
+sloth-agent categories --help
+sloth-agent transactions --help
+sloth-agent assign --help
+sloth-agent ask-partner --help
+```
+
 Read categories and available budget line items:
 
 ```bash
 sloth-agent categories
 ```
+
+A category is the broader parent. A line item is a child within one category.
+Line-item names such as `Other` may repeat, so preserve the full choice as
+`(scope, categoryId, lineItemId)`. Use the personal or joint line-item map that
+matches the transaction scope. For example, `Bills → Other` and `Subscriptions
+→ Other` are different choices.
 
 Read uncategorised transactions:
 

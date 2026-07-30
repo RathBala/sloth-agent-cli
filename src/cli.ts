@@ -2,6 +2,7 @@ import fs from 'node:fs';
 
 import {
   type CliEnvironment,
+  type HelpTopic,
   type ParsedCommand,
   parseArgs,
   resolveBaseUrl,
@@ -22,8 +23,16 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.2.0';
+export const CLI_VERSION = '0.2.1';
 const REQUEST_TIMEOUT_MS = 30_000;
+const API_ORIGIN_HELP_LINES = [
+  '',
+  'API origin:',
+  '  --base-url overrides SLOTH_AGENT_API_BASE_URL; if neither is set, the',
+  '  origin defaults to https://budget.slothmoney.app.',
+  '  Use an origin-only URL with no credentials, path, query, or fragment.',
+  '  HTTPS is required except for localhost development.',
+] as const;
 
 interface CliOptions {
   env?: CliEnvironment;
@@ -41,6 +50,9 @@ export function usageText(): string {
     'Sloth Agent CLI',
     '',
     'Usage:',
+    '  sloth-agent <command> [options]',
+    '',
+    'Commands:',
     '  sloth-agent auth login [--token-stdin | --from-env] [--base-url URL]',
     '  sloth-agent auth status [--base-url URL]',
     '  sloth-agent auth logout [--base-url URL]',
@@ -50,13 +62,285 @@ export function usageText(): string {
     '    [--account-id ID] [--category-id ID] [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent ask-partner --transaction-ref REF [--base-url URL]',
-    '  sloth-agent --help',
-    '  sloth-agent --version',
+    '',
+    'Help:',
+    '  Run sloth-agent <command> --help for options, inputs, output, and examples.',
+    '  Auth subcommands also have help, for example sloth-agent auth login --help.',
+    '',
+    'Global options:',
+    '  -h, --help       Show top-level or command-specific help',
+    '  -V, --version    Show the CLI version',
+    '  --base-url URL   Use a different API origin',
     '',
     'Environment:',
     '  SLOTH_AGENT_TOKEN         Personal access token from Settings > Developer access',
     '  SLOTH_AGENT_API_BASE_URL  Optional API origin; defaults to https://budget.slothmoney.app',
   ].join('\n');
+}
+
+export function authHelpText(): string {
+  return [
+    'Sloth Agent CLI — auth',
+    '',
+    'Manage the personal access token used for Agent API requests.',
+    '',
+    'Commands:',
+    '  sloth-agent auth login     Validate and store a personal access token',
+    '  sloth-agent auth status    Check the active credential with a live API request',
+    '  sloth-agent auth logout    Remove the token from the native credential store',
+    '',
+    'Help:',
+    '  Run sloth-agent auth <command> --help for command-specific details.',
+  ].join('\n');
+}
+
+export function authLoginHelpText(): string {
+  return [
+    'Sloth Agent CLI — auth login',
+    '',
+    'Validate a personal access token, then store it in the native credential store.',
+    '',
+    'Usage:',
+    '  sloth-agent auth login [--token-stdin | --from-env] [--base-url URL]',
+    '',
+    'Options:',
+    '  --token-stdin    Optional. Read the token from stdin.',
+    '  --from-env       Optional. Read the token from SLOTH_AGENT_TOKEN.',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    '',
+    'Input:',
+    '  With no input option, login uses a hidden prompt and requires an interactive TTY.',
+    '  --token-stdin and --from-env are mutually exclusive.',
+    '  Tokens must start with sloth_pat_v1_ and contain no whitespace.',
+    '  Never pass a token as a command argument.',
+    '  An existing stored credential is replaced only after remote validation succeeds.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Examples:',
+    '  sloth-agent auth login',
+    '  sloth-agent auth login --token-stdin',
+    '  sloth-agent auth login --from-env',
+    '',
+    'Output:',
+    '  JSON describing the API origin, stored state, and active credential source.',
+  ].join('\n');
+}
+
+export function authStatusHelpText(): string {
+  return [
+    'Sloth Agent CLI — auth status',
+    '',
+    'Check the active credential with a live API request.',
+    '',
+    'Usage:',
+    '  sloth-agent auth status [--base-url URL]',
+    '',
+    'Options:',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Example:',
+    '  sloth-agent auth status',
+    '',
+    'Output:',
+    '  JSON containing origin, source, a masked token suffix, and remoteStatus.',
+    '  Checking status updates the token last-used time.',
+  ].join('\n');
+}
+
+export function authLogoutHelpText(): string {
+  return [
+    'Sloth Agent CLI — auth logout',
+    '',
+    'Remove the token for an API origin from the native credential store.',
+    '',
+    'Usage:',
+    '  sloth-agent auth logout [--base-url URL]',
+    '',
+    'Options:',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Important:',
+    '  Logout does not revoke the token remotely or unset SLOTH_AGENT_TOKEN.',
+    '  Revoke the token in Sloth Money Settings > Developer access.',
+    '',
+    'Example:',
+    '  sloth-agent auth logout',
+    '',
+    'Output:',
+    '  JSON describing local removal, any environment override, and revocation state.',
+  ].join('\n');
+}
+
+export function categoriesHelpText(): string {
+  return [
+    'Sloth Agent CLI — categories',
+    '',
+    'Read categories and the personal and joint line items within them.',
+    '',
+    'Usage:',
+    '  sloth-agent categories [--base-url URL]',
+    '',
+    'Options:',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Budget taxonomy:',
+    '  A category is the broader parent.',
+    '  A line item is a child within one category.',
+    '  Line-item names such as "Other" may repeat. Preserve the full choice as',
+    '  (scope, categoryId, lineItemId), using the personal or joint line-item',
+    '  map matching the transaction scope.',
+    '',
+    'Examples:',
+    '  sloth-agent categories',
+    '  Bills → Other',
+    '  Subscriptions → Other',
+    '',
+    'Access:',
+    '  This command is read-only.',
+    '',
+    'Output:',
+    '  categories                       Parent categories',
+    '  personalLineItemsByCategoryId    Personal child line items keyed by category ID',
+    '  jointLineItemsByCategoryId       Joint child line items keyed by category ID',
+  ].join('\n');
+}
+
+export function transactionsHelpText(): string {
+  return [
+    'Sloth Agent CLI — transactions',
+    '',
+    'Read transactions, optionally filtered or paginated.',
+    '',
+    'Usage:',
+    '  sloth-agent transactions [options]',
+    '',
+    'Options:',
+    '  --uncategorized[=true|false]  Optional. Filter by state; with no value, use true.',
+    '  --limit N                     Optional. Integer from 1 to 200; omit for API default.',
+    '  --start-date YYYY-MM-DD        Optional. Include transactions on or after this date.',
+    '  --end-date YYYY-MM-DD          Optional. Include transactions on or before this date.',
+    '  --q TEXT                       Optional. Search transactions by text.',
+    '  --account-id ID                Optional. Filter by account ID.',
+    '  --category-id ID               Optional. Filter by category ID.',
+    '  --cursor CURSOR                Optional. Continue from a previous nextCursor.',
+    '  --base-url URL                 Optional. Override the API origin.',
+    '  -h, --help                     Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Constraints:',
+    '  All filters are omitted by default.',
+    '  --end-date must not be before --start-date.',
+    '  This command is read-only.',
+    '',
+    'Output:',
+    '  JSON containing transactions and nextCursor. Use nextCursor with --cursor',
+    '  to request the next page. A null nextCursor means there are no more pages.',
+    '',
+    'Examples:',
+    '  sloth-agent transactions --uncategorized --limit 50',
+    '  sloth-agent transactions --q "tesco" --start-date 2026-05-01 --end-date 2026-05-31',
+  ].join('\n');
+}
+
+export function assignHelpText(): string {
+  return [
+    'Sloth Agent CLI — assign',
+    '',
+    'Validate, preview, or apply category assignments from a JSON file.',
+    '',
+    'Usage:',
+    '  sloth-agent assign --input FILE [--apply] [--base-url URL]',
+    '',
+    'Options:',
+    '  --input FILE      Required. JSON assignment file containing 1 to 100 assignments.',
+    '  --apply           Optional. Write assignments to Sloth Money.',
+    '  --base-url URL    Optional. Override the API origin.',
+    '  -h, --help        Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Safety:',
+    '  Without --apply, the command validates the file and returns a dry-run preview.',
+    '  With --apply, assignments are best-effort; any failed item makes the command',
+    '  exit with code 1 while the complete result remains available on stdout.',
+    '',
+    'Input:',
+    '  The top-level object must contain an assignments array.',
+    '  Each assignment requires transactionRef and a categoryId or non-empty categorySplits.',
+    '  Set categoryId to null to clear an assignment.',
+    '  lineItemId is optional and accepts a non-empty string or null.',
+    '  categorySplits is optional and accepts a non-empty array or null.',
+    '  Each split requires categoryId and a positive integer amountPence;',
+    '  a split lineItemId is optional.',
+    '  incomeSubtype is optional and accepts "pay", "interest", or null.',
+    '',
+    'Commands:',
+    '  sloth-agent assign --input assignments.json          Preview only',
+    '  sloth-agent assign --input assignments.json --apply  Write assignments',
+    '',
+    'Example:',
+    '  {',
+    '    "assignments": [',
+    '      { "transactionRef": "sloth_txn_...", "categoryId": "groceries" },',
+    '      {',
+    '        "transactionRef": "sloth_txn_...",',
+    '        "categorySplits": [',
+    '          { "categoryId": "groceries", "amountPence": 2000 }',
+    '        ]',
+    '      }',
+    '    ]',
+    '  }',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, endpoint, and the validated payload.',
+    '  Apply mode returns succeeded and failed assignment arrays.',
+  ].join('\n');
+}
+
+export function askPartnerHelpText(): string {
+  return [
+    'Sloth Agent CLI — ask-partner',
+    '',
+    'Create a shareable link asking a partner to clarify a transaction.',
+    '',
+    'Usage:',
+    '  sloth-agent ask-partner --transaction-ref REF [--base-url URL]',
+    '',
+    'Options:',
+    '  --transaction-ref REF   Required. Stable transactionRef from transaction output.',
+    '  --base-url URL          Optional. Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Write behavior:',
+    '  Running this command creates the request immediately. There is no preview mode.',
+    '',
+    'Example:',
+    '  sloth-agent ask-partner --transaction-ref sloth_txn_...',
+    '',
+    'Output:',
+    '  JSON containing requestId, publicUrl, message, expiresAt, and status.',
+  ].join('\n');
+}
+
+export function commandHelpText(topic: HelpTopic): string {
+  const helpByTopic: Record<HelpTopic, () => string> = {
+    auth: authHelpText,
+    'auth-login': authLoginHelpText,
+    'auth-status': authStatusHelpText,
+    'auth-logout': authLogoutHelpText,
+    categories: categoriesHelpText,
+    transactions: transactionsHelpText,
+    assign: assignHelpText,
+    'ask-partner': askPartnerHelpText,
+  };
+  return helpByTopic[topic]();
 }
 
 function writeJson(write: (value: string) => void, data: unknown): void {
@@ -250,7 +534,7 @@ export async function runCli(
   try {
     const parsed = parseArgs(argv);
     if (parsed.command === 'help') {
-      writeStdout(`${usageText()}\n`);
+      writeStdout(`${parsed.topic ? commandHelpText(parsed.topic) : usageText()}\n`);
       return 0;
     }
     if (parsed.command === 'version') {

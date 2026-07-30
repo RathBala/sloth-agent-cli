@@ -21,8 +21,18 @@ export interface TransactionFilters {
   cursor?: string;
 }
 
+export type HelpTopic =
+  | 'auth'
+  | 'auth-login'
+  | 'auth-status'
+  | 'auth-logout'
+  | 'categories'
+  | 'transactions'
+  | 'assign'
+  | 'ask-partner';
+
 export type ParsedCommand =
-  | { command: 'help' }
+  | { command: 'help'; topic?: HelpTopic }
   | { command: 'version' }
   | {
     command: 'auth-login';
@@ -219,8 +229,49 @@ function parseAuth(args: string[], baseUrl?: string): ParsedCommand {
   throw new UsageError(`Unknown auth command: ${authCommand}`);
 }
 
+function helpTopic(argv: string[]): HelpTopic | undefined {
+  const positionals: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === undefined) continue;
+    if (argument === '--base-url') {
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('--base-url=') || argument.startsWith('-')) {
+      continue;
+    }
+    positionals.push(argument);
+  }
+
+  const [command, authCommand] = positionals;
+  if (command === 'auth') {
+    if (
+      authCommand === 'login'
+      || authCommand === 'status'
+      || authCommand === 'logout'
+    ) {
+      return `auth-${authCommand}`;
+    }
+    return 'auth';
+  }
+  if (
+    command === 'categories'
+    || command === 'transactions'
+    || command === 'assign'
+    || command === 'ask-partner'
+  ) {
+    return command;
+  }
+  return undefined;
+}
+
 export function parseArgs(argv: string[]): ParsedCommand {
-  if (argv.includes('--help') || argv.includes('-h')) return { command: 'help' };
+  if (argv.includes('--help') || argv.includes('-h')) {
+    const topic = helpTopic(argv);
+    return topic ? { command: 'help', topic } : { command: 'help' };
+  }
   if (argv.includes('--version') || argv.includes('-V')) return { command: 'version' };
 
   const { args, baseUrl } = parseGlobalOptions(argv);

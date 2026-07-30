@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-07-25
+
+- Explain that categories are parents and line items are scoped children.
+- Document that line-item labels such as `Other` may repeat across categories.
+- Add command-specific help for every command and auth subcommand, including
+  required inputs, option constraints, output, examples, and write safety.
+
 ## 0.2.0 - 2026-07-23
 
 - Add `auth login`, `auth status`, and `auth logout`.

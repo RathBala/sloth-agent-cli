@@ -68,6 +68,75 @@ describe('CLI execution', () => {
     expect(helpIo.stdout.join('')).toContain('sloth-agent transactions');
     expect(helpIo.stderr).toEqual([]);
 
+    const fetchMock = vi.fn();
+    const getCredentialStore = vi.fn();
+    const helpCases: Array<[string[], string[]]> = [
+      [['auth', '--help'], ['auth login', 'auth status', 'auth logout']],
+      [['auth', 'login', '--help'], [
+        '--token-stdin',
+        '--from-env',
+        'hidden prompt',
+        'sloth_pat_v1_',
+        'only after remote validation succeeds',
+      ]],
+      [['auth', 'status', '--help'], ['live API request', 'remoteStatus']],
+      [['auth', 'logout', '--help'], ['does not revoke', 'SLOTH_AGENT_TOKEN']],
+      [['categories', '--help'], [
+        'A category is the broader parent.',
+        'Bills → Other',
+        '(scope, categoryId, lineItemId)',
+        'read-only',
+      ]],
+      [['transactions', '--help'], [
+        '--uncategorized[=true|false]',
+        '--limit N',
+        'Integer from 1 to 200',
+        '--cursor CURSOR',
+        'must not be before --start-date',
+        'read-only',
+      ]],
+      [['assign', '--help'], [
+        '--input FILE',
+        'Required',
+        'Without --apply',
+        'categorySplits',
+        'non-empty array or null',
+        'lineItemId is optional',
+        '1 to 100',
+      ]],
+      [['ask-partner', '--help'], [
+        '--transaction-ref REF',
+        'Required',
+        'creates the request immediately',
+        'no preview mode',
+      ]],
+    ];
+
+    for (const [argv, expectedText] of helpCases) {
+      const commandHelpIo = createIo();
+      expect(await runCli(argv, {
+        env: {},
+        fetch: fetchMock,
+        getCredentialStore,
+        ...commandHelpIo,
+      })).toBe(0);
+      for (const text of expectedText) {
+        expect(commandHelpIo.stdout.join('')).toContain(text);
+      }
+      if (argv[0] !== 'auth' || argv.length > 2) {
+        expect(commandHelpIo.stdout.join('')).toContain(
+          '--base-url overrides SLOTH_AGENT_API_BASE_URL',
+        );
+        expect(commandHelpIo.stdout.join('')).toContain(
+          'HTTPS is required except for localhost',
+        );
+      }
+      expect(commandHelpIo.stderr).toEqual([]);
+    }
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getCredentialStore).not.toHaveBeenCalled();
+
     const versionIo = createIo();
     expect(await runCli(['--version'], { env: {}, ...versionIo })).toBe(0);
     expect(versionIo.stdout.join('').trim()).toBe(CLI_VERSION);
