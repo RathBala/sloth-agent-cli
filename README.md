@@ -296,3 +296,15 @@ npm run verify
 
 `npm run test:package` packs the exact npm artifact, installs it into a clean
 temporary project, and runs the installed binary.
+
+## Releasing
+
+Releases are published only through the trusted `Publish npm release` GitHub
+workflow from a reviewed `v*` tag whose version matches `package.json`. The
+workflow runs the full verification suite before publishing.
+
+After npm accepts the package, the workflow verifies the exact published
+version with `npm run test:registry -- VERSION`. That script runs `npm exec`
+from a fresh temporary directory with an isolated npm cache, so a checkout's
+older local `sloth-agent` executable cannot satisfy the registry smoke test.
+The temporary directory is removed after the check.

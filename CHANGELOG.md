@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Verify each trusted npm release from a fresh temporary directory so the
+  registry smoke test cannot resolve a repository-local CLI executable.
+
 ## 0.3.1 - 2026-07-31
 
 - Coordinate transaction reads with the Sloth Budget daily refresh process.

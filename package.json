@@ -16,6 +16,7 @@
     "prepack": "npm run build",
     "test": "vitest run",
     "test:package": "node scripts/test-package.mjs",
+    "test:registry": "node scripts/test-registry-package.mjs",
     "typecheck": "tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:package"
   },

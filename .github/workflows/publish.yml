@@ -28,7 +28,11 @@ jobs:
       - run: npm ci
       - run: npm run verify
       - name: Verify tag matches package version
+        id: package
         run: |
           PACKAGE_VERSION="$(node --input-type=module -e "import packageJson from './package.json' with { type: 'json' }; process.stdout.write(packageJson.version)")"
           test "$GITHUB_REF_NAME" = "v$PACKAGE_VERSION"
+          echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
       - run: npm publish --access public
+      - name: Verify the published registry package
+        run: npm run test:registry -- "${{ steps.package.outputs.version }}"
