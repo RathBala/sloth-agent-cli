@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.3.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.3.1 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -220,6 +220,25 @@ Read uncategorised contributions to the joint budget:
 ```bash
 sloth-agent transactions --assignment-scope joint --uncategorized
 ```
+
+The first transaction read after the UTC day changes may refresh linked bank
+data. The CLI waits up to 45 seconds for that refresh to persist, then returns
+the requested booked transactions. If the refresh is still running, partially
+fails, or fails globally, readable cached transactions are still returned with
+a structured `refresh` object:
+
+```json
+{
+  "refresh": {
+    "status": "in_progress",
+    "reason": "wait_timeout",
+    "utcDate": "2026-07-31"
+  }
+}
+```
+
+Re-run the transaction query later to observe the completed refresh. A partial
+account failure remains eligible for an automatic retry.
 
 Set `"assignmentScope": "joint"` on an assignment to categorise the eligible
 shared portion for the joint budget.

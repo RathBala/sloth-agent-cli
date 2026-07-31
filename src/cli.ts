@@ -24,8 +24,8 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.3.0';
-const REQUEST_TIMEOUT_MS = 30_000;
+export const CLI_VERSION = '0.3.1';
+const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
   'API origin:',
@@ -247,10 +247,14 @@ export function transactionsHelpText(): string {
     'Constraints:',
     '  All filters are omitted by default.',
     '  --end-date must not be before --start-date.',
-    '  This command is read-only.',
+    '  The first transaction read each UTC day may refresh linked bank data.',
+    '  Refresh remotely persists booked transactions and account balances.',
+    '  The command waits up to 45 seconds, then returns cached data if refresh continues.',
     '',
     'Output:',
-    '  JSON containing transactions and nextCursor. Use nextCursor with --cursor',
+    '  JSON containing transactions, nextCursor, and structured refresh status.',
+    '  Refresh failures do not hide readable cached transactions.',
+    '  Use nextCursor with --cursor',
     '  to request the next page. A null nextCursor means there are no more pages.',
     '',
     'Examples:',
@@ -1023,7 +1027,9 @@ export async function runCli(
       })()}`;
     const response = await fetchImplementation(`${baseUrl}${path}`, {
       method: 'GET',
-      headers,
+      headers: parsed.command === 'transactions'
+        ? { ...headers, Prefer: 'wait=45' }
+        : headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));

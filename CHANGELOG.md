@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.3.1 - 2026-07-31
+
+- Coordinate transaction reads with the Sloth Budget daily refresh process.
+- Wait up to 45 seconds for fresh persisted data, then return readable cached
+  transactions with structured refresh status when work continues or fails.
+- Validate the additive transaction refresh response contract.
+
 ## 0.3.0 - 2026-07-30
 
 - Add command-specific help for every command and auth subcommand, including

@@ -37,6 +37,12 @@ function isObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isIsoDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function requireObject(value: unknown, label: string): JsonObject {
   if (!isObject(value)) throw new UsageError(`${label} must be an object`);
   return value;
@@ -239,11 +245,28 @@ function isTransaction(value: unknown): boolean {
 }
 
 function isTransactionsResponse(value: unknown): boolean {
+  const validStatuses = new Set(['skipped', 'completed', 'in_progress', 'partial', 'failed']);
+  const validReasons = new Set([
+    'all_fetched_today',
+    'no_api_connections',
+    'no_selected_accounts',
+    'refreshed',
+    'wait_timeout',
+    'account_failures',
+    'refresh_error',
+  ]);
+  const refresh = isObject(value) ? value.refresh : undefined;
   return (
     isObject(value)
     && Array.isArray(value.transactions)
     && value.transactions.every(isTransaction)
     && (value.nextCursor === null || typeof value.nextCursor === 'string')
+    && isObject(refresh)
+    && typeof refresh.status === 'string'
+    && validStatuses.has(refresh.status)
+    && typeof refresh.reason === 'string'
+    && validReasons.has(refresh.reason)
+    && isIsoDate(refresh.utcDate)
   );
 }
 

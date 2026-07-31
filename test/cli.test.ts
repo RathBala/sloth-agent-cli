@@ -96,7 +96,9 @@ describe('CLI execution', () => {
         'Integer from 1 to 200',
         '--cursor CURSOR',
         'must not be before --start-date',
-        'read-only',
+        'waits up to 45 seconds',
+        'remotely persists booked transactions',
+        'refresh status',
       ]],
       [['assign', '--help'], [
         'An assignment categorises an existing transaction e.g. assigning category Groceries to a transaction.',
@@ -791,7 +793,11 @@ describe('CLI execution', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&assignmentScope=joint&cursor=cursor-1',
-      expect.objectContaining({ method: 'GET' }),
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Prefer: 'wait=45' }),
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 

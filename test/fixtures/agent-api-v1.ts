@@ -26,6 +26,11 @@ export const agentApiV1TransactionsResponse = {
     jointBudgetContribution: null,
   }],
   nextCursor: null,
+  refresh: {
+    status: 'completed',
+    reason: 'refreshed',
+    utcDate: '2026-07-31',
+  },
 } as const;
 
 export const agentApiV1AssignmentResponse = {

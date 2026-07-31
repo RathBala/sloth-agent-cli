@@ -87,7 +87,7 @@ try {
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
     [['categories', '--help'], [/A category is the broader parent\./]],
-    [['transactions', '--help'], [/1 to 200/]],
+    [['transactions', '--help'], [/1 to 200/, /waits up to 45 seconds/, /remotely persists booked transactions/, /refresh status/]],
     [['assign', '--help'], [
       /An assignment categorises an existing transaction/,
       /PASTE_THE_EXACT_TRANSACTION_REF_HERE/,

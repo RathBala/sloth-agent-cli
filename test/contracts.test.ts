@@ -117,6 +117,21 @@ describe('API response validation', () => {
   it('rejects malformed success responses', () => {
     expect(() => parseApiResponse('categories', { categories: [] })).toThrow(/invalid categories response/i);
     expect(() => parseApiResponse('transactions', { transactions: 'not-an-array' })).toThrow(/invalid transactions response/i);
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
+      refresh: {
+        status: 'done-ish',
+        reason: 'raw provider failure',
+        utcDate: 'today',
+      },
+    })).toThrow(/invalid transactions response/i);
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
+      refresh: {
+        ...agentApiV1TransactionsResponse.refresh,
+        utcDate: '2026-02-30',
+      },
+    })).toThrow(/invalid transactions response/i);
     expect(() => parseApiResponse('assign', { succeeded: [], failed: 'nope' })).toThrow(/invalid assignment response/i);
     expect(() => parseApiResponse('ask-partner', {
       requestId: 'ter_1',
