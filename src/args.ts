@@ -27,10 +27,10 @@ export type HelpTopic =
   | 'auth-login'
   | 'auth-status'
   | 'auth-logout'
+  | 'accounts'
   | 'categories'
   | 'transactions'
   | 'assign'
-  | 'joint-budget-settings'
   | 'goals'
   | 'goals-list'
   | 'goals-create'
@@ -48,6 +48,7 @@ export type ParsedCommand =
   }
   | { command: 'auth-status'; baseUrl?: string }
   | { command: 'auth-logout'; baseUrl?: string }
+  | { command: 'accounts'; baseUrl?: string }
   | { command: 'categories'; baseUrl?: string }
   | {
     command: 'transactions';
@@ -55,12 +56,6 @@ export type ParsedCommand =
     filters: TransactionFilters;
   }
   | { command: 'assign'; baseUrl?: string; input: string; apply: boolean }
-  | {
-    command: 'joint-budget-settings';
-    baseUrl?: string;
-    includeSharedPersonalTransactions?: boolean;
-    apply: boolean;
-  }
   | { command: 'goals-list'; baseUrl?: string }
   | {
     command: 'goals-create';
@@ -562,10 +557,10 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     return 'goals';
   }
   if (
-    command === 'categories'
+    command === 'accounts'
+    || command === 'categories'
     || command === 'transactions'
     || command === 'assign'
-    || command === 'joint-budget-settings'
     || command === 'ask-partner'
   ) {
     return command;
@@ -599,6 +594,13 @@ export function parseArgs(argv: string[]): ParsedCommand {
     return withBaseUrl({ command }, baseUrl);
   }
 
+  if (command === 'accounts') {
+    if (args.length > 0) {
+      throw new UsageError(`Unknown accounts option: ${args[0]}`);
+    }
+    return withBaseUrl({ command }, baseUrl);
+  }
+
   if (command === 'transactions') {
     return withBaseUrl({ command, filters: parseTransactions(args) }, baseUrl);
   }
@@ -626,50 +628,6 @@ export function parseArgs(argv: string[]): ParsedCommand {
     }
     if (!input) throw new UsageError('assign requires --input <file>');
     return withBaseUrl({ command, input, apply }, baseUrl);
-  }
-
-  if (command === 'joint-budget-settings') {
-    let includeSharedPersonalTransactions: boolean | undefined;
-    let apply = false;
-    for (let index = 0; index < args.length; index += 1) {
-      const argument = args[index]!;
-      if (argument === '--apply') {
-        if (apply) throw new UsageError('--apply may only be provided once');
-        apply = true;
-        continue;
-      }
-
-      const optionName = '--include-shared-personal-transactions';
-      if (argument === optionName || argument.startsWith(`${optionName}=`)) {
-        const value = argument === optionName
-          ? readOptionValue(args, index, optionName)
-          : argument.slice(`${optionName}=`.length);
-        if (argument === optionName) index += 1;
-        if (value !== 'true' && value !== 'false') {
-          throw new UsageError(`${optionName} must be true or false`);
-        }
-        includeSharedPersonalTransactions = setOnce(
-          includeSharedPersonalTransactions,
-          value === 'true',
-          optionName,
-        );
-        continue;
-      }
-
-      throw new UsageError(`Unknown joint-budget-settings option: ${argument}`);
-    }
-
-    if (apply && includeSharedPersonalTransactions === undefined) {
-      throw new UsageError('--apply requires --include-shared-personal-transactions=true|false');
-    }
-
-    return withBaseUrl({
-      command,
-      ...(includeSharedPersonalTransactions === undefined
-        ? {}
-        : { includeSharedPersonalTransactions }),
-      apply,
-    }, baseUrl);
   }
 
   if (command === 'ask-partner') {

@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   parseApiResponse,
   validateAssignmentPayload,
-  validateJointBudgetSettingsResponse,
 } from '../src/contracts.js';
 import {
+  agentApiV1AccountsResponse,
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
   agentApiV1ExplanationResponse,
@@ -44,23 +44,6 @@ describe('assignment payload validation', () => {
     });
   });
 
-  it('validates joint budget settings responses strictly', () => {
-    expect(validateJointBudgetSettingsResponse({
-      includeSharedPersonalTransactions: true,
-      updatedAt: null,
-      updatedBy: null,
-    })).toEqual({
-      includeSharedPersonalTransactions: true,
-      updatedAt: null,
-      updatedBy: null,
-    });
-    expect(() => validateJointBudgetSettingsResponse({
-      includeSharedPersonalTransactions: 'yes',
-      updatedAt: null,
-      updatedBy: null,
-    })).toThrow(/invalid joint budget settings response/i);
-  });
-
   it('rejects malformed or ambiguous assignment data', () => {
     expect(() => validateAssignmentPayload({ assignments: [] })).toThrow(/between 1 and 100/);
     expect(() => validateAssignmentPayload({
@@ -80,6 +63,10 @@ describe('assignment payload validation', () => {
 
 describe('API response validation', () => {
   it('validates documented response envelopes while preserving fields', () => {
+    expect(parseApiResponse(
+      'accounts',
+      agentApiV1AccountsResponse,
+    )).toBe(agentApiV1AccountsResponse);
     expect(parseApiResponse(
       'transactions',
       agentApiV1TransactionsResponse,
@@ -115,6 +102,29 @@ describe('API response validation', () => {
   });
 
   it('rejects malformed success responses', () => {
+    expect(() => parseApiResponse('accounts', {
+      ...agentApiV1AccountsResponse,
+      accounts: [{
+        ...agentApiV1AccountsResponse.accounts[0],
+        accountDocId: 'GB29NWBK60161331926819',
+      }],
+    })).toThrow(/invalid accounts response/i);
+    expect(() => parseApiResponse('accounts', {
+      ...agentApiV1AccountsResponse,
+      accounts: [{
+        ...agentApiV1AccountsResponse.accounts[0],
+        accountRef: 'account-doc-1',
+        currency: 'gbp',
+        connectionState: 'stale-ish',
+      }],
+    })).toThrow(/invalid accounts response/i);
+    expect(() => parseApiResponse('accounts', {
+      ...agentApiV1AccountsResponse,
+      accounts: [{
+        ...agentApiV1AccountsResponse.accounts[0],
+        accountName: ' Everyday account ',
+      }],
+    })).toThrow(/invalid accounts response/i);
     expect(() => parseApiResponse('categories', { categories: [] })).toThrow(/invalid categories response/i);
     expect(() => parseApiResponse('transactions', { transactions: 'not-an-array' })).toThrow(/invalid transactions response/i);
     expect(() => parseApiResponse('transactions', {

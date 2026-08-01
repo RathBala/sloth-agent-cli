@@ -9,6 +9,7 @@ import {
   runCli,
 } from '../src/cli.js';
 import {
+  agentApiV1AccountsResponse,
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
   agentApiV1ExplanationResponse,
@@ -69,6 +70,7 @@ describe('CLI execution', () => {
     const helpIo = createIo();
     expect(await runCli(['--help'], { env: {}, ...helpIo })).toBe(0);
     expect(helpIo.stdout.join('')).toContain('sloth-agent transactions');
+    expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
     expect(helpIo.stderr).toEqual([]);
 
     const fetchMock = vi.fn();
@@ -89,6 +91,13 @@ describe('CLI execution', () => {
         'Bills → Other',
         '(scope, categoryId, lineItemId)',
         'read-only',
+      ]],
+      [['accounts', '--help'], [
+        'existing Sloth account inventory',
+        'read-only',
+        'native currency',
+        'connectionState',
+        'accountRef',
       ]],
       [['transactions', '--help'], [
         '--uncategorized[=true|false]',
@@ -119,11 +128,6 @@ describe('CLI execution', () => {
         'succeeded and failed',
         'Assignments do not create a separate list.',
         '1 to 100',
-      ]],
-      [['joint-budget-settings', '--help'], [
-        '--include-shared-personal-transactions=true',
-        'Without --apply',
-        'read-only',
       ]],
       [['goals', '--help'], [
         'goals list',
@@ -403,6 +407,39 @@ describe('CLI execution', () => {
     expect(JSON.parse(io.stdout.join(''))).toEqual(
       agentApiV1CategoriesResponse,
     );
+  });
+
+  it('lists accounts with one cache-only GET and JSON-only stdout', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1AccountsResponse,
+    ));
+    const getCredentialStore = vi.fn();
+
+    expect(await runCli(['accounts'], {
+      env: { SLOTH_AGENT_TOKEN: 'sloth_pat_v1_secret' },
+      fetch: fetchMock,
+      getCredentialStore,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/accounts',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Accept: 'application/json',
+          Authorization: 'Bearer sloth_pat_v1_secret',
+          'User-Agent': `sloth-agent/${CLI_VERSION}`,
+        }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Prefer');
+    expect(getCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1AccountsResponse);
+    expect(io.stderr).toEqual([]);
   });
 
   it('lists goals as validated JSON', async () => {
@@ -797,62 +834,6 @@ describe('CLI execution', () => {
         method: 'GET',
         headers: expect.objectContaining({ Prefer: 'wait=45' }),
         signal: expect.any(AbortSignal),
-      }),
-    );
-  });
-
-  it('reads, previews, and applies joint budget settings with JSON-only stdout', async () => {
-    const readIo = createIo();
-    const previewIo = createIo();
-    const applyIo = createIo();
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({
-        includeSharedPersonalTransactions: false,
-        updatedAt: null,
-        updatedBy: null,
-      }))
-      .mockResolvedValueOnce(jsonResponse({
-        includeSharedPersonalTransactions: true,
-        updatedAt: '2026-07-30T12:00:00.000Z',
-        updatedBy: 'user-1',
-      }));
-
-    expect(await runCli(['joint-budget-settings'], {
-      env: { SLOTH_AGENT_TOKEN: 'token' },
-      fetch: fetchMock,
-      ...readIo,
-    })).toBe(0);
-    expect(JSON.parse(readIo.stdout.join(''))).toMatchObject({
-      includeSharedPersonalTransactions: false,
-    });
-
-    expect(await runCli([
-      'joint-budget-settings',
-      '--include-shared-personal-transactions=true',
-    ], {
-      env: { SLOTH_AGENT_TOKEN: 'token' },
-      fetch: fetchMock,
-      ...previewIo,
-    })).toBe(0);
-    expect(JSON.parse(previewIo.stdout.join(''))).toMatchObject({
-      dryRun: true,
-      payload: { includeSharedPersonalTransactions: true },
-    });
-
-    expect(await runCli([
-      'joint-budget-settings',
-      '--include-shared-personal-transactions=true',
-      '--apply',
-    ], {
-      env: { SLOTH_AGENT_TOKEN: 'token' },
-      fetch: fetchMock,
-      ...applyIo,
-    })).toBe(0);
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      'https://budget.slothmoney.app/api/agent/v1/joint-budget-settings',
-      expect.objectContaining({
-        method: 'PUT',
-        body: JSON.stringify({ includeSharedPersonalTransactions: true }),
       }),
     );
   });

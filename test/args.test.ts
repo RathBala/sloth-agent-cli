@@ -13,10 +13,10 @@ describe('CLI arguments', () => {
       parseArgs(['auth', 'login', '--help']),
       parseArgs(['auth', 'status', '--help']),
       parseArgs(['auth', 'logout', '--help']),
+      parseArgs(['accounts', '--help']),
       parseArgs(['categories', '--help']),
       parseArgs(['transactions', '--help']),
       parseArgs(['assign', '--help']),
-      parseArgs(['joint-budget-settings', '--help']),
       parseArgs(['goals', '--help']),
       parseArgs(['goals', 'list', '--help']),
       parseArgs(['ask-partner', '--help']),
@@ -25,10 +25,10 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'auth-login' },
       { command: 'help', topic: 'auth-status' },
       { command: 'help', topic: 'auth-logout' },
+      { command: 'help', topic: 'accounts' },
       { command: 'help', topic: 'categories' },
       { command: 'help', topic: 'transactions' },
       { command: 'help', topic: 'assign' },
-      { command: 'help', topic: 'joint-budget-settings' },
       { command: 'help', topic: 'goals' },
       { command: 'help', topic: 'goals-list' },
       { command: 'help', topic: 'ask-partner' },
@@ -53,6 +53,20 @@ describe('CLI arguments', () => {
   it('parses both goal list forms', () => {
     expect(parseArgs(['goals'])).toEqual({ command: 'goals-list' });
     expect(parseArgs(['goals', 'list'])).toEqual({ command: 'goals-list' });
+  });
+
+  it('parses the read-only accounts command without options', () => {
+    expect(parseArgs(['accounts'])).toEqual({ command: 'accounts' });
+    expect(parseArgs([
+      '--base-url',
+      'http://localhost:4101',
+      'accounts',
+    ])).toEqual({
+      command: 'accounts',
+      baseUrl: 'http://localhost:4101',
+    });
+    expect(() => parseArgs(['accounts', '--refresh']))
+      .toThrow(/Unknown accounts option/);
   });
 
   it('parses goal creation options with preview as the default', () => {
@@ -258,19 +272,6 @@ describe('CLI arguments', () => {
     expect(parseArgs(['ask-partner', '--transaction-ref=sloth_txn_123'])).toEqual({
       command: 'ask-partner',
       transactionRef: 'sloth_txn_123',
-    });
-    expect(parseArgs(['joint-budget-settings'])).toEqual({
-      command: 'joint-budget-settings',
-      apply: false,
-    });
-    expect(parseArgs([
-      'joint-budget-settings',
-      '--include-shared-personal-transactions=true',
-      '--apply',
-    ])).toEqual({
-      command: 'joint-budget-settings',
-      includeSharedPersonalTransactions: true,
-      apply: true,
     });
   });
 

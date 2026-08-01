@@ -6,6 +6,33 @@ export const agentApiV1CategoriesResponse = {
   jointLineItemsByCategoryId: {},
 } as const;
 
+export const agentApiV1AccountsResponse = {
+  asOf: '2026-08-01T12:00:00.000Z',
+  accounts: [{
+    accountRef: 'sloth_account_v1_7PZfsvQ1Ktr50Dy-gVlfTZLnZXfLAfWXd98HNcT3tFQ',
+    accountName: 'Everyday account',
+    institutionName: 'Monzo',
+    accountType: 'current',
+    ownership: 'personal',
+    balanceAmount: 1234.56,
+    currency: 'GBP',
+    source: 'connected',
+    lastBalanceUpdatedAt: '2026-08-01T09:30:00.000Z',
+    connectionState: 'active',
+  }, {
+    accountRef: 'sloth_account_v1_5VeuB4MpR7W5L4uPdHRYSsfNWGqoQYqrKx3GZQiLoFM',
+    accountName: null,
+    institutionName: 'Shared bank',
+    accountType: 'savings',
+    ownership: 'joint',
+    balanceAmount: null,
+    currency: null,
+    source: 'connected',
+    lastBalanceUpdatedAt: null,
+    connectionState: 'expired',
+  }],
+} as const;
+
 export const agentApiV1TransactionsResponse = {
   transactions: [{
     transactionRef: 'sloth_txn_ref',
@@ -23,6 +50,7 @@ export const agentApiV1TransactionsResponse = {
     lineItemId: null,
     categorySplits: [],
     incomeSubtype: null,
+    personalBudgetAmountPence: 2032,
     jointBudgetContribution: null,
   }],
   nextCursor: null,

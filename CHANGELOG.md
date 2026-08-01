@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add the read-only `sloth-agent accounts` command with strict runtime
+  validation for opaque references, ownership, native balances, sources, and
+  freshness metadata.
+- Prepare 0.4.0 by removing the obsolete `joint-budget-settings` command. Shared
+  personal transactions now enter the joint budget through their assignment.
 - Verify each trusted npm release from a fresh temporary directory so the
   registry smoke test cannot resolve a repository-local CLI executable.
 

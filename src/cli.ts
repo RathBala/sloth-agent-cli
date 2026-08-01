@@ -10,7 +10,6 @@ import {
 import {
   parseApiResponse,
   validateAssignmentPayload,
-  validateJointBudgetSettingsResponse,
 } from './contracts.js';
 import {
   type CredentialStoreFactory,
@@ -24,7 +23,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.3.1';
+export const CLI_VERSION = '0.4.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -57,12 +56,12 @@ export function usageText(): string {
     '  sloth-agent auth login [--token-stdin | --from-env] [--base-url URL]',
     '  sloth-agent auth status [--base-url URL]',
     '  sloth-agent auth logout [--base-url URL]',
+    '  sloth-agent accounts [--base-url URL]',
     '  sloth-agent categories [--base-url URL]',
     '  sloth-agent transactions [--uncategorized[=true|false]] [--limit N]',
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
     '    [--account-id ID] [--category-id ID] [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
-    '  sloth-agent joint-budget-settings [--include-shared-personal-transactions=true|false] [--apply]',
     '  sloth-agent goals [list] [--base-url URL]',
     '  sloth-agent goals create --name NAME [--target-amount AMOUNT]',
     '    [--target-month YYYY-MM] [--apply] [--base-url URL]',
@@ -221,6 +220,32 @@ export function categoriesHelpText(): string {
   ].join('\n');
 }
 
+export function accountsHelpText(): string {
+  return [
+    'Sloth Agent CLI — accounts',
+    '',
+    'Read the existing Sloth account inventory known to the authenticated user.',
+    '',
+    'Usage:',
+    '  sloth-agent accounts [--base-url URL]',
+    '',
+    'Options:',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access:',
+    '  This command is read-only and does not refresh connected accounts.',
+    '',
+    'Output:',
+    '  asOf                   Server response time',
+    '  accounts[].accountRef  Opaque stable account reference',
+    '  accounts[].ownership   personal or joint',
+    '  accounts[].balanceAmount and currency in the native currency when known',
+    '  accounts[].connectionState and lastBalanceUpdatedAt for freshness',
+  ].join('\n');
+}
+
 export function transactionsHelpText(): string {
   return [
     'Sloth Agent CLI — transactions',
@@ -326,38 +351,6 @@ export function assignHelpText(): string {
     '  Successful assignments update the original transaction. See the result in',
     '  Sloth Money → Transactions or read the transaction again through the CLI.',
     '  Assignments do not create a separate list.',
-  ].join('\n');
-}
-
-export function jointBudgetSettingsHelpText(): string {
-  return [
-    'Sloth Agent CLI — joint-budget-settings',
-    '',
-    'Read or update whether shared personal transactions count in the linked joint budget.',
-    '',
-    'Usage:',
-    '  sloth-agent joint-budget-settings [options]',
-    '',
-    'Options:',
-    '  --include-shared-personal-transactions=true|false',
-    '                      Optional. Preview the linked setting change.',
-    '  --apply             Optional. Apply the previewed setting change.',
-    '  --base-url URL      Optional. Override the API origin.',
-    '  -h, --help          Show this help.',
-    ...API_ORIGIN_HELP_LINES,
-    '',
-    'Safety:',
-    '  With no setting option, the command is read-only.',
-    '  Without --apply, a setting option returns a dry-run preview and does not write.',
-    '  --apply requires an explicit true or false setting value.',
-    '',
-    'Examples:',
-    '  sloth-agent joint-budget-settings',
-    '  sloth-agent joint-budget-settings --include-shared-personal-transactions=true',
-    '  sloth-agent joint-budget-settings --include-shared-personal-transactions=true --apply',
-    '',
-    'Output:',
-    '  JSON containing the linked setting, audit metadata, or a dry-run payload.',
   ].join('\n');
 }
 
@@ -537,10 +530,10 @@ export function commandHelpText(topic: HelpTopic): string {
     'auth-login': authLoginHelpText,
     'auth-status': authStatusHelpText,
     'auth-logout': authLogoutHelpText,
+    accounts: accountsHelpText,
     categories: categoriesHelpText,
     transactions: transactionsHelpText,
     assign: assignHelpText,
-    'joint-budget-settings': jointBudgetSettingsHelpText,
     goals: goalsHelpText,
     'goals-list': goalsListHelpText,
     'goals-create': goalsCreateHelpText,
@@ -949,41 +942,6 @@ export async function runCli(
       return hasFailures(data) ? 1 : 0;
     }
 
-    if (parsed.command === 'joint-budget-settings') {
-      const endpoint = `${baseUrl}/api/agent/v1/joint-budget-settings`;
-      if (parsed.includeSharedPersonalTransactions !== undefined && !parsed.apply) {
-        writeJson(writeStdout, {
-          dryRun: true,
-          endpoint,
-          payload: {
-            includeSharedPersonalTransactions: parsed.includeSharedPersonalTransactions,
-          },
-        });
-        return 0;
-      }
-
-      const response = await fetchImplementation(endpoint, {
-        method: parsed.apply ? 'PUT' : 'GET',
-        headers: parsed.apply
-          ? { ...headers, 'Content-Type': 'application/json' }
-          : headers,
-        ...(parsed.apply
-          ? {
-              body: JSON.stringify({
-                includeSharedPersonalTransactions:
-                  parsed.includeSharedPersonalTransactions,
-              }),
-            }
-          : {}),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-      const data = validateJointBudgetSettingsResponse(
-        await parseHttpResponse(response, token),
-      );
-      writeJson(writeStdout, data);
-      return 0;
-    }
-
     if (parsed.command === 'ask-partner') {
       const response = await fetchImplementation(
         `${baseUrl}/api/agent/v1/transaction-explanation-requests`,
@@ -1019,9 +977,11 @@ export async function runCli(
       return 0;
     }
 
-    const path = parsed.command === 'categories'
-      ? '/api/agent/v1/categories'
-      : `/api/agent/v1/transactions${(() => {
+    const path = parsed.command === 'accounts'
+      ? '/api/agent/v1/accounts'
+      : parsed.command === 'categories'
+        ? '/api/agent/v1/categories'
+        : `/api/agent/v1/transactions${(() => {
         const query = buildTransactionsQuery(parsed.filters);
         return query ? `?${query}` : '';
       })()}`;

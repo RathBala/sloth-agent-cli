@@ -78,14 +78,15 @@ try {
   assert.match(help, /sloth-agent auth login/);
   assert.match(help, /sloth-agent auth status/);
   assert.match(help, /sloth-agent auth logout/);
+  assert.match(help, /sloth-agent accounts/);
   assert.match(help, /sloth-agent transactions/);
-  assert.match(help, /sloth-agent joint-budget-settings/);
   assert.match(help, /sloth-agent goals create/);
   assert.match(help, /sloth-agent goals update/);
   assert.match(help, /sloth-agent goals delete/);
 
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
+    [['accounts', '--help'], [/existing Sloth account inventory/, /read-only/, /accountRef/]],
     [['categories', '--help'], [/A category is the broader parent\./]],
     [['transactions', '--help'], [/1 to 200/, /waits up to 45 seconds/, /remotely persists booked transactions/, /refresh status/]],
     [['assign', '--help'], [
@@ -94,11 +95,6 @@ try {
       /does not contact Sloth Money/,
       /Sloth Money → Transactions/,
       /Assignments do not create a separate list\./,
-    ]],
-    [['joint-budget-settings', '--help'], [
-      /--include-shared-personal-transactions=true/,
-      /Without --apply/,
-      /read-only/,
     ]],
     [['goals', 'list', '--help'], [/No filters or singular get/]],
     [['goals', 'create', '--help'], [/--name NAME\s+Required/]],

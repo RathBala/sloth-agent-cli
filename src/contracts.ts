@@ -23,6 +23,7 @@ export interface AssignmentPayload {
 }
 
 type ApiCommand =
+  | 'accounts'
   | 'categories'
   | 'transactions'
   | 'assign'
@@ -212,6 +213,8 @@ function isTransaction(value: unknown): boolean {
     && (value.categoryId === null || typeof value.categoryId === 'string')
     && (value.lineItemId === null || typeof value.lineItemId === 'string')
     && Array.isArray(value.categorySplits)
+    && Number.isInteger(value.personalBudgetAmountPence)
+    && Number(value.personalBudgetAmountPence) >= 0
     && (
       value.jointBudgetContribution === null
       || (
@@ -288,32 +291,6 @@ function isAssignmentResponse(value: unknown): boolean {
   );
 }
 
-export interface JointBudgetSettingsResponse {
-  includeSharedPersonalTransactions: boolean;
-  updatedAt: string | null;
-  updatedBy: string | null;
-}
-
-export function validateJointBudgetSettingsResponse(
-  value: unknown,
-): JointBudgetSettingsResponse {
-  if (
-    !isObject(value)
-    || Object.keys(value).some((key) => !new Set([
-      'includeSharedPersonalTransactions',
-      'updatedAt',
-      'updatedBy',
-    ]).has(key))
-    || typeof value.includeSharedPersonalTransactions !== 'boolean'
-    || (value.updatedAt !== null && !isIsoDateTime(value.updatedAt))
-    || (value.updatedBy !== null && typeof value.updatedBy !== 'string')
-  ) {
-    throw new ApiError('Invalid joint budget settings response from the Agent API');
-  }
-
-  return value as unknown as JointBudgetSettingsResponse;
-}
-
 function isHttpUrl(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   try {
@@ -384,6 +361,68 @@ function isCurrency(value: unknown): boolean {
   return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
 }
 
+function isNullableNonEmptyString(value: unknown): boolean {
+  return value === null || (
+    typeof value === 'string'
+    && value.length > 0
+    && value === value.trim()
+  );
+}
+
+function isAccount(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, [
+      'accountRef',
+      'accountName',
+      'institutionName',
+      'accountType',
+      'ownership',
+      'balanceAmount',
+      'currency',
+      'source',
+      'lastBalanceUpdatedAt',
+      'connectionState',
+    ])
+    && typeof value.accountRef === 'string'
+    && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
+    && isNullableNonEmptyString(value.accountName)
+    && isNullableNonEmptyString(value.institutionName)
+    && (
+      value.accountType === 'current'
+      || value.accountType === 'savings'
+      || value.accountType === 'investments'
+    )
+    && (value.ownership === 'personal' || value.ownership === 'joint')
+    && (
+      value.balanceAmount === null
+      || (typeof value.balanceAmount === 'number' && Number.isFinite(value.balanceAmount))
+    )
+    && (value.currency === null || isCurrency(value.currency))
+    && (value.source === 'connected' || value.source === 'manual')
+    && (
+      value.lastBalanceUpdatedAt === null
+      || isIsoDateTime(value.lastBalanceUpdatedAt)
+    )
+    && (
+      value.connectionState === 'active'
+      || value.connectionState === 'expired'
+      || value.connectionState === 'manual'
+      || value.connectionState === 'unknown'
+    )
+  );
+}
+
+function isAccountsResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['asOf', 'accounts'])
+    && isIsoDateTime(value.asOf)
+    && Array.isArray(value.accounts)
+    && value.accounts.every(isAccount)
+  );
+}
+
 function isGoalsResponse(value: unknown): boolean {
   return (
     isObject(value)
@@ -414,8 +453,10 @@ function isGoalDeleteResponse(value: unknown): boolean {
 }
 
 export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
-  const valid = command === 'categories'
-    ? isCategoryResponse(value)
+  const valid = command === 'accounts'
+    ? isAccountsResponse(value)
+    : command === 'categories'
+      ? isCategoryResponse(value)
     : command === 'transactions'
       ? isTransactionsResponse(value)
       : command === 'assign'

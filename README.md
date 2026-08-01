@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to manage goals and categorise transactions through the
+Use your own agent to inspect known accounts, manage goals, and categorise transactions through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.3.1 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.4.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -96,10 +96,10 @@ options, output, and examples:
 
 ```bash
 sloth-agent auth login --help
+sloth-agent accounts --help
 sloth-agent categories --help
 sloth-agent transactions --help
 sloth-agent assign --help
-sloth-agent joint-budget-settings --help
 sloth-agent goals create --help
 sloth-agent goals update --help
 sloth-agent ask-partner --help
@@ -174,6 +174,20 @@ query. Assignments do not create a separate list.
 
 ### Other workflows
 
+Read the existing Sloth account inventory:
+
+```bash
+sloth-agent accounts
+```
+
+The command is read-only and cache-only: it does not refresh linked banks or
+change account data. Each result contains an opaque `accountRef`, personal or
+joint ownership, connected or manual source, native balance/currency when
+known, `lastBalanceUpdatedAt`, and `connectionState`. Missing values are JSON
+`null`; currencies are never converted or combined. Partner personal accounts
+are excluded, while enabled shared joint accounts follow Sloth's existing
+visibility rules.
+
 List your goals:
 
 ```bash
@@ -243,16 +257,13 @@ account failure remains eligible for an automatic retry.
 Set `"assignmentScope": "joint"` on an assignment to categorise the eligible
 shared portion for the joint budget.
 
-Set whether the shared portions of personal-account transactions count in the
-linked joint budget. The first command previews; the second applies:
+Transaction reads expose `personalBudgetAmountPence` for the caller's explicit
+personal-only portion and `jointBudgetContribution.amountPence` for the full
+shared portion. The 60/40 settlement ratio does not reduce joint-budget spend.
 
-```bash
-sloth-agent joint-budget-settings \
-  --include-shared-personal-transactions=true
-sloth-agent joint-budget-settings \
-  --include-shared-personal-transactions=true \
-  --apply
-```
+Shared personal-account transactions with a joint assignment are included in
+the joint budget automatically. The settlement ratio remains independent from
+the amount attributed to the joint budget.
 
 Create a partner clarification link:
 
