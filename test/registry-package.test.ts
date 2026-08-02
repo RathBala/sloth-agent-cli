@@ -53,6 +53,12 @@ describe('published package verification', () => {
     }
 
     const version = '9.8.7';
+    const childEnvironment = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => ![
+        'npm_execpath',
+        'npm_node_execpath',
+      ].includes(key.toLowerCase())),
+    );
     const result = spawnSync(
       process.execPath,
       [path.join(projectRoot, 'scripts', 'test-registry-package.mjs'), version],
@@ -60,7 +66,7 @@ describe('published package verification', () => {
         cwd: projectRoot,
         encoding: 'utf8',
         env: {
-          ...process.env,
+          ...childEnvironment,
           CAPTURE_PATH: capturePath,
           EXPECTED_VERSION: version,
           npm_execpath: fakeNpmScript,
