@@ -41,13 +41,13 @@ describe('published package verification', () => {
     if (process.platform === 'win32') {
       fs.writeFileSync(
         path.join(fakeBinDirectory, 'npm.cmd'),
-        '@echo off\r\n"%FAKE_NPM_NODE%" "%FAKE_NPM_SCRIPT%" %*\r\n',
+        '@echo off\r\n>&2 echo PATH npm executable must not be used\r\nexit /b 9\r\n',
       );
     } else {
       const fakeNpm = path.join(fakeBinDirectory, 'npm');
       fs.writeFileSync(
         fakeNpm,
-        '#!/bin/sh\nexec "$FAKE_NPM_NODE" "$FAKE_NPM_SCRIPT" "$@"\n',
+        '#!/bin/sh\necho "PATH npm executable must not be used" >&2\nexit 9\n',
         { mode: 0o755 },
       );
     }
@@ -63,8 +63,8 @@ describe('published package verification', () => {
           ...process.env,
           CAPTURE_PATH: capturePath,
           EXPECTED_VERSION: version,
-          FAKE_NPM_NODE: process.execPath,
-          FAKE_NPM_SCRIPT: fakeNpmScript,
+          npm_execpath: fakeNpmScript,
+          npm_node_execpath: process.execPath,
           PATH: `${fakeBinDirectory}${path.delimiter}${process.env.PATH ?? ''}`,
           TEMP: repositoryTempRoot,
           TMP: repositoryTempRoot,

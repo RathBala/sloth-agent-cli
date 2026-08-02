@@ -26,9 +26,9 @@ const temporaryDirectory = fs.mkdtempSync(path.join(safeTempRoot, 'sloth-agent-r
 const executionDirectory = path.join(temporaryDirectory, 'run');
 fs.mkdirSync(executionDirectory);
 
-const isWindows = process.platform === 'win32';
-const npmExecutable = isWindows ? 'npm.cmd' : 'npm';
-const commandOptions = isWindows ? { shell: true } : {};
+const npmCliPath = process.env.npm_execpath;
+assert(npmCliPath, 'npm_execpath is required; run this check through npm');
+const npmNodeExecutable = process.env.npm_node_execpath ?? process.execPath;
 const cleanPath = (process.env.PATH ?? '')
   .split(path.delimiter)
   .filter((entry) => !isInside(projectRoot, path.resolve(entry)))
@@ -36,8 +36,9 @@ const cleanPath = (process.env.PATH ?? '')
 
 try {
   const installedVersion = execFileSync(
-    npmExecutable,
+    npmNodeExecutable,
     [
+      npmCliPath,
       'exec',
       '--yes',
       `--package=@slothmoney/agent-cli@${version}`,
@@ -55,7 +56,6 @@ try {
         npm_config_cache: path.join(temporaryDirectory, 'npm-cache'),
         npm_config_prefer_online: 'true',
       },
-      ...commandOptions,
     },
   ).trim();
 
