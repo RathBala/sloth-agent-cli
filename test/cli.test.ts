@@ -71,6 +71,7 @@ describe('CLI execution', () => {
     expect(await runCli(['--help'], { env: {}, ...helpIo })).toBe(0);
     expect(helpIo.stdout.join('')).toContain('sloth-agent transactions');
     expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
+    expect(helpIo.stdout.join('')).toContain('view-only');
     expect(helpIo.stderr).toEqual([]);
 
     const fetchMock = vi.fn();
@@ -83,6 +84,8 @@ describe('CLI execution', () => {
         'hidden prompt',
         'sloth_pat_v1_',
         'only after remote validation succeeds',
+        'Allow changes',
+        'agent:write',
       ]],
       [['auth', 'status', '--help'], ['live API request', 'remoteStatus']],
       [['auth', 'logout', '--help'], ['does not revoke', 'SLOTH_AGENT_TOKEN']],
@@ -128,6 +131,7 @@ describe('CLI execution', () => {
         'succeeded and failed',
         'Assignments do not create a separate list.',
         '1 to 100',
+        'write-enabled token',
       ]],
       [['goals', '--help'], [
         'goals list',
@@ -147,6 +151,8 @@ describe('CLI execution', () => {
         '--target-amount AMOUNT',
         '--target-month YYYY-MM',
         'Without --apply',
+        'write-enabled token',
+        'Allow changes',
         '201',
       ]],
       [['goals', 'update', '--help'], [
@@ -157,6 +163,8 @@ describe('CLI execution', () => {
         '--achieved=true|false',
         'at least one field',
         'Without --apply',
+        'write-enabled token',
+        'Allow changes',
         'Change active shared pot target amounts',
       ]],
       [['goals', 'delete', '--help'], [
@@ -165,6 +173,8 @@ describe('CLI execution', () => {
         'forecast assignments',
         'drift history',
         'Without --apply',
+        'write-enabled token',
+        'Allow changes',
       ]],
       [['ask-partner', '--help'], [
         '--transaction-ref REF',
@@ -173,6 +183,8 @@ describe('CLI execution', () => {
         'placeholder',
         'creates the request immediately',
         'no preview mode',
+        'write-enabled token',
+        'Allow changes',
       ]],
     ];
 

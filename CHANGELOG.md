@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document that new Sloth Money personal access tokens are view-only by
+  default, and identify the CLI operations that require explicit write access.
 - Add the read-only `sloth-agent accounts` command with strict runtime
   validation for opaque references, ownership, native balances, sources, and
   freshness metadata.

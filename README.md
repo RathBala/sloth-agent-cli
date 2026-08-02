@@ -24,6 +24,12 @@ Create a personal access token in Sloth Money under
 **Settings > Developer access**, then choose the authentication method for
 where the CLI runs.
 
+New tokens are view-only. That is enough for `auth status`, `accounts`,
+`categories`, `transactions`, and `goals` list. Enable **Allow changes** when
+creating the token only if the CLI must apply assignments, ask a partner for
+an explanation, or create, update, or delete goals. Token permissions cannot
+be changed later - revoke and reissue the token instead.
+
 ### Local computer
 
 On an interactive desktop, save the token in your operating system's secure
@@ -157,6 +163,8 @@ does not guarantee that applying it will succeed.
 ```bash
 sloth-agent assign --input assignments.json --apply
 ```
+
+This step requires a token created with **Allow changes**.
 
 Inspect every item in the returned `succeeded` and `failed` arrays.
 
