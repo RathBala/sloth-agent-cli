@@ -7,6 +7,7 @@ import {
   parseArgs,
   resolveBaseUrl,
 } from './args.js';
+import { ICON_KEYS } from './category-metadata.js';
 import {
   parseApiResponse,
   validateAssignmentPayload,
@@ -23,7 +24,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.4.0';
+export const CLI_VERSION = '0.5.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -57,10 +58,15 @@ export function usageText(): string {
     '  sloth-agent auth status [--base-url URL]',
     '  sloth-agent auth logout [--base-url URL]',
     '  sloth-agent accounts [--base-url URL]',
-    '  sloth-agent categories [--base-url URL]',
+    '  sloth-agent categories [list] [--base-url URL]',
+    '  sloth-agent categories create --name NAME --icon-key KEY --type TYPE [--apply]',
+    '  sloth-agent categories rename --category-id ID --name NAME [--apply]',
+    '  sloth-agent line-items create --scope personal|joint --category-id ID --name NAME [--apply]',
+    '  sloth-agent line-items rename --scope personal|joint --category-id ID --line-item-id ID --name NAME [--apply]',
     '  sloth-agent transactions [--uncategorized[=true|false]] [--limit N]',
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
-    '    [--account-id ID] [--category-id ID] [--cursor CURSOR] [--base-url URL]',
+    '    [--account-id ID] [--category-id ID] [--line-item-id ID]',
+    '    [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent goals [list] [--base-url URL]',
     '  sloth-agent goals create --name NAME [--target-amount AMOUNT]',
@@ -197,7 +203,7 @@ export function categoriesHelpText(): string {
     'Read categories and the personal and joint line items within them.',
     '',
     'Usage:',
-    '  sloth-agent categories [--base-url URL]',
+    '  sloth-agent categories [list] [--base-url URL]',
     '',
     'Options:',
     '  --base-url URL   Optional. Override the API origin.',
@@ -224,6 +230,90 @@ export function categoriesHelpText(): string {
     '  personalLineItemsByCategoryId    Personal child line items keyed by category ID',
     '  jointLineItemsByCategoryId       Joint child line items keyed by category ID',
   ].join('\n');
+}
+
+export function categoriesCreateHelpText(): string {
+  return [
+    'Sloth Agent CLI — categories create',
+    '',
+    'Create a custom category.',
+    '',
+    'Usage:',
+    '  sloth-agent categories create --name NAME --icon-key KEY --type TYPE [--apply] [--base-url URL]',
+    '',
+    'Required inputs:',
+    '  --name NAME       Category name, up to 200 characters.',
+    `  --icon-key KEY    One of: ${ICON_KEYS.join(', ')}.`,
+    '  --type TYPE       Needs, Debts, Savings & Investments, or Wants.',
+    '',
+    'Write behavior:',
+    '  Without --apply, returns a JSON preview and makes no mutation request.',
+    '  With --apply, creates the category globally and requires a write-enabled token.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON containing category.id, name, iconKey, categoryType, and source.',
+  ].join('\n');
+}
+
+export function categoriesRenameHelpText(): string {
+  return [
+    'Sloth Agent CLI — categories rename',
+    '',
+    'Rename a user-created category. Built-in categories are immutable.',
+    '',
+    'Usage:',
+    '  sloth-agent categories rename --category-id ID --name NAME [--apply] [--base-url URL]',
+    '',
+    'Required inputs:',
+    '  --category-id ID  Custom category document ID.',
+    '  --name NAME        New category name, up to 200 characters.',
+    '',
+    'Write behavior:',
+    '  Without --apply, returns a JSON preview and makes no mutation request.',
+    '  With --apply, renames the canonical category and requires a write-enabled token.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON containing the renamed category.',
+  ].join('\n');
+}
+
+function lineItemsMutationHelpText(operation: 'create' | 'rename'): string {
+  const rename = operation === 'rename';
+  return [
+    `Sloth Agent CLI — line-items ${operation}`,
+    '',
+    rename ? 'Rename a scoped budget line item.' : 'Create a scoped budget line item at zero.',
+    '',
+    'Usage:',
+    rename
+      ? '  sloth-agent line-items rename --scope personal|joint --category-id ID --line-item-id ID --name NAME [--apply] [--base-url URL]'
+      : '  sloth-agent line-items create --scope personal|joint --category-id ID --name NAME [--apply] [--base-url URL]',
+    '',
+    'Required inputs:',
+    '  --scope SCOPE       personal or joint.',
+    '  --category-id ID    Parent category ID.',
+    ...(rename ? ['  --line-item-id ID   Existing child line-item ID.'] : []),
+    '  --name NAME         Line-item name, up to 200 characters.',
+    '',
+    'Write behavior:',
+    '  Without --apply, returns a JSON preview and makes no mutation request.',
+    '  With --apply, updates the current period and explicit future plans.',
+    '  Historical snapshots remain unchanged. A write-enabled token is required.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON containing scope, categoryId, and lineItem.id and name.',
+  ].join('\n');
+}
+
+export function lineItemsCreateHelpText(): string {
+  return lineItemsMutationHelpText('create');
+}
+
+export function lineItemsRenameHelpText(): string {
+  return lineItemsMutationHelpText('rename');
 }
 
 export function accountsHelpText(): string {
@@ -269,6 +359,7 @@ export function transactionsHelpText(): string {
     '  --q TEXT                       Optional. Search transactions by text.',
     '  --account-id ID                Optional. Filter by account ID.',
     '  --category-id ID               Optional. Filter by category ID.',
+    '  --line-item-id ID              Optional. Filter primary or split assignments by line-item ID.',
     '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
     '  --cursor CURSOR                Optional. Continue from a previous nextCursor.',
     '  --base-url URL                 Optional. Override the API origin.',
@@ -543,6 +634,10 @@ export function commandHelpText(topic: HelpTopic): string {
     'auth-logout': authLogoutHelpText,
     accounts: accountsHelpText,
     categories: categoriesHelpText,
+    'categories-create': categoriesCreateHelpText,
+    'categories-rename': categoriesRenameHelpText,
+    'line-items-create': lineItemsCreateHelpText,
+    'line-items-rename': lineItemsRenameHelpText,
     transactions: transactionsHelpText,
     assign: assignHelpText,
     goals: goalsHelpText,
@@ -652,6 +747,7 @@ function buildTransactionsQuery(
   if (filters.q !== undefined) params.set('q', filters.q);
   if (filters.accountId !== undefined) params.set('accountId', filters.accountId);
   if (filters.categoryId !== undefined) params.set('categoryId', filters.categoryId);
+  if (filters.lineItemId !== undefined) params.set('lineItemId', filters.lineItemId);
   if (filters.assignmentScope !== undefined) {
     params.set('assignmentScope', filters.assignmentScope);
   }
@@ -828,6 +924,45 @@ export async function runCli(
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
+
+    if (
+      parsed.command === 'categories-create'
+      || parsed.command === 'categories-rename'
+      || parsed.command === 'line-items-create'
+      || parsed.command === 'line-items-rename'
+    ) {
+      const isCategory = parsed.command.startsWith('categories-');
+      const isCreate = parsed.command.endsWith('-create');
+      const resourceId = parsed.command === 'categories-rename'
+        ? parsed.categoryId
+        : parsed.command === 'line-items-rename'
+          ? parsed.lineItemId
+          : null;
+      const endpoint = isCreate
+        ? `${baseUrl}/api/agent/v1/${isCategory ? 'categories' : 'line-items'}`
+        : `${baseUrl}/api/agent/v1/${isCategory ? 'categories' : 'line-items'}/${encodeURIComponent(
+          resourceId!,
+        )}`;
+      const payload = parsed.command === 'categories-create'
+        ? { name: parsed.name, iconKey: parsed.iconKey, categoryType: parsed.categoryType }
+        : parsed.command === 'categories-rename'
+          ? { name: parsed.name }
+          : { scope: parsed.scope, categoryId: parsed.categoryId, name: parsed.name };
+      const method = isCreate ? 'POST' : 'PATCH';
+      if (!parsed.apply) {
+        writeJson(writeStdout, { dryRun: true, endpoint, method, payload });
+        return 0;
+      }
+      const response = await fetchImplementation(endpoint, {
+        method,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
+      writeJson(writeStdout, data);
+      return 0;
+    }
 
     if (parsed.command === 'goals-create') {
       const endpoint = `${baseUrl}/api/agent/v1/goals`;

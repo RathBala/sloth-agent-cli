@@ -1,4 +1,10 @@
 import { UsageError } from './errors.js';
+import {
+  CATEGORY_TYPES,
+  ICON_KEYS,
+  type CategoryType,
+  type IconKey,
+} from './category-metadata.js';
 
 export interface CliEnvironment {
   SLOTH_AGENT_API_BASE_URL?: string;
@@ -18,6 +24,7 @@ export interface TransactionFilters {
   q?: string;
   accountId?: string;
   categoryId?: string;
+  lineItemId?: string;
   assignmentScope?: 'personal' | 'joint';
   cursor?: string;
 }
@@ -29,6 +36,10 @@ export type HelpTopic =
   | 'auth-logout'
   | 'accounts'
   | 'categories'
+  | 'categories-create'
+  | 'categories-rename'
+  | 'line-items-create'
+  | 'line-items-rename'
   | 'transactions'
   | 'assign'
   | 'goals'
@@ -50,6 +61,38 @@ export type ParsedCommand =
   | { command: 'auth-logout'; baseUrl?: string }
   | { command: 'accounts'; baseUrl?: string }
   | { command: 'categories'; baseUrl?: string }
+  | {
+    command: 'categories-create';
+    baseUrl?: string;
+    name: string;
+    iconKey: IconKey;
+    categoryType: CategoryType;
+    apply: boolean;
+  }
+  | {
+    command: 'categories-rename';
+    baseUrl?: string;
+    categoryId: string;
+    name: string;
+    apply: boolean;
+  }
+  | {
+    command: 'line-items-create';
+    baseUrl?: string;
+    scope: 'personal' | 'joint';
+    categoryId: string;
+    name: string;
+    apply: boolean;
+  }
+  | {
+    command: 'line-items-rename';
+    baseUrl?: string;
+    scope: 'personal' | 'joint';
+    categoryId: string;
+    lineItemId: string;
+    name: string;
+    apply: boolean;
+  }
   | {
     command: 'transactions';
     baseUrl?: string;
@@ -85,7 +128,6 @@ export type ParsedCommand =
 
 const PRODUCTION_BASE_URL = 'https://budget.slothmoney.app';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
-
 function readOptionValue(args: string[], index: number, name: string): string {
   const value = args[index + 1];
   if (value === undefined || value.length === 0 || value.startsWith('--')) {
@@ -188,6 +230,30 @@ function parseGoalId(value: string): string {
   return goalId;
 }
 
+function parseResourceId(value: string, option: '--category-id' | '--line-item-id'): string {
+  const id = value.trim();
+  if (
+    !id
+    || id.length > 500
+    || id.includes('/')
+    || Array.from(id).some((character) => {
+      const codePoint = character.codePointAt(0);
+      return codePoint !== undefined && (codePoint < 32 || codePoint === 127);
+    })
+  ) {
+    const resource = option === '--category-id' ? 'category' : 'line-item';
+    throw new UsageError(`${option} must be a valid ${resource} document ID`);
+  }
+  return id;
+}
+
+function parseResourceName(value: string): string {
+  const name = value.trim();
+  if (!name) throw new UsageError('--name requires a value');
+  if (name.length > 200) throw new UsageError('--name must be at most 200 characters');
+  return name;
+}
+
 function parseTransactions(args: string[]): TransactionFilters {
   const filters: TransactionFilters = {};
 
@@ -216,6 +282,7 @@ function parseTransactions(args: string[]): TransactionFilters {
       '--q',
       '--account-id',
       '--category-id',
+      '--line-item-id',
       '--assignment-scope',
       '--cursor',
     ]);
@@ -249,6 +316,8 @@ function parseTransactions(args: string[]): TransactionFilters {
       filters.accountId = setOnce(filters.accountId, value, name);
     } else if (name === '--category-id') {
       filters.categoryId = setOnce(filters.categoryId, value, name);
+    } else if (name === '--line-item-id') {
+      filters.lineItemId = setOnce(filters.lineItemId, value, name);
     } else if (name === '--assignment-scope') {
       if (value !== 'personal' && value !== 'joint') {
         throw new UsageError('--assignment-scope must be personal or joint');
@@ -268,6 +337,124 @@ function parseTransactions(args: string[]): TransactionFilters {
   }
 
   return filters;
+}
+
+function parseNamedOptions(
+  args: string[],
+  commandLabel: string,
+  allowed: ReadonlySet<string>,
+): { values: Map<string, string>; apply: boolean } {
+  const values = new Map<string, string>();
+  let apply = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!;
+    if (argument === '--apply') {
+      if (apply) throw new UsageError('--apply may only be provided once');
+      apply = true;
+      continue;
+    }
+    const [option, inlineValue] = argument.includes('=')
+      ? argument.split(/=(.*)/s, 2)
+      : [argument, undefined];
+    if (!option || !allowed.has(option)) {
+      throw new UsageError(`Unknown ${commandLabel} option: ${argument}`);
+    }
+    if (values.has(option)) throw new UsageError(`${option} may only be provided once`);
+    const value = requireNonEmpty(inlineValue ?? readOptionValue(args, index, option), option);
+    if (inlineValue === undefined) index += 1;
+    values.set(option, value);
+  }
+  return { values, apply };
+}
+
+function requiredOption(values: Map<string, string>, option: string, commandLabel: string): string {
+  const value = values.get(option);
+  if (!value) throw new UsageError(`${commandLabel} requires ${option} <value>`);
+  return value;
+}
+
+function parseCategories(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand === undefined || subcommand === 'list') {
+    if (args.length > 0) throw new UsageError(`Unknown categories list option: ${args[0]}`);
+    return withBaseUrl({ command: 'categories' }, baseUrl);
+  }
+  if (subcommand === 'create') {
+    const { values, apply } = parseNamedOptions(
+      args,
+      'categories create',
+      new Set(['--name', '--icon-key', '--type']),
+    );
+    const iconKey = requiredOption(values, '--icon-key', 'categories create');
+    const categoryType = requiredOption(values, '--type', 'categories create');
+    if (!(ICON_KEYS as readonly string[]).includes(iconKey)) {
+      throw new UsageError(`--icon-key must be one of: ${ICON_KEYS.join(', ')}`);
+    }
+    if (!(CATEGORY_TYPES as readonly string[]).includes(categoryType)) {
+      throw new UsageError(`--type must be one of: ${CATEGORY_TYPES.join(', ')}`);
+    }
+    return withBaseUrl({
+      command: 'categories-create',
+      name: parseResourceName(requiredOption(values, '--name', 'categories create')),
+      iconKey: iconKey as IconKey,
+      categoryType: categoryType as CategoryType,
+      apply,
+    }, baseUrl);
+  }
+  if (subcommand === 'rename') {
+    const { values, apply } = parseNamedOptions(
+      args,
+      'categories rename',
+      new Set(['--category-id', '--name']),
+    );
+    return withBaseUrl({
+      command: 'categories-rename',
+      categoryId: parseResourceId(
+        requiredOption(values, '--category-id', 'categories rename'),
+        '--category-id',
+      ),
+      name: parseResourceName(requiredOption(values, '--name', 'categories rename')),
+      apply,
+    }, baseUrl);
+  }
+  if (subcommand.startsWith('-')) {
+    throw new UsageError(`Unknown categories option: ${subcommand}`);
+  }
+  throw new UsageError(`Unknown categories command: ${subcommand}`);
+}
+
+function parseLineItems(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand !== 'create' && subcommand !== 'rename') {
+    throw new UsageError('line-items requires create or rename');
+  }
+  const allowed = new Set(['--scope', '--category-id', '--name']);
+  if (subcommand === 'rename') allowed.add('--line-item-id');
+  const { values, apply } = parseNamedOptions(args, `line-items ${subcommand}`, allowed);
+  const scope = requiredOption(values, '--scope', `line-items ${subcommand}`);
+  if (scope !== 'personal' && scope !== 'joint') {
+    throw new UsageError('--scope must be personal or joint');
+  }
+  const common = {
+    scope: scope as 'personal' | 'joint',
+    categoryId: parseResourceId(
+      requiredOption(values, '--category-id', `line-items ${subcommand}`),
+      '--category-id',
+    ),
+    name: parseResourceName(requiredOption(values, '--name', `line-items ${subcommand}`)),
+    apply,
+  };
+  if (subcommand === 'create') {
+    return withBaseUrl({ command: 'line-items-create', ...common }, baseUrl);
+  }
+  return withBaseUrl({
+    command: 'line-items-rename',
+    ...common,
+    lineItemId: parseResourceId(
+      requiredOption(values, '--line-item-id', 'line-items rename'),
+      '--line-item-id',
+    ),
+  }, baseUrl);
 }
 
 function withBaseUrl<T extends object>(value: T, baseUrl?: string): T & { baseUrl?: string } {
@@ -556,9 +743,18 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'delete') return 'goals-delete';
     return 'goals';
   }
+  if (command === 'categories') {
+    if (subcommand === 'create') return 'categories-create';
+    if (subcommand === 'rename') return 'categories-rename';
+    return 'categories';
+  }
+  if (command === 'line-items') {
+    if (subcommand === 'create') return 'line-items-create';
+    if (subcommand === 'rename') return 'line-items-rename';
+    return undefined;
+  }
   if (
     command === 'accounts'
-    || command === 'categories'
     || command === 'transactions'
     || command === 'assign'
     || command === 'ask-partner'
@@ -588,10 +784,11 @@ export function parseArgs(argv: string[]): ParsedCommand {
   }
 
   if (command === 'categories') {
-    if (args.length > 0) {
-      throw new UsageError(`Unknown categories option: ${args[0]}`);
-    }
-    return withBaseUrl({ command }, baseUrl);
+    return parseCategories(args, baseUrl);
+  }
+
+  if (command === 'line-items') {
+    return parseLineItems(args, baseUrl);
   }
 
   if (command === 'accounts') {

@@ -12,10 +12,12 @@ import {
   agentApiV1AccountsResponse,
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
+  agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
   agentApiV1GoalDeleteResponse,
   agentApiV1GoalMutationResponse,
   agentApiV1GoalsResponse,
+  agentApiV1LineItemMutationResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -95,6 +97,20 @@ describe('CLI execution', () => {
         '(scope, categoryId, lineItemId)',
         'read-only',
       ]],
+      [['categories', 'create', '--help'], [
+        '--name NAME', '--icon-key KEY', '--type TYPE', 'Without --apply',
+        'shopping-cart', 'plane', 'no mutation request', 'write-enabled token',
+      ]],
+      [['categories', 'rename', '--help'], [
+        '--category-id ID', 'Built-in categories are immutable', 'Without --apply',
+      ]],
+      [['line-items', 'create', '--help'], [
+        '--scope', '--category-id ID', 'at zero', 'explicit future plans',
+        'Historical snapshots remain unchanged',
+      ]],
+      [['line-items', 'rename', '--help'], [
+        '--line-item-id ID', '--name NAME', 'Without --apply', 'write-enabled token',
+      ]],
       [['accounts', '--help'], [
         'existing Sloth account inventory',
         'read-only',
@@ -107,6 +123,7 @@ describe('CLI execution', () => {
         '--limit N',
         'Integer from 1 to 200',
         '--cursor CURSOR',
+        '--line-item-id ID',
         'must not be before --start-date',
         'waits up to 45 seconds',
         'remotely persists booked transactions',
@@ -830,6 +847,8 @@ describe('CLI execution', () => {
       'account-1',
       '--category-id',
       'groceries',
+      '--line-item-id',
+      'weekly',
       '--assignment-scope',
       'joint',
       '--cursor',
@@ -841,13 +860,101 @@ describe('CLI execution', () => {
     })).toBe(0);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&assignmentScope=joint&cursor=cursor-1',
+      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&lineItemId=weekly&assignmentScope=joint&cursor=cursor-1',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Prefer: 'wait=45' }),
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+
+  it('previews category creation without a mutation request and applies encoded category rename', async () => {
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    expect(await runCli([
+      'categories', 'create', '--name', 'Holidays', '--icon-key', 'plane', '--type', 'Wants',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: previewFetch, ...previewIo,
+    })).toBe(0);
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/categories',
+      method: 'POST',
+      payload: { name: 'Holidays', iconKey: 'plane', categoryType: 'Wants' },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(agentApiV1CategoryMutationResponse));
+    expect(await runCli([
+      'categories', 'rename', '--category-id', 'custom id', '--name', 'Travel fund', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: applyFetch, ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/categories/custom%20id',
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ name: 'Travel fund' }) }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(agentApiV1CategoryMutationResponse);
+  });
+
+  it('reports a write-token failure without emitting mutation JSON', async () => {
+    const io = createIo();
+
+    expect(await runCli([
+      'categories', 'create', '--name', 'Holidays', '--icon-key', 'plane', '--type', 'Wants', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'view-only-token' },
+      fetch: vi.fn().mockResolvedValue(jsonResponse({ error: 'Token does not have required scope' }, 403)),
+      ...io,
+    })).toBe(1);
+
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toContain('Token does not have required scope');
+  });
+
+  it('previews and applies scoped line-item writes with strict success validation', async () => {
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    expect(await runCli([
+      'line-items', 'create', '--scope', 'personal', '--category-id', 'groceries', '--name', 'Weekly',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: previewFetch, ...previewIo,
+    })).toBe(0);
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toMatchObject({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/line-items',
+      method: 'POST',
+      payload: { scope: 'personal', categoryId: 'groceries', name: 'Weekly' },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(agentApiV1LineItemMutationResponse));
+    expect(await runCli([
+      'line-items', 'rename', '--scope', 'personal', '--category-id', 'groceries',
+      '--line-item-id', 'weekly item', '--name', 'Weekly shop', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: applyFetch, ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/line-items/weekly%20item',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ scope: 'personal', categoryId: 'groceries', name: 'Weekly shop' }),
+      }),
+    );
+
+    const malformedIo = createIo();
+    expect(await runCli([
+      'line-items', 'create', '--scope', 'personal', '--category-id', 'groceries', '--name', 'Weekly', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: vi.fn().mockResolvedValue(jsonResponse({ scope: 'personal', categoryId: 'groceries' })),
+      ...malformedIo,
+    })).toBe(1);
+    expect(malformedIo.stderr.join('')).toContain('Invalid line-items-create response');
   });
 
   it('previews assignments without calling the API', async () => {

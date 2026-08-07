@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-08-07
+
+- Create and rename custom categories, with existing icon and category type
+  validation and preview-only writes unless `--apply` is supplied.
+- Create and rename personal or joint budget line items while preserving
+  historical snapshots and future plan amounts.
+- Filter transactions directly by `--line-item-id`, including paired
+  `--category-id` matching for split assignments.
+- Strictly validate category and line-item mutation responses and extend
+  command-specific and packed-binary help coverage.
+
+## 0.4.0 - 2026-08-01
+
 - Document that new Sloth Money personal access tokens are view-only by
   default, and identify the CLI operations that require explicit write access.
 - Add the read-only `sloth-agent accounts` command with strict runtime

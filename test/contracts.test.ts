@@ -8,10 +8,12 @@ import {
   agentApiV1AccountsResponse,
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
+  agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
   agentApiV1GoalDeleteResponse,
   agentApiV1GoalMutationResponse,
   agentApiV1GoalsResponse,
+  agentApiV1LineItemMutationResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -75,6 +77,14 @@ describe('API response validation', () => {
       'categories',
       agentApiV1CategoriesResponse,
     )).toBe(agentApiV1CategoriesResponse);
+    expect(parseApiResponse('categories-create', agentApiV1CategoryMutationResponse))
+      .toBe(agentApiV1CategoryMutationResponse);
+    expect(parseApiResponse('categories-rename', agentApiV1CategoryMutationResponse))
+      .toBe(agentApiV1CategoryMutationResponse);
+    expect(parseApiResponse('line-items-create', agentApiV1LineItemMutationResponse))
+      .toBe(agentApiV1LineItemMutationResponse);
+    expect(parseApiResponse('line-items-rename', agentApiV1LineItemMutationResponse))
+      .toBe(agentApiV1LineItemMutationResponse);
     expect(parseApiResponse(
       'assign',
       agentApiV1AssignmentResponse,
@@ -126,6 +136,13 @@ describe('API response validation', () => {
       }],
     })).toThrow(/invalid accounts response/i);
     expect(() => parseApiResponse('categories', { categories: [] })).toThrow(/invalid categories response/i);
+    expect(() => parseApiResponse('categories-create', {
+      category: { ...agentApiV1CategoryMutationResponse.category, source: 'default' },
+    })).toThrow(/invalid categories-create response/i);
+    expect(() => parseApiResponse('line-items-rename', {
+      ...agentApiV1LineItemMutationResponse,
+      lineItem: { ...agentApiV1LineItemMutationResponse.lineItem, amount: 0 },
+    })).toThrow(/invalid line-items-rename response/i);
     expect(() => parseApiResponse('transactions', { transactions: 'not-an-array' })).toThrow(/invalid transactions response/i);
     expect(() => parseApiResponse('transactions', {
       ...agentApiV1TransactionsResponse,

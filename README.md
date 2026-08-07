@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.4.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.5.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -26,9 +26,9 @@ where the CLI runs.
 
 New tokens are view-only. That is enough for `auth status`, `accounts`,
 `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
-creating the token only if the CLI must apply assignments, ask a partner for
-an explanation, or create, update, or delete goals. Token permissions cannot
-be changed later - revoke and reissue the token instead.
+creating the token only if the CLI must apply assignments, manage categories
+or line items, ask a partner for an explanation, or manage goals. Token
+permissions cannot be changed later - revoke and reissue the token instead.
 
 ### Local computer
 
@@ -104,6 +104,8 @@ options, output, and examples:
 sloth-agent auth login --help
 sloth-agent accounts --help
 sloth-agent categories --help
+sloth-agent categories create --help
+sloth-agent line-items create --help
 sloth-agent transactions --help
 sloth-agent assign --help
 sloth-agent goals create --help
@@ -181,6 +183,63 @@ The transaction should also disappear from the matching `--uncategorized`
 query. Assignments do not create a separate list.
 
 ### Other workflows
+
+Create or rename a custom category. Writes are previews until `--apply` is
+present:
+
+```bash
+sloth-agent categories create \
+  --name "Holidays" \
+  --icon-key plane \
+  --type Wants
+
+sloth-agent categories create \
+  --name "Holidays" \
+  --icon-key plane \
+  --type Wants \
+  --apply
+
+sloth-agent categories rename \
+  --category-id category-id \
+  --name "Travel fund" \
+  --apply
+```
+
+Built-in categories cannot be renamed. A created category is available in the
+next `sloth-agent categories` result without needing a budget allocation.
+
+Create or rename a line item within a personal or joint budget:
+
+```bash
+sloth-agent line-items create \
+  --scope personal \
+  --category-id groceries \
+  --name "Weekly shop" \
+  --apply
+
+sloth-agent line-items rename \
+  --scope personal \
+  --category-id groceries \
+  --line-item-id line-item-id \
+  --name "Essentials" \
+  --apply
+```
+
+Line-item writes update the current period and explicit future plans.
+Historical snapshots remain unchanged. New items start at zero and do not
+change total allocation.
+
+Filter transactions by a line-item ID. Pair it with `--category-id` when the
+same ID may appear under different categories:
+
+```bash
+sloth-agent transactions \
+  --assignment-scope personal \
+  --category-id groceries \
+  --line-item-id line-item-id
+```
+
+The category and line-item IDs must match the same primary assignment or split.
 
 Read the existing Sloth account inventory:
 

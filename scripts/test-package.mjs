@@ -79,6 +79,8 @@ try {
   assert.match(help, /sloth-agent auth status/);
   assert.match(help, /sloth-agent auth logout/);
   assert.match(help, /sloth-agent accounts/);
+  assert.match(help, /sloth-agent categories create/);
+  assert.match(help, /sloth-agent line-items create/);
   assert.match(help, /sloth-agent transactions/);
   assert.match(help, /sloth-agent goals create/);
   assert.match(help, /sloth-agent goals update/);
@@ -88,7 +90,11 @@ try {
     [['auth', 'login', '--help'], [/hidden prompt/]],
     [['accounts', '--help'], [/existing Sloth account inventory/, /read-only/, /accountRef/]],
     [['categories', '--help'], [/A category is the broader parent\./]],
-    [['transactions', '--help'], [/1 to 200/, /waits up to 45 seconds/, /remotely persists booked transactions/, /refresh status/]],
+    [['categories', 'create', '--help'], [/--icon-key KEY/, /no mutation request/]],
+    [['categories', 'rename', '--help'], [/Built-in categories are immutable/]],
+    [['line-items', 'create', '--help'], [/at zero/, /explicit future plans/]],
+    [['line-items', 'rename', '--help'], [/--line-item-id ID/, /Historical snapshots remain unchanged/]],
+    [['transactions', '--help'], [/1 to 200/, /--line-item-id ID/, /waits up to 45 seconds/, /remotely persists booked transactions/, /refresh status/]],
     [['assign', '--help'], [
       /An assignment categorises an existing transaction/,
       /PASTE_THE_EXACT_TRANSACTION_REF_HERE/,

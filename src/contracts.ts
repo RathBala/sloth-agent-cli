@@ -2,6 +2,7 @@ import {
   ApiError,
   UsageError,
 } from './errors.js';
+import { CATEGORY_TYPES, ICON_KEYS } from './category-metadata.js';
 
 export interface AgentCategorySplit {
   categoryId: string;
@@ -25,6 +26,10 @@ export interface AssignmentPayload {
 type ApiCommand =
   | 'accounts'
   | 'categories'
+  | 'categories-create'
+  | 'categories-rename'
+  | 'line-items-create'
+  | 'line-items-rename'
   | 'transactions'
   | 'assign'
   | 'ask-partner'
@@ -192,6 +197,43 @@ function isCategoryResponse(value: unknown): boolean {
     ))
     && isLineItemMap(value.personalLineItemsByCategoryId)
     && isLineItemMap(value.jointLineItemsByCategoryId)
+  );
+}
+
+function isCategoryMutationResponse(value: unknown): boolean {
+  if (!isObject(value) || !hasOnlyFields(value, ['category']) || !isObject(value.category)) {
+    return false;
+  }
+  const category = value.category;
+  return (
+    hasOnlyFields(category, ['id', 'name', 'iconKey', 'categoryType', 'source'])
+    && typeof category.id === 'string'
+    && category.id.trim().length > 0
+    && typeof category.name === 'string'
+    && category.name.trim().length > 0
+    && typeof category.iconKey === 'string'
+    && ICON_KEYS.includes(category.iconKey as typeof ICON_KEYS[number])
+    && typeof category.categoryType === 'string'
+    && CATEGORY_TYPES.includes(category.categoryType as typeof CATEGORY_TYPES[number])
+    && category.source === 'user'
+  );
+}
+
+function isLineItemMutationResponse(value: unknown): boolean {
+  if (
+    !isObject(value)
+    || !hasOnlyFields(value, ['scope', 'categoryId', 'lineItem'])
+    || (value.scope !== 'personal' && value.scope !== 'joint')
+    || typeof value.categoryId !== 'string'
+    || !value.categoryId.trim()
+    || !isObject(value.lineItem)
+  ) return false;
+  return (
+    hasOnlyFields(value.lineItem, ['id', 'name'])
+    && typeof value.lineItem.id === 'string'
+    && value.lineItem.id.trim().length > 0
+    && typeof value.lineItem.name === 'string'
+    && value.lineItem.name.trim().length > 0
   );
 }
 
@@ -457,6 +499,10 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
     ? isAccountsResponse(value)
     : command === 'categories'
       ? isCategoryResponse(value)
+      : command === 'categories-create' || command === 'categories-rename'
+        ? isCategoryMutationResponse(value)
+        : command === 'line-items-create' || command === 'line-items-rename'
+          ? isLineItemMutationResponse(value)
     : command === 'transactions'
       ? isTransactionsResponse(value)
       : command === 'assign'

@@ -6,6 +6,22 @@ export const agentApiV1CategoriesResponse = {
   jointLineItemsByCategoryId: {},
 } as const;
 
+export const agentApiV1CategoryMutationResponse = {
+  category: {
+    id: 'custom-1',
+    name: 'Holidays',
+    iconKey: 'plane',
+    categoryType: 'Wants',
+    source: 'user',
+  },
+} as const;
+
+export const agentApiV1LineItemMutationResponse = {
+  scope: 'personal',
+  categoryId: 'groceries',
+  lineItem: { id: 'weekly', name: 'Weekly shop' },
+} as const;
+
 export const agentApiV1AccountsResponse = {
   asOf: '2026-08-01T12:00:00.000Z',
   accounts: [{

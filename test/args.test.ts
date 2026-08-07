@@ -15,6 +15,10 @@ describe('CLI arguments', () => {
       parseArgs(['auth', 'logout', '--help']),
       parseArgs(['accounts', '--help']),
       parseArgs(['categories', '--help']),
+      parseArgs(['categories', 'create', '--help']),
+      parseArgs(['categories', 'rename', '--help']),
+      parseArgs(['line-items', 'create', '--help']),
+      parseArgs(['line-items', 'rename', '--help']),
       parseArgs(['transactions', '--help']),
       parseArgs(['assign', '--help']),
       parseArgs(['goals', '--help']),
@@ -27,6 +31,10 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'auth-logout' },
       { command: 'help', topic: 'accounts' },
       { command: 'help', topic: 'categories' },
+      { command: 'help', topic: 'categories-create' },
+      { command: 'help', topic: 'categories-rename' },
+      { command: 'help', topic: 'line-items-create' },
+      { command: 'help', topic: 'line-items-rename' },
       { command: 'help', topic: 'transactions' },
       { command: 'help', topic: 'assign' },
       { command: 'help', topic: 'goals' },
@@ -53,6 +61,64 @@ describe('CLI arguments', () => {
   it('parses both goal list forms', () => {
     expect(parseArgs(['goals'])).toEqual({ command: 'goals-list' });
     expect(parseArgs(['goals', 'list'])).toEqual({ command: 'goals-list' });
+  });
+
+  it('parses category list, create, and rename with preview by default', () => {
+    expect(parseArgs(['categories'])).toEqual({ command: 'categories' });
+    expect(parseArgs(['categories', 'list'])).toEqual({ command: 'categories' });
+    expect(parseArgs([
+      'categories', 'create', '--name', 'Holidays', '--icon-key=plane',
+      '--type', 'Wants',
+    ])).toEqual({
+      command: 'categories-create',
+      name: 'Holidays',
+      iconKey: 'plane',
+      categoryType: 'Wants',
+      apply: false,
+    });
+    expect(parseArgs([
+      'categories', 'rename', '--category-id', 'custom id', '--name', 'Travel fund', '--apply',
+    ])).toEqual({
+      command: 'categories-rename',
+      categoryId: 'custom id',
+      name: 'Travel fund',
+      apply: true,
+    });
+
+    expect(() => parseArgs(['categories', 'create', '--name', 'Holidays', '--icon-key', 'bad', '--type', 'Wants']))
+      .toThrow(/--icon-key/);
+    expect(() => parseArgs(['categories', 'create', '--name', 'Holidays', '--icon-key', 'plane', '--type', 'Other']))
+      .toThrow(/--type/);
+    expect(() => parseArgs(['categories', 'rename', '--category-id', 'built/in', '--name', 'Food']))
+      .toThrow(/valid category document ID/);
+  });
+
+  it('parses scoped line-item create and rename with preview by default', () => {
+    expect(parseArgs([
+      'line-items', 'create', '--scope', 'personal', '--category-id', 'groceries', '--name', 'Weekly',
+    ])).toEqual({
+      command: 'line-items-create',
+      scope: 'personal',
+      categoryId: 'groceries',
+      name: 'Weekly',
+      apply: false,
+    });
+    expect(parseArgs([
+      'line-items', 'rename', '--scope=joint', '--category-id=groceries',
+      '--line-item-id=weekly', '--name=Essentials', '--apply',
+    ])).toEqual({
+      command: 'line-items-rename',
+      scope: 'joint',
+      categoryId: 'groceries',
+      lineItemId: 'weekly',
+      name: 'Essentials',
+      apply: true,
+    });
+
+    expect(() => parseArgs(['line-items', 'create', '--scope', 'native', '--category-id', 'groceries', '--name', 'Weekly']))
+      .toThrow(/personal or joint/);
+    expect(() => parseArgs(['line-items', 'rename', '--scope', 'personal', '--category-id', 'groceries', '--name', 'Weekly']))
+      .toThrow(/requires --line-item-id/);
   });
 
   it('parses the read-only accounts command without options', () => {
@@ -232,6 +298,8 @@ describe('CLI arguments', () => {
       'account-1',
       '--category-id',
       'groceries',
+      '--line-item-id',
+      'weekly',
       '--assignment-scope',
       'joint',
       '--cursor',
@@ -246,6 +314,7 @@ describe('CLI arguments', () => {
         q: 'tesco',
         accountId: 'account-1',
         categoryId: 'groceries',
+        lineItemId: 'weekly',
         assignmentScope: 'joint',
         cursor: 'cursor-1',
       },
