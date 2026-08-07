@@ -35,4 +35,13 @@ jobs:
           echo "version=$PACKAGE_VERSION" >> "$GITHUB_OUTPUT"
       - run: npm publish --access public
       - name: Verify the published registry package
-        run: npm run test:registry -- "${{ steps.package.outputs.version }}"
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if npm run test:registry -- "${{ steps.package.outputs.version }}"; then
+              exit 0
+            fi
+            if [[ "$attempt" == "5" ]]; then
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
