@@ -35,6 +35,8 @@ export type HelpTopic =
   | 'auth-status'
   | 'auth-logout'
   | 'accounts'
+  | 'accounts-update'
+  | 'investments'
   | 'categories'
   | 'categories-create'
   | 'categories-rename'
@@ -60,6 +62,14 @@ export type ParsedCommand =
   | { command: 'auth-status'; baseUrl?: string }
   | { command: 'auth-logout'; baseUrl?: string }
   | { command: 'accounts'; baseUrl?: string }
+  | {
+    command: 'accounts-update';
+    baseUrl?: string;
+    accountRef: string;
+    isGoalSavingsSource: boolean;
+    apply: boolean;
+  }
+  | { command: 'investments'; baseUrl?: string; accountRef?: string }
   | { command: 'categories'; baseUrl?: string }
   | {
     command: 'categories-create';
@@ -371,6 +381,70 @@ function requiredOption(values: Map<string, string>, option: string, commandLabe
   const value = values.get(option);
   if (!value) throw new UsageError(`${commandLabel} requires ${option} <value>`);
   return value;
+}
+
+function parseAccountRef(value: string): string {
+  if (!/^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value)) {
+    throw new UsageError('--account-ref must be a valid accountRef from sloth-agent accounts');
+  }
+  return value;
+}
+
+function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand === undefined || subcommand === 'list') {
+    if (args.length > 0) throw new UsageError(`Unknown accounts option: ${args[0]}`);
+    return withBaseUrl({ command: 'accounts' }, baseUrl);
+  }
+  if (subcommand === 'update') {
+    const { values, apply } = parseNamedOptions(
+      args,
+      'accounts update',
+      new Set(['--account-ref', '--goal-savings-source']),
+    );
+    const source = requiredOption(
+      values,
+      '--goal-savings-source',
+      'accounts update',
+    );
+    if (source !== 'true' && source !== 'false') {
+      throw new UsageError('--goal-savings-source must be true or false');
+    }
+    return withBaseUrl({
+      command: 'accounts-update',
+      accountRef: parseAccountRef(requiredOption(values, '--account-ref', 'accounts update')),
+      isGoalSavingsSource: source === 'true',
+      apply,
+    }, baseUrl);
+  }
+  if (subcommand.startsWith('-')) {
+    throw new UsageError(`Unknown accounts option: ${subcommand}`);
+  }
+  throw new UsageError(`Unknown accounts command: ${subcommand}`);
+}
+
+function parseInvestments(args: string[], baseUrl?: string): ParsedCommand {
+  let accountRef: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!;
+    if (argument === '--account-ref') {
+      accountRef = setOnce(
+        accountRef,
+        parseAccountRef(readOptionValue(args, index, '--account-ref')),
+        '--account-ref',
+      );
+      index += 1;
+    } else if (argument.startsWith('--account-ref=')) {
+      accountRef = setOnce(
+        accountRef,
+        parseAccountRef(requireNonEmpty(argument.slice('--account-ref='.length), '--account-ref')),
+        '--account-ref',
+      );
+    } else {
+      throw new UsageError(`Unknown investments option: ${argument}`);
+    }
+  }
+  return withBaseUrl({ command: 'investments', ...(accountRef ? { accountRef } : {}) }, baseUrl);
 }
 
 function parseCategories(args: string[], baseUrl?: string): ParsedCommand {
@@ -759,8 +833,10 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     || command === 'assign'
     || command === 'ask-partner'
   ) {
+    if (command === 'accounts' && subcommand === 'update') return 'accounts-update';
     return command;
   }
+  if (command === 'investments') return 'investments';
   return undefined;
 }
 
@@ -792,10 +868,11 @@ export function parseArgs(argv: string[]): ParsedCommand {
   }
 
   if (command === 'accounts') {
-    if (args.length > 0) {
-      throw new UsageError(`Unknown accounts option: ${args[0]}`);
-    }
-    return withBaseUrl({ command }, baseUrl);
+    return parseAccounts(args, baseUrl);
+  }
+
+  if (command === 'investments') {
+    return parseInvestments(args, baseUrl);
   }
 
   if (command === 'transactions') {

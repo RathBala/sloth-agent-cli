@@ -14,6 +14,8 @@ describe('CLI arguments', () => {
       parseArgs(['auth', 'status', '--help']),
       parseArgs(['auth', 'logout', '--help']),
       parseArgs(['accounts', '--help']),
+      parseArgs(['accounts', 'update', '--help']),
+      parseArgs(['investments', '--help']),
       parseArgs(['categories', '--help']),
       parseArgs(['categories', 'create', '--help']),
       parseArgs(['categories', 'rename', '--help']),
@@ -30,6 +32,8 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'auth-status' },
       { command: 'help', topic: 'auth-logout' },
       { command: 'help', topic: 'accounts' },
+      { command: 'help', topic: 'accounts-update' },
+      { command: 'help', topic: 'investments' },
       { command: 'help', topic: 'categories' },
       { command: 'help', topic: 'categories-create' },
       { command: 'help', topic: 'categories-rename' },
@@ -133,6 +137,41 @@ describe('CLI arguments', () => {
     });
     expect(() => parseArgs(['accounts', '--refresh']))
       .toThrow(/Unknown accounts option/);
+  });
+
+  it('parses account list and goal-savings updates with preview by default', () => {
+    const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
+    expect(parseArgs(['accounts', 'list'])).toEqual({ command: 'accounts' });
+    expect(parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--goal-savings-source', 'false', '--apply',
+    ])).toEqual({
+      command: 'accounts-update',
+      accountRef,
+      isGoalSavingsSource: false,
+      apply: true,
+    });
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', 'account-1',
+      '--goal-savings-source', 'true',
+    ])).toThrow(/valid accountRef/);
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--goal-savings-source', 'yes',
+    ])).toThrow(/true or false/);
+    expect(() => parseArgs(['accounts', 'update', '--account-ref', accountRef]))
+      .toThrow(/requires --goal-savings-source/);
+  });
+
+  it('parses cache-only investment portfolio filters', () => {
+    const accountRef = `sloth_account_v1_${'B'.repeat(43)}`;
+    expect(parseArgs(['investments'])).toEqual({ command: 'investments' });
+    expect(parseArgs(['investments', '--account-ref', accountRef])).toEqual({
+      command: 'investments',
+      accountRef,
+    });
+    expect(() => parseArgs(['investments', '--refresh']))
+      .toThrow(/Unknown investments option/);
   });
 
   it('parses goal creation options with preview as the default', () => {

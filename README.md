@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect known accounts, manage goals, and categorise transactions through the
+Use your own agent to inspect accounts and investment holdings, manage goals, and categorise transactions through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.5.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.6.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -24,10 +24,10 @@ Create a personal access token in Sloth Money under
 **Settings > Developer access**, then choose the authentication method for
 where the CLI runs.
 
-New tokens are view-only. That is enough for `auth status`, `accounts`,
+New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`,
 `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
-or line items, ask a partner for an explanation, or manage goals. Token
+or line items, change goal-savings account membership, ask a partner for an explanation, or manage goals. Token
 permissions cannot be changed later - revoke and reissue the token instead.
 
 ### Local computer
@@ -250,10 +250,40 @@ sloth-agent accounts
 The command is read-only and cache-only: it does not refresh linked banks or
 change account data. Each result contains an opaque `accountRef`, personal or
 joint ownership, connected or manual source, native balance/currency when
-known, `lastBalanceUpdatedAt`, and `connectionState`. Missing values are JSON
+known, `lastBalanceUpdatedAt`, `connectionState`, and `isGoalSavingsSource`.
+Missing values are JSON
 `null`; currencies are never converted or combined. Partner personal accounts
 are excluded, while enabled shared joint accounts follow Sloth's existing
 visibility rules.
+
+Goal-savings changes are previews unless `--apply` is present. Only
+caller-owned connected accounts can be changed; partner-owned shared accounts
+and fixed manual accounts return an explanatory error.
+
+```bash
+sloth-agent accounts update \
+  --account-ref sloth_account_v1_... \
+  --goal-savings-source true
+
+sloth-agent accounts update \
+  --account-ref sloth_account_v1_... \
+  --goal-savings-source true \
+  --apply
+```
+
+Read linked investment accounts and their cached holdings:
+
+```bash
+sloth-agent investments
+sloth-agent investments --account-ref sloth_account_v1_...
+```
+
+Investment reads are cache-only and do not refresh a brokerage. Holding
+quantities, unit prices, market values, currencies, and freshness are returned
+in provider-native terms. They are not converted or guaranteed to reconcile
+to an account total reported in another currency. Caller-owned personal and
+joint linked investment accounts are included; partner-owned accounts, manual
+holdings, and investment activities are not.
 
 List your goals:
 

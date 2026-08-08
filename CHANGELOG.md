@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-08-08
+
+- Expose goal-savings membership on account inventory rows and preview or apply
+  owner-authorized changes through opaque account references.
+- Read cache-only linked investment portfolios with provider-native holdings,
+  quantities, valuations, currencies, and freshness metadata.
+- Keep strict response validation, JSON-only stdout, command-specific help,
+  and clean-install package coverage synchronized with Agent API v1.
+
 ## 0.5.0 - 2026-08-07
 
 - Create and rename custom categories, with existing icon and category type

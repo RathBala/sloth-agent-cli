@@ -79,6 +79,8 @@ try {
   assert.match(help, /sloth-agent auth status/);
   assert.match(help, /sloth-agent auth logout/);
   assert.match(help, /sloth-agent accounts/);
+  assert.match(help, /sloth-agent accounts update/);
+  assert.match(help, /sloth-agent investments/);
   assert.match(help, /sloth-agent categories create/);
   assert.match(help, /sloth-agent line-items create/);
   assert.match(help, /sloth-agent transactions/);
@@ -88,7 +90,9 @@ try {
 
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
-    [['accounts', '--help'], [/existing Sloth account inventory/, /read-only/, /accountRef/]],
+    [['accounts', '--help'], [/existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalSavingsSource/]],
+    [['accounts', 'update', '--help'], [/--goal-savings-source true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
+    [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
     [['categories', '--help'], [/A category is the broader parent\./]],
     [['categories', 'create', '--help'], [/--icon-key KEY/, /no mutation request/]],
     [['categories', 'rename', '--help'], [/Built-in categories are immutable/]],

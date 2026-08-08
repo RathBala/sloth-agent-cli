@@ -35,6 +35,7 @@ export const agentApiV1AccountsResponse = {
     source: 'connected',
     lastBalanceUpdatedAt: '2026-08-01T09:30:00.000Z',
     connectionState: 'active',
+    isGoalSavingsSource: true,
   }, {
     accountRef: 'sloth_account_v1_5VeuB4MpR7W5L4uPdHRYSsfNWGqoQYqrKx3GZQiLoFM',
     accountName: null,
@@ -46,6 +47,34 @@ export const agentApiV1AccountsResponse = {
     source: 'connected',
     lastBalanceUpdatedAt: null,
     connectionState: 'expired',
+    isGoalSavingsSource: false,
+  }],
+} as const;
+
+export const agentApiV1AccountMutationResponse = {
+  changed: true,
+  account: agentApiV1AccountsResponse.accounts[0],
+} as const;
+
+export const agentApiV1InvestmentsResponse = {
+  asOf: '2026-08-01T12:00:00.000Z',
+  investmentAccounts: [{
+    ...agentApiV1AccountsResponse.accounts[0],
+    accountName: 'Coinbase portfolio',
+    institutionName: 'Coinbase',
+    accountType: 'investments',
+    balanceAmount: 6_515.5,
+    holdings: [{
+      instrumentType: 'crypto',
+      symbol: 'BTC',
+      name: 'Bitcoin',
+      units: 0.125,
+      unitPriceAmount: 52_000,
+      marketValueAmount: 6_500,
+      currency: 'GBP',
+      providerFreshnessAsOf: '2026-08-01T09:25:00.000Z',
+      syncedAt: '2026-08-01T09:30:00.000Z',
+    }],
   }],
 } as const;
 

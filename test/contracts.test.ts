@@ -6,6 +6,7 @@ import {
 } from '../src/contracts.js';
 import {
   agentApiV1AccountsResponse,
+  agentApiV1AccountMutationResponse,
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
@@ -14,6 +15,7 @@ import {
   agentApiV1GoalMutationResponse,
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
+  agentApiV1InvestmentsResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -69,6 +71,18 @@ describe('API response validation', () => {
       'accounts',
       agentApiV1AccountsResponse,
     )).toBe(agentApiV1AccountsResponse);
+    expect(parseApiResponse('accounts-update', agentApiV1AccountMutationResponse))
+      .toBe(agentApiV1AccountMutationResponse);
+    expect(parseApiResponse('investments', agentApiV1InvestmentsResponse))
+      .toBe(agentApiV1InvestmentsResponse);
+    const jointInvestments = {
+      ...agentApiV1InvestmentsResponse,
+      investmentAccounts: [{
+        ...agentApiV1InvestmentsResponse.investmentAccounts[0],
+        ownership: 'joint',
+      }],
+    };
+    expect(parseApiResponse('investments', jointInvestments)).toBe(jointInvestments);
     expect(parseApiResponse(
       'transactions',
       agentApiV1TransactionsResponse,
@@ -119,6 +133,20 @@ describe('API response validation', () => {
         accountDocId: 'GB29NWBK60161331926819',
       }],
     })).toThrow(/invalid accounts response/i);
+    expect(() => parseApiResponse('accounts-update', {
+      ...agentApiV1AccountMutationResponse,
+      canUpdateGoalSavingsSource: true,
+    })).toThrow(/invalid accounts-update response/i);
+    expect(() => parseApiResponse('investments', {
+      ...agentApiV1InvestmentsResponse,
+      investmentAccounts: [{
+        ...agentApiV1InvestmentsResponse.investmentAccounts[0],
+        holdings: [{
+          ...agentApiV1InvestmentsResponse.investmentAccounts[0].holdings[0],
+          accountKey: 'private-account-key',
+        }],
+      }],
+    })).toThrow(/invalid investments response/i);
     expect(() => parseApiResponse('accounts', {
       ...agentApiV1AccountsResponse,
       accounts: [{

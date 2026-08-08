@@ -24,7 +24,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.5.0';
+export const CLI_VERSION = '0.6.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -57,7 +57,9 @@ export function usageText(): string {
     '  sloth-agent auth login [--token-stdin | --from-env] [--base-url URL]',
     '  sloth-agent auth status [--base-url URL]',
     '  sloth-agent auth logout [--base-url URL]',
-    '  sloth-agent accounts [--base-url URL]',
+    '  sloth-agent accounts [list] [--base-url URL]',
+    '  sloth-agent accounts update --account-ref REF --goal-savings-source true|false [--apply]',
+    '  sloth-agent investments [--account-ref REF] [--base-url URL]',
     '  sloth-agent categories [list] [--base-url URL]',
     '  sloth-agent categories create --name NAME --icon-key KEY --type TYPE [--apply]',
     '  sloth-agent categories rename --category-id ID --name NAME [--apply]',
@@ -323,7 +325,7 @@ export function accountsHelpText(): string {
     'Read the existing Sloth account inventory known to the authenticated user.',
     '',
     'Usage:',
-    '  sloth-agent accounts [--base-url URL]',
+    '  sloth-agent accounts [list] [--base-url URL]',
     '',
     'Options:',
     '  --base-url URL   Optional. Override the API origin.',
@@ -339,6 +341,59 @@ export function accountsHelpText(): string {
     '  accounts[].ownership   personal or joint',
     '  accounts[].balanceAmount and currency in the native currency when known',
     '  accounts[].connectionState and lastBalanceUpdatedAt for freshness',
+    '  accounts[].isGoalSavingsSource whether the owner uses it for goal savings',
+  ].join('\n');
+}
+
+export function accountsUpdateHelpText(): string {
+  return [
+    'Sloth Agent CLI — accounts update',
+    '',
+    'Preview or update whether an owned connected account is used for goal savings.',
+    '',
+    'Usage:',
+    '  sloth-agent accounts update --account-ref REF --goal-savings-source true|false [--apply] [--base-url URL]',
+    '',
+    'Required inputs:',
+    '  --account-ref REF                  Opaque accountRef from sloth-agent accounts.',
+    '  --goal-savings-source true|false   Enable or disable goal-savings membership.',
+    '',
+    'Write behavior:',
+    '  Without --apply, returns a JSON preview without credentials or a network request.',
+    '  With --apply, requires agent:write on a write-enabled token and updates saved Sloth metadata.',
+    '  Partner-owned shared accounts and manual accounts cannot be changed.',
+    '  Unknown, disconnected, or inaccessible references return Account not found.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, endpoint, and payload.',
+    '  Apply mode returns changed and the complete persisted account.',
+  ].join('\n');
+}
+
+export function investmentsHelpText(): string {
+  return [
+    'Sloth Agent CLI — investments',
+    '',
+    'Read linked investment accounts and their cached provider-native holdings.',
+    '',
+    'Usage:',
+    '  sloth-agent investments [--account-ref REF] [--base-url URL]',
+    '',
+    'Options:',
+    '  --account-ref REF  Optional. Return one linked investment account.',
+    '  --base-url URL     Optional. Override the API origin.',
+    '  -h, --help         Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access:',
+    '  This command requires agent:read and is read-only and cache-only; it never refreshes a brokerage.',
+    '  An unknown or non-investment filter returns Investment account not found.',
+    '',
+    'Output:',
+    '  investmentAccounts contains account totals and nested holdings.',
+    '  Holding quantities, prices, market values, currencies, and freshness are',
+    '  provider-native and are not converted or guaranteed to reconcile to totals.',
   ].join('\n');
 }
 
@@ -633,6 +688,8 @@ export function commandHelpText(topic: HelpTopic): string {
     'auth-status': authStatusHelpText,
     'auth-logout': authLogoutHelpText,
     accounts: accountsHelpText,
+    'accounts-update': accountsUpdateHelpText,
+    investments: investmentsHelpText,
     categories: categoriesHelpText,
     'categories-create': categoriesCreateHelpText,
     'categories-rename': categoriesRenameHelpText,
@@ -921,9 +978,37 @@ export async function runCli(
       return 0;
     }
 
+    if (parsed.command === 'accounts-update' && !parsed.apply) {
+      const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint,
+        method: 'PATCH',
+        payload: { isGoalSavingsSource: parsed.isGoalSavingsSource },
+      });
+      return 0;
+    }
+
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
+
+    if (parsed.command === 'accounts-update') {
+      const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;
+      const payload = { isGoalSavingsSource: parsed.isGoalSavingsSource };
+      const response = await fetchImplementation(endpoint, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        parsed.command,
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
 
     if (
       parsed.command === 'categories-create'
@@ -1125,6 +1210,10 @@ export async function runCli(
 
     const path = parsed.command === 'accounts'
       ? '/api/agent/v1/accounts'
+      : parsed.command === 'investments'
+        ? `/api/agent/v1/investments${parsed.accountRef
+          ? `?${new URLSearchParams({ accountRef: parsed.accountRef }).toString()}`
+          : ''}`
       : parsed.command === 'categories'
         ? '/api/agent/v1/categories'
         : `/api/agent/v1/transactions${(() => {

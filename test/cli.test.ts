@@ -10,6 +10,7 @@ import {
 } from '../src/cli.js';
 import {
   agentApiV1AccountsResponse,
+  agentApiV1AccountMutationResponse,
   agentApiV1AssignmentResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
@@ -18,6 +19,7 @@ import {
   agentApiV1GoalMutationResponse,
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
+  agentApiV1InvestmentsResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -117,6 +119,16 @@ describe('CLI execution', () => {
         'native currency',
         'connectionState',
         'accountRef',
+        'isGoalSavingsSource',
+      ]],
+      [['accounts', 'update', '--help'], [
+        '--account-ref REF', '--goal-savings-source true|false',
+        'Without --apply', 'write-enabled token', 'Partner-owned', 'manual accounts',
+        'agent:write', 'Account not found',
+      ]],
+      [['investments', '--help'], [
+        '--account-ref REF', 'cache-only', 'provider-native', 'holdings', 'read-only',
+        'agent:read', 'Investment account not found',
       ]],
       [['transactions', '--help'], [
         '--uncategorized[=true|false]',
@@ -468,6 +480,72 @@ describe('CLI execution', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Prefer');
     expect(getCredentialStore).not.toHaveBeenCalled();
     expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1AccountsResponse);
+    expect(io.stderr).toEqual([]);
+  });
+
+  it('previews and applies goal-savings account updates', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    const previewCredentialStore = vi.fn();
+    expect(await runCli([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--goal-savings-source', 'false',
+    ], {
+      env: {},
+      fetch: previewFetch,
+      getCredentialStore: previewCredentialStore,
+      ...previewIo,
+    })).toBe(0);
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(previewCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+      method: 'PATCH',
+      payload: { isGoalSavingsSource: false },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1AccountMutationResponse,
+    ));
+    expect(await runCli([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--goal-savings-source', 'true', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ isGoalSavingsSource: true }),
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
+      agentApiV1AccountMutationResponse,
+    );
+  });
+
+  it('lists a validated cache-only investment portfolio with an optional account filter', async () => {
+    const accountRef = agentApiV1InvestmentsResponse.investmentAccounts[0].accountRef;
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1InvestmentsResponse));
+
+    expect(await runCli(['investments', '--account-ref', accountRef], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `https://budget.slothmoney.app/api/agent/v1/investments?accountRef=${encodeURIComponent(accountRef)}`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1InvestmentsResponse);
     expect(io.stderr).toEqual([]);
   });
 

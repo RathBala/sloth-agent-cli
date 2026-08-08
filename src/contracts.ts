@@ -25,6 +25,8 @@ export interface AssignmentPayload {
 
 type ApiCommand =
   | 'accounts'
+  | 'accounts-update'
+  | 'investments'
   | 'categories'
   | 'categories-create'
   | 'categories-rename'
@@ -425,6 +427,7 @@ function isAccount(value: unknown): boolean {
       'source',
       'lastBalanceUpdatedAt',
       'connectionState',
+      'isGoalSavingsSource',
     ])
     && typeof value.accountRef === 'string'
     && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
@@ -452,6 +455,7 @@ function isAccount(value: unknown): boolean {
       || value.connectionState === 'manual'
       || value.connectionState === 'unknown'
     )
+    && typeof value.isGoalSavingsSource === 'boolean'
   );
 }
 
@@ -462,6 +466,66 @@ function isAccountsResponse(value: unknown): boolean {
     && isIsoDateTime(value.asOf)
     && Array.isArray(value.accounts)
     && value.accounts.every(isAccount)
+  );
+}
+
+function isAccountMutationResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['changed', 'account'])
+    && typeof value.changed === 'boolean'
+    && isAccount(value.account)
+  );
+}
+
+function isInvestmentHolding(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, [
+      'instrumentType',
+      'symbol',
+      'name',
+      'units',
+      'unitPriceAmount',
+      'marketValueAmount',
+      'currency',
+      'providerFreshnessAsOf',
+      'syncedAt',
+    ])
+    && typeof value.instrumentType === 'string'
+    && value.instrumentType.trim().length > 0
+    && (value.symbol === null || (typeof value.symbol === 'string' && value.symbol.trim().length > 0))
+    && typeof value.name === 'string'
+    && value.name.trim().length > 0
+    && typeof value.units === 'number'
+    && Number.isFinite(value.units)
+    && typeof value.unitPriceAmount === 'number'
+    && Number.isFinite(value.unitPriceAmount)
+    && typeof value.marketValueAmount === 'number'
+    && Number.isFinite(value.marketValueAmount)
+    && isCurrency(value.currency)
+    && (value.providerFreshnessAsOf === null || isIsoDateTime(value.providerFreshnessAsOf))
+    && isIsoDateTime(value.syncedAt)
+  );
+}
+
+function isInvestmentsResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['asOf', 'investmentAccounts'])
+    && isIsoDateTime(value.asOf)
+    && Array.isArray(value.investmentAccounts)
+    && value.investmentAccounts.every((account) => {
+      if (!isObject(account)) return false;
+      const { holdings, ...baseAccount } = account;
+      return (
+        isAccount(baseAccount)
+        && account.accountType === 'investments'
+        && account.source === 'connected'
+        && Array.isArray(holdings)
+        && holdings.every(isInvestmentHolding)
+      );
+    })
   );
 }
 
@@ -497,6 +561,10 @@ function isGoalDeleteResponse(value: unknown): boolean {
 export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
   const valid = command === 'accounts'
     ? isAccountsResponse(value)
+    : command === 'accounts-update'
+      ? isAccountMutationResponse(value)
+      : command === 'investments'
+        ? isInvestmentsResponse(value)
     : command === 'categories'
       ? isCategoryResponse(value)
       : command === 'categories-create' || command === 'categories-rename'
