@@ -152,3 +152,30 @@ export const agentApiV1GoalDeleteResponse = {
   deleted: true,
   deletedGoalId: 'goal-1',
 } as const;
+
+export const agentApiV1BudgetResponse = {
+  scope: 'personal',
+  periodKey: '2026-08',
+  periodStatus: 'current',
+  currency: 'GBP',
+  effectiveFromPeriodKey: '2026-08',
+  funding: {
+    toAssignPence: 12_000,
+    nextPeriodReservePence: 5_000,
+  },
+  categories: [{
+    id: 'groceries',
+    name: 'Groceries',
+    plannedPence: 45_000,
+    assignedPence: 44_000,
+    lineItems: [{
+      id: 'weekly',
+      name: 'Weekly shop',
+      plannedPence: 35_000,
+    }, {
+      id: 'topups',
+      name: 'Top-ups',
+      plannedPence: 10_000,
+    }],
+  }],
+} as const;

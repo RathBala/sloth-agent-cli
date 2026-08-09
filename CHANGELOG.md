@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Read personal or joint budget periods with categories, line items, funding,
+  and planned amounts.
+- Preview or apply planned line-item updates that overwrite the selected period
+  and all explicit future plans.
+
 ## 0.6.0 - 2026-08-08
 
 - Expose goal-savings membership on account inventory rows and preview or apply

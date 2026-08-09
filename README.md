@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect accounts and investment holdings, manage goals, and categorise transactions through the
+Use your own agent to inspect accounts, investments, and budgets, manage goals, update planned amounts, and categorise transactions through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.6.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.7.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -25,9 +25,9 @@ Create a personal access token in Sloth Money under
 where the CLI runs.
 
 New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`,
-`categories`, `transactions`, and `goals` list. Enable **Allow changes** when
+`budget`, `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
-or line items, change goal-savings account membership, ask a partner for an explanation, or manage goals. Token
+or line items, update planned budgets, change goal-savings account membership, ask a partner for an explanation, or manage goals. Token
 permissions cannot be changed later - revoke and reissue the token instead.
 
 ### Local computer
@@ -103,6 +103,8 @@ options, output, and examples:
 ```bash
 sloth-agent auth login --help
 sloth-agent accounts --help
+sloth-agent budget --help
+sloth-agent budget update --help
 sloth-agent categories --help
 sloth-agent categories create --help
 sloth-agent line-items create --help
@@ -183,6 +185,53 @@ The transaction should also disappear from the matching `--uncategorized`
 query. Assignments do not create a separate list.
 
 ### Other workflows
+
+Read a personal or joint budget. Omit `--period` to use Sloth's current budget period:
+
+```bash
+sloth-agent budget --scope personal --period 2026-08
+```
+
+The result includes the budget period and status, currency, the effective plan,
+stored funding amounts when available, categories, line items, and planned
+amounts in pence.
+
+Update selected line-item amounts by creating `budget.json`:
+
+```json
+{
+  "allocations": [
+    {
+      "categoryId": "groceries",
+      "lineItemId": "weekly",
+      "plannedPence": 45000
+    }
+  ]
+}
+```
+
+Preview locally, then apply the same file:
+
+```bash
+sloth-agent budget update \
+  --scope personal \
+  --period 2026-08 \
+  --input budget.json
+
+sloth-agent budget update \
+  --scope personal \
+  --period 2026-08 \
+  --input budget.json \
+  --apply
+```
+
+The update starts from the complete selected-period budget, changes the listed
+line items, then overwrites the selected period and every explicit future plan
+with that complete result. A later update from another period overwrites that
+period and everything after it. Earlier and historical periods remain unchanged.
+
+Without `--apply`, the CLI validates the file locally and does not load a token
+or contact Sloth Money. Applying requires a write-enabled token.
 
 Create or rename a custom category. Writes are previews until `--apply` is
 present:

@@ -383,6 +383,35 @@ describe('CLI arguments', () => {
     });
   });
 
+  it('parses scoped budget reads and updates', () => {
+    expect(parseArgs(['budget', '--scope', 'personal', '--period', '2026-08'])).toEqual({
+      command: 'budget',
+      scope: 'personal',
+      periodKey: '2026-08',
+    });
+    expect(parseArgs([
+      'budget', 'update', '--scope=joint', '--period=2026-09',
+      '--input', 'budget.json', '--apply',
+    ])).toEqual({
+      command: 'budget-update',
+      scope: 'joint',
+      periodKey: '2026-09',
+      input: 'budget.json',
+      apply: true,
+    });
+  });
+
+  it('requires valid explicit budget options', () => {
+    expect(() => parseArgs(['budget'])).toThrow(/requires --scope/);
+    expect(() => parseArgs(['budget', '--scope', 'all'])).toThrow(/personal or joint/);
+    expect(() => parseArgs(['budget', '--scope', 'personal', '--period', '2026-13']))
+      .toThrow(/valid YYYY-MM/);
+    expect(() => parseArgs(['budget', 'update', '--scope', 'personal']))
+      .toThrow(/requires --input/);
+    expect(() => parseArgs(['budget', '--scope', 'personal', '--apply']))
+      .toThrow(/Unknown budget option/);
+  });
+
   it('parses auth commands and their login input modes', () => {
     expect(parseArgs(['auth', 'login'])).toEqual({
       command: 'auth-login',

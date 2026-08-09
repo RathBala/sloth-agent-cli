@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   parseApiResponse,
   validateAssignmentPayload,
+  validateBudgetUpdatePayload,
 } from '../src/contracts.js';
 import {
   agentApiV1AccountsResponse,
   agentApiV1AccountMutationResponse,
   agentApiV1AssignmentResponse,
+  agentApiV1BudgetResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
@@ -18,6 +20,39 @@ import {
   agentApiV1InvestmentsResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
+
+describe('budget update payload validation', () => {
+  it('accepts unique nonnegative line-item allocations', () => {
+    expect(validateBudgetUpdatePayload({
+      allocations: [
+        { categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 45_000 },
+        { categoryId: 'bills', lineItemId: 'energy', plannedPence: 0 },
+      ],
+    })).toEqual({
+      allocations: [
+        { categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 45_000 },
+        { categoryId: 'bills', lineItemId: 'energy', plannedPence: 0 },
+      ],
+    });
+  });
+
+  it('rejects empty, duplicate, unsafe, or unknown budget data', () => {
+    expect(() => validateBudgetUpdatePayload({ allocations: [] }))
+      .toThrow(/between 1 and 100/);
+    expect(() => validateBudgetUpdatePayload({
+      allocations: [
+        { categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 1 },
+        { categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 2 },
+      ],
+    })).toThrow(/duplicate/);
+    expect(() => validateBudgetUpdatePayload({
+      allocations: [{ categoryId: 'groceries', lineItemId: 'weekly', plannedPence: -1 }],
+    })).toThrow(/nonnegative safe integer/);
+    expect(() => validateBudgetUpdatePayload({
+      allocations: [{ categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 1, amount: 1 }],
+    })).toThrow(/unknown field/);
+  });
+});
 
 describe('assignment payload validation', () => {
   it('accepts single, split, and clear assignments', () => {
@@ -91,6 +126,22 @@ describe('API response validation', () => {
       'categories',
       agentApiV1CategoriesResponse,
     )).toBe(agentApiV1CategoriesResponse);
+    expect(parseApiResponse('budget', agentApiV1BudgetResponse))
+      .toBe(agentApiV1BudgetResponse);
+    expect(parseApiResponse('budget-update', agentApiV1BudgetResponse))
+      .toBe(agentApiV1BudgetResponse);
+    const overallocatedBudget = {
+      ...agentApiV1BudgetResponse,
+      funding: {
+        ...agentApiV1BudgetResponse.funding,
+        toAssignPence: -1,
+      },
+      categories: agentApiV1BudgetResponse.categories.map((category) => ({
+        ...category,
+        assignedPence: -1,
+      })),
+    };
+    expect(parseApiResponse('budget', overallocatedBudget)).toBe(overallocatedBudget);
     expect(parseApiResponse('categories-create', agentApiV1CategoryMutationResponse))
       .toBe(agentApiV1CategoryMutationResponse);
     expect(parseApiResponse('categories-rename', agentApiV1CategoryMutationResponse))
@@ -164,6 +215,14 @@ describe('API response validation', () => {
       }],
     })).toThrow(/invalid accounts response/i);
     expect(() => parseApiResponse('categories', { categories: [] })).toThrow(/invalid categories response/i);
+    expect(() => parseApiResponse('budget', {
+      ...agentApiV1BudgetResponse,
+      categories: [{ ...agentApiV1BudgetResponse.categories[0], assignedPence: '44000' }],
+    })).toThrow(/invalid budget response/i);
+    expect(() => parseApiResponse('budget-update', {
+      ...agentApiV1BudgetResponse,
+      unexpected: true,
+    })).toThrow(/invalid budget-update response/i);
     expect(() => parseApiResponse('categories-create', {
       category: { ...agentApiV1CategoryMutationResponse.category, source: 'default' },
     })).toThrow(/invalid categories-create response/i);

@@ -23,10 +23,22 @@ export interface AssignmentPayload {
   assignments: AgentAssignment[];
 }
 
+export interface BudgetAllocation {
+  categoryId: string;
+  lineItemId: string;
+  plannedPence: number;
+}
+
+export interface BudgetUpdatePayload {
+  allocations: BudgetAllocation[];
+}
+
 type ApiCommand =
   | 'accounts'
   | 'accounts-update'
   | 'investments'
+  | 'budget'
+  | 'budget-update'
   | 'categories'
   | 'categories-create'
   | 'categories-rename'
@@ -171,6 +183,45 @@ export function validateAssignmentPayload(value: unknown): AssignmentPayload {
     throw new UsageError('assignments must contain between 1 and 100 items');
   }
   return { assignments: payload.assignments.map(validateAssignment) };
+}
+
+export function validateBudgetUpdatePayload(value: unknown): BudgetUpdatePayload {
+  const payload = requireObject(value, 'budget update payload');
+  rejectUnknownFields(payload, new Set(['allocations']), 'budget update payload');
+  if (!Array.isArray(payload.allocations)) {
+    throw new UsageError('allocations array is required');
+  }
+  if (payload.allocations.length < 1 || payload.allocations.length > 100) {
+    throw new UsageError('allocations must contain between 1 and 100 items');
+  }
+
+  const seen = new Set<string>();
+  const allocations = payload.allocations.map((value, index) => {
+    const label = `allocations[${index}]`;
+    const allocation = requireObject(value, label);
+    rejectUnknownFields(
+      allocation,
+      new Set(['categoryId', 'lineItemId', 'plannedPence']),
+      label,
+    );
+    const categoryId = requireString(allocation.categoryId, `${label}.categoryId`);
+    const lineItemId = requireString(allocation.lineItemId, `${label}.lineItemId`);
+    if (
+      typeof allocation.plannedPence !== 'number'
+      || !Number.isSafeInteger(allocation.plannedPence)
+      || allocation.plannedPence < 0
+    ) {
+      throw new UsageError(`${label}.plannedPence must be a nonnegative safe integer`);
+    }
+    const key = `${categoryId}\u0000${lineItemId}`;
+    if (seen.has(key)) {
+      throw new UsageError(`${label} duplicates a categoryId and lineItemId pair`);
+    }
+    seen.add(key);
+    return { categoryId, lineItemId, plannedPence: allocation.plannedPence };
+  });
+
+  return { allocations };
 }
 
 function isLineItemMap(value: unknown): boolean {
@@ -405,6 +456,78 @@ function isCurrency(value: unknown): boolean {
   return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
 }
 
+function isNonnegativeSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function isSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value);
+}
+
+function isBudgetLineItem(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['id', 'name', 'plannedPence'])
+    && typeof value.id === 'string'
+    && value.id.trim().length > 0
+    && typeof value.name === 'string'
+    && value.name.trim().length > 0
+    && isNonnegativeSafeInteger(value.plannedPence)
+  );
+}
+
+function isBudgetCategory(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['id', 'name', 'plannedPence', 'assignedPence', 'lineItems'])
+    && typeof value.id === 'string'
+    && value.id.trim().length > 0
+    && typeof value.name === 'string'
+    && value.name.trim().length > 0
+    && isNonnegativeSafeInteger(value.plannedPence)
+    && (value.assignedPence === null || isSafeInteger(value.assignedPence))
+    && Array.isArray(value.lineItems)
+    && value.lineItems.every(isBudgetLineItem)
+  );
+}
+
+function isBudgetResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, [
+      'scope',
+      'periodKey',
+      'periodStatus',
+      'currency',
+      'effectiveFromPeriodKey',
+      'funding',
+      'categories',
+    ])
+    && (value.scope === 'personal' || value.scope === 'joint')
+    && typeof value.periodKey === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.periodKey)
+    && (
+      value.periodStatus === 'historical'
+      || value.periodStatus === 'current'
+      || value.periodStatus === 'future'
+    )
+    && isCurrency(value.currency)
+    && typeof value.effectiveFromPeriodKey === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.effectiveFromPeriodKey)
+    && (
+      value.funding === null
+      || (
+        isObject(value.funding)
+        && hasOnlyFields(value.funding, ['toAssignPence', 'nextPeriodReservePence'])
+        && isSafeInteger(value.funding.toAssignPence)
+        && isSafeInteger(value.funding.nextPeriodReservePence)
+      )
+    )
+    && Array.isArray(value.categories)
+    && value.categories.every(isBudgetCategory)
+  );
+}
+
 function isNullableNonEmptyString(value: unknown): boolean {
   return value === null || (
     typeof value === 'string'
@@ -563,8 +686,10 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
     ? isAccountsResponse(value)
     : command === 'accounts-update'
       ? isAccountMutationResponse(value)
-      : command === 'investments'
+    : command === 'investments'
         ? isInvestmentsResponse(value)
+    : command === 'budget' || command === 'budget-update'
+      ? isBudgetResponse(value)
     : command === 'categories'
       ? isCategoryResponse(value)
       : command === 'categories-create' || command === 'categories-rename'

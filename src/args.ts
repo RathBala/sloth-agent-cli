@@ -37,6 +37,8 @@ export type HelpTopic =
   | 'accounts'
   | 'accounts-update'
   | 'investments'
+  | 'budget'
+  | 'budget-update'
   | 'categories'
   | 'categories-create'
   | 'categories-rename'
@@ -70,6 +72,20 @@ export type ParsedCommand =
     apply: boolean;
   }
   | { command: 'investments'; baseUrl?: string; accountRef?: string }
+  | {
+    command: 'budget';
+    baseUrl?: string;
+    scope: 'personal' | 'joint';
+    periodKey?: string;
+  }
+  | {
+    command: 'budget-update';
+    baseUrl?: string;
+    scope: 'personal' | 'joint';
+    periodKey?: string;
+    input: string;
+    apply: boolean;
+  }
   | { command: 'categories'; baseUrl?: string }
   | {
     command: 'categories-create';
@@ -445,6 +461,35 @@ function parseInvestments(args: string[], baseUrl?: string): ParsedCommand {
     }
   }
   return withBaseUrl({ command: 'investments', ...(accountRef ? { accountRef } : {}) }, baseUrl);
+}
+
+function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
+  const update = args[0] === 'update';
+  if (update) args.shift();
+  const { values, apply } = parseNamedOptions(
+    args,
+    update ? 'budget update' : 'budget',
+    new Set(update ? ['--scope', '--period', '--input'] : ['--scope', '--period']),
+  );
+  if (!update && apply) throw new UsageError('Unknown budget option: --apply');
+
+  const scope = requiredOption(values, '--scope', update ? 'budget update' : 'budget');
+  if (scope !== 'personal' && scope !== 'joint') {
+    throw new UsageError('--scope must be personal or joint');
+  }
+  const period = values.get('--period');
+  const common = {
+    scope: scope as 'personal' | 'joint',
+    ...(period === undefined ? {} : { periodKey: parseGoalMonthKey(period, '--period') }),
+  };
+  if (!update) return withBaseUrl({ command: 'budget', ...common }, baseUrl);
+
+  return withBaseUrl({
+    command: 'budget-update',
+    ...common,
+    input: requiredOption(values, '--input', 'budget update'),
+    apply,
+  }, baseUrl);
 }
 
 function parseCategories(args: string[], baseUrl?: string): ParsedCommand {
@@ -827,6 +872,9 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'rename') return 'line-items-rename';
     return undefined;
   }
+  if (command === 'budget') {
+    return subcommand === 'update' ? 'budget-update' : 'budget';
+  }
   if (
     command === 'accounts'
     || command === 'transactions'
@@ -873,6 +921,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'investments') {
     return parseInvestments(args, baseUrl);
+  }
+
+  if (command === 'budget') {
+    return parseBudget(args, baseUrl);
   }
 
   if (command === 'transactions') {

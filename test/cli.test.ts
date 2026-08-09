@@ -12,6 +12,7 @@ import {
   agentApiV1AccountsResponse,
   agentApiV1AccountMutationResponse,
   agentApiV1AssignmentResponse,
+  agentApiV1BudgetResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
@@ -98,6 +99,14 @@ describe('CLI execution', () => {
         'Bills → Other',
         '(scope, categoryId, lineItemId)',
         'read-only',
+      ]],
+      [['budget', '--help'], [
+        '--scope personal|joint', '--period YYYY-MM', 'read-only',
+        'periodStatus', 'funding', 'categories[].lineItems',
+      ]],
+      [['budget', 'update', '--help'], [
+        '--input FILE', 'plannedPence', 'Without --apply',
+        'selected period and every explicit future plan', 'Historical periods cannot be changed',
       ]],
       [['categories', 'create', '--help'], [
         '--name NAME', '--icon-key KEY', '--type TYPE', 'Without --apply',
@@ -1052,6 +1061,83 @@ describe('CLI execution', () => {
       dryRun: true,
       endpoint: 'https://budget.slothmoney.app/api/agent/v1/transaction-assignments',
     });
+  });
+
+  it('reads a scoped budget period with strict response validation', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1BudgetResponse));
+
+    expect(await runCli(['budget', '--scope', 'personal', '--period', '2026-08'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/budgets?scope=personal&periodKey=2026-08',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetResponse);
+  });
+
+  it('previews a budget update without loading credentials or contacting the API', async () => {
+    const input = writeAssignments({
+      allocations: [{ categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 45_000 }],
+    });
+    const io = createIo();
+    const fetchMock = vi.fn();
+    const getCredentialStore = vi.fn();
+
+    expect(await runCli([
+      'budget', 'update', '--scope', 'personal', '--period', '2026-08', '--input', input,
+    ], {
+      env: {}, fetch: fetchMock, getCredentialStore, ...io,
+    })).toBe(0);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(io.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/budgets',
+      method: 'PATCH',
+      payload: {
+        scope: 'personal',
+        periodKey: '2026-08',
+        allocations: [{ categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 45_000 }],
+      },
+    });
+  });
+
+  it('applies a budget update and rejects malformed success data', async () => {
+    const input = writeAssignments({
+      allocations: [{ categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 45_000 }],
+    });
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(agentApiV1BudgetResponse));
+
+    expect(await runCli([
+      'budget', 'update', '--scope', 'personal', '--input', input, '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: applyFetch, ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/budgets',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          scope: 'personal',
+          allocations: [{ categoryId: 'groceries', lineItemId: 'weekly', plannedPence: 45_000 }],
+        }),
+      }),
+    );
+
+    const malformedIo = createIo();
+    expect(await runCli(['budget', '--scope', 'personal'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: vi.fn().mockResolvedValue(jsonResponse({ ...agentApiV1BudgetResponse, funding: {} })),
+      ...malformedIo,
+    })).toBe(1);
+    expect(malformedIo.stderr.join('')).toContain('Invalid budget response');
   });
 
   it('applies assignments and returns failure for mixed results', async () => {

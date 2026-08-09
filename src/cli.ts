@@ -11,6 +11,7 @@ import { ICON_KEYS } from './category-metadata.js';
 import {
   parseApiResponse,
   validateAssignmentPayload,
+  validateBudgetUpdatePayload,
 } from './contracts.js';
 import {
   type CredentialStoreFactory,
@@ -24,7 +25,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.6.0';
+export const CLI_VERSION = '0.7.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -60,6 +61,9 @@ export function usageText(): string {
     '  sloth-agent accounts [list] [--base-url URL]',
     '  sloth-agent accounts update --account-ref REF --goal-savings-source true|false [--apply]',
     '  sloth-agent investments [--account-ref REF] [--base-url URL]',
+    '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
+    '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
+    '    --input budget.json [--apply] [--base-url URL]',
     '  sloth-agent categories [list] [--base-url URL]',
     '  sloth-agent categories create --name NAME --icon-key KEY --type TYPE [--apply]',
     '  sloth-agent categories rename --category-id ID --name NAME [--apply]',
@@ -397,6 +401,72 @@ export function investmentsHelpText(): string {
   ].join('\n');
 }
 
+export function budgetHelpText(): string {
+  return [
+    'Sloth Agent CLI — budget',
+    '',
+    'Read one personal or joint budget period.',
+    '',
+    'Usage:',
+    '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
+    '',
+    'Options:',
+    '  --scope personal|joint  Required. Budget ownership scope.',
+    '  --period YYYY-MM        Optional. Defaults to the current Sloth budget period.',
+    '  --base-url URL          Optional. Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access:',
+    '  This command is read-only and requires agent:read.',
+    '',
+    'Output:',
+    '  JSON containing scope, periodKey, periodStatus, currency, and effectiveFromPeriodKey.',
+    '  funding contains current stored to-assign and reserve amounts when that period exists.',
+    '  categories[].lineItems contains line-item IDs, names, and planned amounts in pence.',
+    '  Categories also include plannedPence and assignedPence.',
+  ].join('\n');
+}
+
+export function budgetUpdateHelpText(): string {
+  return [
+    'Sloth Agent CLI — budget update',
+    '',
+    'Preview or update planned line-item amounts for one budget scope.',
+    '',
+    'Usage:',
+    '  sloth-agent budget update --scope personal|joint [--period YYYY-MM] --input FILE [--apply] [--base-url URL]',
+    '',
+    'Required inputs:',
+    '  --scope personal|joint  Budget ownership scope.',
+    '  --input FILE            JSON file containing allocations.',
+    '',
+    'Optional inputs:',
+    '  --period YYYY-MM        Defaults to the current Sloth budget period.',
+    '  --apply                 Send the update. Without it, only validate and preview.',
+    '  --base-url URL          Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Input format:',
+    '  {"allocations":[{"categoryId":"groceries","lineItemId":"weekly","plannedPence":45000}]}',
+    '  Provide 1 to 100 unique categoryId and lineItemId pairs.',
+    '  plannedPence must be a nonnegative whole number of pence.',
+    '',
+    'Write behavior:',
+    '  Without --apply, returns JSON after local validation and does not load credentials',
+    '  or contact Sloth Money. A successful preview does not guarantee the remote write.',
+    '  With --apply, each supplied amount patches a complete selected-period budget.',
+    '  The resulting complete budget overwrites the selected period and every explicit future plan.',
+    '  A later update from another period overwrites that period and everything after it.',
+    '  Historical periods cannot be changed. Applying requires agent:write.',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, endpoint, method, and the validated payload.',
+    '  Apply mode returns the complete persisted budget response.',
+  ].join('\n');
+}
+
 export function transactionsHelpText(): string {
   return [
     'Sloth Agent CLI — transactions',
@@ -690,6 +760,8 @@ export function commandHelpText(topic: HelpTopic): string {
     accounts: accountsHelpText,
     'accounts-update': accountsUpdateHelpText,
     investments: investmentsHelpText,
+    budget: budgetHelpText,
+    'budget-update': budgetUpdateHelpText,
     categories: categoriesHelpText,
     'categories-create': categoriesCreateHelpText,
     'categories-rename': categoriesRenameHelpText,
@@ -788,6 +860,15 @@ function readAssignmentFile(filePath: string): unknown {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new UsageError(`Failed to read assignment JSON: ${message}`);
+  }
+}
+
+function readBudgetFile(filePath: string): unknown {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`Failed to read budget JSON: ${message}`);
   }
 }
 
@@ -989,6 +1070,23 @@ export async function runCli(
       return 0;
     }
 
+    const budgetUpdatePayload = parsed.command === 'budget-update'
+      ? validateBudgetUpdatePayload(readBudgetFile(parsed.input))
+      : undefined;
+    if (parsed.command === 'budget-update' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: `${baseUrl}/api/agent/v1/budgets`,
+        method: 'PATCH',
+        payload: {
+          scope: parsed.scope,
+          ...(parsed.periodKey === undefined ? {} : { periodKey: parsed.periodKey }),
+          ...budgetUpdatePayload,
+        },
+      });
+      return 0;
+    }
+
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
@@ -997,6 +1095,26 @@ export async function runCli(
       const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;
       const payload = { isGoalSavingsSource: parsed.isGoalSavingsSource };
       const response = await fetchImplementation(endpoint, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        parsed.command,
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'budget-update') {
+      const payload = {
+        scope: parsed.scope,
+        ...(parsed.periodKey === undefined ? {} : { periodKey: parsed.periodKey }),
+        ...budgetUpdatePayload!,
+      };
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/budgets`, {
         method: 'PATCH',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1204,6 +1322,22 @@ export async function runCli(
         'goals-list',
         await parseHttpResponse(response, token),
       );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'budget') {
+      const query = new URLSearchParams({ scope: parsed.scope });
+      if (parsed.periodKey !== undefined) query.set('periodKey', parsed.periodKey);
+      const response = await fetchImplementation(
+        `${baseUrl}/api/agent/v1/budgets?${query.toString()}`,
+        {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+      const data = parseApiResponse('budget', await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
       return 0;
     }
