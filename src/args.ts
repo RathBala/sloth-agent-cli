@@ -142,6 +142,7 @@ export type ParsedCommand =
     targetAmount?: number | null;
     targetMonthKey?: string | null;
     isAchieved?: boolean;
+    priority?: number;
     apply: boolean;
   }
   | {
@@ -224,6 +225,17 @@ function parseGoalMonthKey(value: string, name: string): string {
     throw new UsageError(`${name} must be a valid YYYY-MM month`);
   }
   return value;
+}
+
+function parseGoalPriority(value: string): number {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new UsageError('--priority must be a positive whole-number position');
+  }
+  const priority = Number(value);
+  if (!Number.isSafeInteger(priority)) {
+    throw new UsageError('--priority must be a positive whole-number position');
+  }
+  return priority;
 }
 
 function parseExplicitBoolean(value: string, name: string): boolean {
@@ -695,6 +707,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
     let targetAmount: number | null | undefined;
     let targetMonthKey: string | null | undefined;
     let isAchieved: boolean | undefined;
+    let priority: number | undefined;
     let apply = false;
 
     for (let index = 0; index < args.length; index += 1) {
@@ -732,6 +745,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         && option !== '--target-amount'
         && option !== '--target-month'
         && option !== '--achieved'
+        && option !== '--priority'
       ) {
         throw new UsageError(`Unknown goals update option: ${argument}`);
       }
@@ -760,6 +774,8 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
           );
         }
         targetMonthKey = parseGoalMonthKey(value, option);
+      } else if (option === '--priority') {
+        priority = setOnce(priority, parseGoalPriority(value), option);
       } else {
         isAchieved = setOnce(
           isAchieved,
@@ -775,8 +791,20 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       && targetAmount === undefined
       && targetMonthKey === undefined
       && isAchieved === undefined
+      && priority === undefined
     ) {
       throw new UsageError('goals update requires at least one field to update');
+    }
+    if (
+      priority !== undefined
+      && (
+        name !== undefined
+        || targetAmount !== undefined
+        || targetMonthKey !== undefined
+        || isAchieved !== undefined
+      )
+    ) {
+      throw new UsageError('--priority must be used on its own');
     }
 
     return withBaseUrl({
@@ -786,6 +814,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       ...(targetAmount === undefined ? {} : { targetAmount }),
       ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
       ...(isAchieved === undefined ? {} : { isAchieved }),
+      ...(priority === undefined ? {} : { priority }),
       apply,
     }, baseUrl);
   }

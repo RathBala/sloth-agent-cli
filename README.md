@@ -355,7 +355,7 @@ sloth-agent goals create \
   --apply
 ```
 
-Use the `id` from list or create output to update or delete a goal:
+Use the `id` from list or create output to update or delete goals:
 
 ```bash
 sloth-agent goals update \
@@ -363,6 +363,11 @@ sloth-agent goals update \
   --clear-target-amount \
   --target-month 2027-12 \
   --achieved=false \
+  --apply
+
+sloth-agent goals update \
+  --goal-id house-goal-id \
+  --priority 2 \
   --apply
 
 sloth-agent goals delete --goal-id goal-id --apply
@@ -373,7 +378,13 @@ remove an optional value. Marking a goal achieved removes its forecast
 assignment. Deleting a goal also removes its forecast assignments and drift
 history. Goal sharing remains app-managed. Change an active shared goal's
 pot-tracked target amount in the Sloth Budget app, where account balances can
-be reallocated across goals in priority order.
+be reallocated across goals in priority order. Goal list output includes a
+one-based `priority`; `1` is highest. Moving one goal automatically shifts the
+goals between its old and new positions. The
+priority option must be used on its own, and the write persists immediately.
+Forecast assignments and shared pot
+progress are browser-owned derived state and refresh when the owner next opens
+the Forecast screen.
 
 Read uncategorised contributions to the joint budget:
 

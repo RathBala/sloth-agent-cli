@@ -262,6 +262,10 @@ describe('API response validation', () => {
       currency: 'GBP',
       goal: { ...agentApiV1GoalMutationResponse.goal, unexpected: true },
     })).toThrow(/invalid goals-update response/i);
+    expect(() => parseApiResponse('goals-list', {
+      currency: 'GBP',
+      goals: [{ ...agentApiV1GoalMutationResponse.goal, priority: 0 }],
+    })).toThrow(/invalid goals-list response/i);
     expect(() => parseApiResponse('goals-delete', {
       deleted: false,
       deletedGoalId: 'goal-1',

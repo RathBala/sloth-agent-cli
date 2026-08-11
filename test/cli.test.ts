@@ -199,6 +199,10 @@ describe('CLI execution', () => {
         '--clear-target-amount',
         '--clear-target-month',
         '--achieved=true|false',
+        '--priority POSITION',
+        'Priority 1 is highest',
+        'shifts the intervening goals',
+        'Forecast screen',
         'at least one field',
         'Without --apply',
         'write-enabled token',
@@ -574,7 +578,10 @@ describe('CLI execution', () => {
       'https://budget.slothmoney.app/api/agent/v1/goals',
       expect.objectContaining({ method: 'GET' }),
     );
-    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1GoalsResponse);
+    expect(JSON.parse(io.stdout.join(''))).toEqual({
+      ...agentApiV1GoalsResponse,
+      goals: [{ ...agentApiV1GoalsResponse.goals[0], priority: 1 }],
+    });
     expect(io.stderr).toEqual([]);
   });
 
@@ -693,6 +700,55 @@ describe('CLI execution', () => {
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
       agentApiV1GoalMutationResponse,
     );
+  });
+
+  it('previews and applies a goal priority move', async () => {
+    const argv = [
+      'goals',
+      'update',
+      '--goal-id',
+      'goal 3',
+      '--priority',
+      '2',
+    ];
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: previewFetch,
+      ...previewIo,
+    })).toBe(0);
+
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/goal%203',
+      method: 'PATCH',
+      payload: { priority: 2 },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1GoalMutationResponse,
+    ));
+    expect(await runCli([...argv, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals/goal%203',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ priority: 2 }),
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual({
+      ...agentApiV1GoalMutationResponse,
+      goal: { ...agentApiV1GoalMutationResponse.goal, priority: 2 },
+    });
   });
 
   it('previews and applies goal deletion', async () => {

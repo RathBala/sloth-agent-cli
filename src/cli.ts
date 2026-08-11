@@ -614,7 +614,7 @@ export function goalsListHelpText(): string {
     '  This command is read-only.',
     '',
     'Output:',
-    '  JSON containing currency and goals. Each goal contains id, name,',
+    '  JSON containing currency and goals. Each goal contains id, name, priority,',
     '  targetAmount, targetMonthKey, isAchieved, and sharedWithPartner.',
   ].join('\n');
 }
@@ -669,6 +669,7 @@ export function goalsUpdateHelpText(): string {
     '  --target-month YYYY-MM       Optional. Replace the target month.',
     '  --clear-target-month         Optional. Remove the target month.',
     '  --achieved=true|false        Optional. Mark the goal achieved or active.',
+    '  --priority POSITION          Optional. Positive whole-number position; 1 is highest.',
     '  --apply                      Optional. Write the partial update.',
     '  --base-url URL               Optional. Override the API origin.',
     '  -h, --help                   Show this help.',
@@ -676,6 +677,11 @@ export function goalsUpdateHelpText(): string {
     '',
     'Constraints:',
     '  Provide at least one field to update.',
+    '  Priority must be updated on its own.',
+    '  Priority 1 is highest. The position cannot exceed the current goal count.',
+    '  Moving a goal shifts the intervening goals automatically.',
+    '  Forecast assignments and shared progress refresh when the owner next opens',
+    '  the Forecast screen.',
     '  Set and clear options for the same field are mutually exclusive.',
     '  Marking a goal achieved removes its forecast assignment.',
     '  Marking it active again does not restore the previous assignment.',
@@ -687,6 +693,9 @@ export function goalsUpdateHelpText(): string {
     'Safety:',
     '  Without --apply, the command returns a dry-run preview and does not write.',
     '  Applying requires a write-enabled token created with Allow changes.',
+    '',
+    'Example:',
+    '  sloth-agent goals update --goal-id goal-3 --priority 2 --apply',
     '',
     'Output:',
     '  Preview mode returns dryRun, method, endpoint, and payload.',
@@ -781,6 +790,29 @@ export function commandHelpText(topic: HelpTopic): string {
 
 function writeJson(write: (value: string) => void, data: unknown): void {
   write(`${JSON.stringify(data, null, 2)}\n`);
+}
+
+function withListedGoalPriorities(value: unknown): unknown {
+  const response = value as Record<string, unknown> & {
+    goals: Array<Record<string, unknown>>;
+  };
+  return {
+    ...response,
+    goals: response.goals.map((goal, index) => ({
+      ...goal,
+      priority: index + 1,
+    })),
+  };
+}
+
+function withUpdatedGoalPriority(value: unknown, priority: number): unknown {
+  const response = value as Record<string, unknown> & {
+    goal: Record<string, unknown>;
+  };
+  return {
+    ...response,
+    goal: { ...response.goal, priority },
+  };
 }
 
 function redact(value: string, token: string | undefined): string {
@@ -1218,6 +1250,9 @@ export async function runCli(
         ...(parsed.isAchieved === undefined
           ? {}
           : { isAchieved: parsed.isAchieved }),
+        ...(parsed.priority === undefined
+          ? {}
+          : { priority: parsed.priority }),
       };
       if (!parsed.apply) {
         writeJson(writeStdout, {
@@ -1242,7 +1277,12 @@ export async function runCli(
         'goals-update',
         await parseHttpResponse(response, token),
       );
-      writeJson(writeStdout, data);
+      writeJson(
+        writeStdout,
+        parsed.priority === undefined
+          ? data
+          : withUpdatedGoalPriority(data, parsed.priority),
+      );
       return 0;
     }
 
@@ -1322,7 +1362,7 @@ export async function runCli(
         'goals-list',
         await parseHttpResponse(response, token),
       );
-      writeJson(writeStdout, data);
+      writeJson(writeStdout, withListedGoalPriorities(data));
       return 0;
     }
 

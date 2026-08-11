@@ -112,7 +112,7 @@ try {
     ]],
     [['goals', 'list', '--help'], [/No filters or singular get/]],
     [['goals', 'create', '--help'], [/--name NAME\s+Required/]],
-    [['goals', 'update', '--help'], [/--clear-target-amount/]],
+    [['goals', 'update', '--help'], [/--clear-target-amount/, /--priority POSITION/, /Priority must be updated on its own/, /Priority 1 is highest/]],
     [['goals', 'delete', '--help'], [/removes its goal drift history/]],
     [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
   ];

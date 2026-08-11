@@ -239,6 +239,18 @@ describe('CLI arguments', () => {
       targetMonthKey: null,
       apply: false,
     });
+
+    expect(parseArgs([
+      'goals',
+      'update',
+      '--goal-id=goal-3',
+      '--priority=2',
+    ])).toEqual({
+      command: 'goals-update',
+      goalId: 'goal-3',
+      priority: 2,
+      apply: false,
+    });
   });
 
   it('parses goal deletion with preview as the default', () => {
@@ -310,6 +322,29 @@ describe('CLI arguments', () => {
       'goal-1',
       '--achieved=yes',
     ])).toThrow(/true or false/);
+    expect(() => parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+      '--priority=0',
+    ])).toThrow(/positive whole-number position/);
+    expect(() => parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+      '--priority=1.5',
+    ])).toThrow(/positive whole-number position/);
+    expect(() => parseArgs([
+      'goals',
+      'update',
+      '--goal-id',
+      'goal-1',
+      '--name',
+      'Emergency pot',
+      '--priority=2',
+    ])).toThrow(/priority.*on its own/i);
     expect(() => parseArgs(['goals', 'get', '--goal-id', 'goal-1']))
       .toThrow(/Unknown goals command/);
     expect(() => parseArgs(['goals', 'delete']))
