@@ -21,6 +21,14 @@
   `-h`/`--help` in the same change. State required and optional inputs,
   accepted formats or ranges, defaults, output, and write/dry-run behaviour,
   then add a help-routing or packed-binary regression test.
+- For any externally visible command, option, output, authentication, or Agent
+  API contract change, inventory the sibling `sloth-site` public documentation
+  before release. Update applicable developer pages and review affected privacy
+  pages, recording why no privacy copy change is needed when the data and
+  telemetry contract is unchanged. Run the site's deploy-output checks and
+  `public-site-readiness` audit, deploy the public documentation, and do not
+  describe the CLI release as complete while those pages still document the
+  previous contract.
 - Run `npm run verify` before publishing.
 - Inspect `npm pack --dry-run --json` and pass the clean-install package test.
 - Publish only from a reviewed version tag through the trusted GitHub workflow
