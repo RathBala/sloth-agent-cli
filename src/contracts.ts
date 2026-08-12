@@ -36,6 +36,7 @@ export interface BudgetUpdatePayload {
 type ApiCommand =
   | 'accounts'
   | 'accounts-update'
+  | 'accounts-remove'
   | 'investments'
   | 'budget'
   | 'budget-update'
@@ -601,6 +602,17 @@ function isAccountMutationResponse(value: unknown): boolean {
   );
 }
 
+function isAccountRemovalResponse(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['removed', 'changed', 'accountRef'])
+    && value.removed === true
+    && typeof value.changed === 'boolean'
+    && typeof value.accountRef === 'string'
+    && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
+  );
+}
+
 function isInvestmentHolding(value: unknown): boolean {
   return (
     isObject(value)
@@ -686,6 +698,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
     ? isAccountsResponse(value)
     : command === 'accounts-update'
       ? isAccountMutationResponse(value)
+    : command === 'accounts-remove'
+      ? isAccountRemovalResponse(value)
     : command === 'investments'
         ? isInvestmentsResponse(value)
     : command === 'budget' || command === 'budget-update'

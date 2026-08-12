@@ -25,7 +25,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.8.0';
+export const CLI_VERSION = '0.9.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -59,7 +59,8 @@ export function usageText(): string {
     '  sloth-agent auth status [--base-url URL]',
     '  sloth-agent auth logout [--base-url URL]',
     '  sloth-agent accounts [list] [--base-url URL]',
-    '  sloth-agent accounts update --account-ref REF --goal-savings-source true|false [--apply]',
+    '  sloth-agent accounts update --account-ref REF [fields] [--apply]',
+    '  sloth-agent accounts remove --account-ref REF [--apply]',
     '  sloth-agent investments [--account-ref REF] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
@@ -353,25 +354,60 @@ export function accountsUpdateHelpText(): string {
   return [
     'Sloth Agent CLI — accounts update',
     '',
-    'Preview or update whether an owned connected account is used for goal savings.',
+    'Preview or update an owned account. Manual accounts support their editable fields.',
     '',
     'Usage:',
-    '  sloth-agent accounts update --account-ref REF --goal-savings-source true|false [--apply] [--base-url URL]',
+    '  sloth-agent accounts update --account-ref REF [fields] [--apply] [--base-url URL]',
     '',
-    'Required inputs:',
+    'Required input:',
     '  --account-ref REF                  Opaque accountRef from sloth-agent accounts.',
-    '  --goal-savings-source true|false   Enable or disable goal-savings membership.',
+    '',
+    'Update fields (at least one):',
+    '  --institution-name NAME            Manual account institution.',
+    '  --account-name NAME                Manual account name.',
+    '  --currency CODE                    Three-letter currency code.',
+    '  --ownership individual|joint       Manual account ownership.',
+    '  --balance-amount AMOUNT             Balance-only account balance.',
+    '  --account-type savings|investments Balance-only account type.',
+    '  --goal-savings-source true|false   Goal-savings membership.',
     '',
     'Write behavior:',
     '  Without --apply, returns a JSON preview without credentials or a network request.',
     '  With --apply, requires agent:write on a write-enabled token and updates saved Sloth metadata.',
-    '  Partner-owned shared accounts and manual accounts cannot be changed.',
+    '  Connected accounts support only --goal-savings-source.',
+    '  Manual current accounts cannot change type, balance, or goal-savings membership.',
+    '  Partner-owned shared accounts cannot be changed.',
     '  Unknown, disconnected, or inaccessible references return Account not found.',
     ...API_ORIGIN_HELP_LINES,
     '',
     'Output:',
     '  Preview mode returns dryRun, method, endpoint, and payload.',
     '  Apply mode returns changed and the complete persisted account.',
+  ].join('\n');
+}
+
+export function accountsRemoveHelpText(): string {
+  return [
+    'Sloth Agent CLI — accounts remove',
+    '',
+    'Preview or archive an owned manual account while retaining its underlying records.',
+    '',
+    'Usage:',
+    '  sloth-agent accounts remove --account-ref REF [--apply] [--base-url URL]',
+    '',
+    'Required input:',
+    '  --account-ref REF  Opaque accountRef from sloth-agent accounts.',
+    '',
+    'Write behavior:',
+    '  Without --apply, returns a JSON preview without credentials or a network request.',
+    '  With --apply, requires agent:write and archives the manual account.',
+    '  Connected and partner-owned accounts cannot be removed.',
+    '  Repeating an applied removal succeeds with changed false.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, and endpoint.',
+    '  Apply mode returns removed, changed, and accountRef.',
   ].join('\n');
 }
 
@@ -768,6 +804,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'auth-logout': authLogoutHelpText,
     accounts: accountsHelpText,
     'accounts-update': accountsUpdateHelpText,
+    'accounts-remove': accountsRemoveHelpText,
     investments: investmentsHelpText,
     budget: budgetHelpText,
     'budget-update': budgetUpdateHelpText,
@@ -1097,7 +1134,16 @@ export async function runCli(
         dryRun: true,
         endpoint,
         method: 'PATCH',
-        payload: { isGoalSavingsSource: parsed.isGoalSavingsSource },
+        payload: parsed.update,
+      });
+      return 0;
+    }
+    if (parsed.command === 'accounts-remove' && !parsed.apply) {
+      const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint,
+        method: 'DELETE',
       });
       return 0;
     }
@@ -1125,11 +1171,25 @@ export async function runCli(
 
     if (parsed.command === 'accounts-update') {
       const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;
-      const payload = { isGoalSavingsSource: parsed.isGoalSavingsSource };
       const response = await fetchImplementation(endpoint, {
         method: 'PATCH',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(parsed.update),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        parsed.command,
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'accounts-remove') {
+      const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;
+      const response = await fetchImplementation(endpoint, {
+        method: 'DELETE',
+        headers,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       const data = parseApiResponse(

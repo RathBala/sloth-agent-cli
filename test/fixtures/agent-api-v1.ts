@@ -56,6 +56,12 @@ export const agentApiV1AccountMutationResponse = {
   account: agentApiV1AccountsResponse.accounts[0],
 } as const;
 
+export const agentApiV1AccountRemovalResponse = {
+  removed: true,
+  changed: true,
+  accountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
+} as const;
+
 export const agentApiV1InvestmentsResponse = {
   asOf: '2026-08-01T12:00:00.000Z',
   investmentAccounts: [{

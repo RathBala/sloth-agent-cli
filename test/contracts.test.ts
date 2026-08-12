@@ -8,6 +8,7 @@ import {
 import {
   agentApiV1AccountsResponse,
   agentApiV1AccountMutationResponse,
+  agentApiV1AccountRemovalResponse,
   agentApiV1AssignmentResponse,
   agentApiV1BudgetResponse,
   agentApiV1CategoriesResponse,
@@ -108,6 +109,8 @@ describe('API response validation', () => {
     )).toBe(agentApiV1AccountsResponse);
     expect(parseApiResponse('accounts-update', agentApiV1AccountMutationResponse))
       .toBe(agentApiV1AccountMutationResponse);
+    expect(parseApiResponse('accounts-remove', agentApiV1AccountRemovalResponse))
+      .toBe(agentApiV1AccountRemovalResponse);
     expect(parseApiResponse('investments', agentApiV1InvestmentsResponse))
       .toBe(agentApiV1InvestmentsResponse);
     const jointInvestments = {
@@ -188,6 +191,10 @@ describe('API response validation', () => {
       ...agentApiV1AccountMutationResponse,
       canUpdateGoalSavingsSource: true,
     })).toThrow(/invalid accounts-update response/i);
+    expect(() => parseApiResponse('accounts-remove', {
+      ...agentApiV1AccountRemovalResponse,
+      unexpected: true,
+    })).toThrow(/invalid accounts-remove response/i);
     expect(() => parseApiResponse('investments', {
       ...agentApiV1InvestmentsResponse,
       investmentAccounts: [{

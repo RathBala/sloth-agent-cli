@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.9.0 - 2026-08-12
+
+- Manage owned manual balance and manual transaction accounts through partial
+  account updates, including metadata, ownership, balance-only settings, and
+  goal-savings membership where supported.
+- Preview or apply idempotent manual account archival while retaining the
+  underlying account, transaction, import, balance, and categorisation records.
+- Keep account writes local-only by default and require `--apply` before any
+  authenticated PATCH or DELETE request is sent.
+
 ## 0.8.0 - 2026-08-12
 
 - Read each goal's one-based priority and move one goal to a new position with

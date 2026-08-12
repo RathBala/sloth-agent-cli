@@ -15,6 +15,7 @@ describe('CLI arguments', () => {
       parseArgs(['auth', 'logout', '--help']),
       parseArgs(['accounts', '--help']),
       parseArgs(['accounts', 'update', '--help']),
+      parseArgs(['accounts', 'remove', '--help']),
       parseArgs(['investments', '--help']),
       parseArgs(['categories', '--help']),
       parseArgs(['categories', 'create', '--help']),
@@ -33,6 +34,7 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'auth-logout' },
       { command: 'help', topic: 'accounts' },
       { command: 'help', topic: 'accounts-update' },
+      { command: 'help', topic: 'accounts-remove' },
       { command: 'help', topic: 'investments' },
       { command: 'help', topic: 'categories' },
       { command: 'help', topic: 'categories-create' },
@@ -139,7 +141,7 @@ describe('CLI arguments', () => {
       .toThrow(/Unknown accounts option/);
   });
 
-  it('parses account list and goal-savings updates with preview by default', () => {
+  it('parses account list, partial updates, and removal with preview by default', () => {
     const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
     expect(parseArgs(['accounts', 'list'])).toEqual({ command: 'accounts' });
     expect(parseArgs([
@@ -148,8 +150,47 @@ describe('CLI arguments', () => {
     ])).toEqual({
       command: 'accounts-update',
       accountRef,
-      isGoalSavingsSource: false,
+      update: { isGoalSavingsSource: false },
       apply: true,
+    });
+    expect(parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--institution-name', 'Hargreaves Lansdown',
+      '--account-name', 'Stocks & Shares ISA',
+      '--currency', 'gbp',
+      '--ownership', 'joint',
+      '--balance-amount', '12500.75',
+      '--account-type', 'investments',
+      '--goal-savings-source', 'false', '--apply',
+    ])).toEqual({
+      command: 'accounts-update',
+      accountRef,
+      update: {
+        institutionName: 'Hargreaves Lansdown',
+        accountName: 'Stocks & Shares ISA',
+        currency: 'GBP',
+        ownership: 'joint',
+        balanceAmount: 12500.75,
+        accountType: 'investments',
+        isGoalSavingsSource: false,
+      },
+      apply: true,
+    });
+    expect(parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--ownership', 'individual',
+    ])).toEqual({
+      command: 'accounts-update',
+      accountRef,
+      update: { ownership: 'personal' },
+      apply: false,
+    });
+    expect(parseArgs([
+      'accounts', 'remove', '--account-ref', accountRef,
+    ])).toEqual({
+      command: 'accounts-remove',
+      accountRef,
+      apply: false,
     });
     expect(() => parseArgs([
       'accounts', 'update', '--account-ref', 'account-1',
@@ -160,7 +201,16 @@ describe('CLI arguments', () => {
       '--goal-savings-source', 'yes',
     ])).toThrow(/true or false/);
     expect(() => parseArgs(['accounts', 'update', '--account-ref', accountRef]))
-      .toThrow(/requires --goal-savings-source/);
+      .toThrow(/at least one field/);
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', accountRef, '--currency', 'GB',
+    ])).toThrow(/three-letter currency/);
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', accountRef, '--ownership', 'personal',
+    ])).toThrow(/individual or joint/);
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', accountRef, '--balance-amount', '-1',
+    ])).toThrow(/nonnegative amount/);
   });
 
   it('parses cache-only investment portfolio filters', () => {

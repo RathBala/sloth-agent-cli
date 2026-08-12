@@ -80,6 +80,7 @@ try {
   assert.match(help, /sloth-agent auth logout/);
   assert.match(help, /sloth-agent accounts/);
   assert.match(help, /sloth-agent accounts update/);
+  assert.match(help, /sloth-agent accounts remove/);
   assert.match(help, /sloth-agent investments/);
   assert.match(help, /sloth-agent budget --scope personal\|joint/);
   assert.match(help, /sloth-agent budget update/);
@@ -93,7 +94,8 @@ try {
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
     [['accounts', '--help'], [/existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalSavingsSource/]],
-    [['accounts', 'update', '--help'], [/--goal-savings-source true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
+    [['accounts', 'update', '--help'], [/--institution-name NAME/, /--ownership individual\|joint/, /--goal-savings-source true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
+    [['accounts', 'remove', '--help'], [/archive/, /retaining its underlying records/, /Without --apply/, /changed false/]],
     [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
     [['budget', '--help'], [/--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
@@ -125,6 +127,40 @@ try {
       assert.match(commandHelp, expected);
     }
   }
+
+  const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
+  const updatePreview = JSON.parse(execFileSync(executable, [
+    'accounts', 'update', '--account-ref', accountRef,
+    '--institution-name', 'Hargreaves Lansdown',
+    '--ownership', 'individual',
+    '--goal-savings-source', 'false',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: '' },
+    ...commandOptions,
+  }));
+  assert.deepEqual(updatePreview, {
+    dryRun: true,
+    endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+    method: 'PATCH',
+    payload: {
+      institutionName: 'Hargreaves Lansdown',
+      ownership: 'personal',
+      isGoalSavingsSource: false,
+    },
+  });
+  const removePreview = JSON.parse(execFileSync(executable, [
+    'accounts', 'remove', '--account-ref', accountRef,
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: '' },
+    ...commandOptions,
+  }));
+  assert.deepEqual(removePreview, {
+    dryRun: true,
+    endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+    method: 'DELETE',
+  });
 
   fs.rmSync(
     path.join(installDirectory, 'node_modules', '@github', 'keytar'),

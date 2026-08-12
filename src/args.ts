@@ -36,6 +36,7 @@ export type HelpTopic =
   | 'auth-logout'
   | 'accounts'
   | 'accounts-update'
+  | 'accounts-remove'
   | 'investments'
   | 'budget'
   | 'budget-update'
@@ -68,7 +69,21 @@ export type ParsedCommand =
     command: 'accounts-update';
     baseUrl?: string;
     accountRef: string;
-    isGoalSavingsSource: boolean;
+    update: {
+      institutionName?: string;
+      accountName?: string;
+      currency?: string;
+      ownership?: 'personal' | 'joint';
+      balanceAmount?: number;
+      accountType?: 'savings' | 'investments';
+      isGoalSavingsSource?: boolean;
+    };
+    apply: boolean;
+  }
+  | {
+    command: 'accounts-remove';
+    baseUrl?: string;
+    accountRef: string;
     apply: boolean;
   }
   | { command: 'investments'; baseUrl?: string; accountRef?: string }
@@ -418,6 +433,20 @@ function parseAccountRef(value: string): string {
   return value;
 }
 
+function parseAccountName(value: string, option: string): string {
+  const name = value.trim();
+  if (name.length > 300) throw new UsageError(`${option} must be at most 300 characters`);
+  return name;
+}
+
+function parseAccountBalance(value: string): number {
+  const amount = Number(value);
+  if (!/^\d+(?:\.\d+)?$/.test(value) || !Number.isFinite(amount) || amount < 0) {
+    throw new UsageError('--balance-amount must be a nonnegative amount');
+  }
+  return amount;
+}
+
 function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
   const subcommand = args.shift();
   if (subcommand === undefined || subcommand === 'list') {
@@ -428,20 +457,80 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     const { values, apply } = parseNamedOptions(
       args,
       'accounts update',
-      new Set(['--account-ref', '--goal-savings-source']),
+      new Set([
+        '--account-ref',
+        '--institution-name',
+        '--account-name',
+        '--currency',
+        '--ownership',
+        '--balance-amount',
+        '--account-type',
+        '--goal-savings-source',
+      ]),
     );
-    const source = requiredOption(
-      values,
-      '--goal-savings-source',
-      'accounts update',
-    );
-    if (source !== 'true' && source !== 'false') {
+    const institutionName = values.get('--institution-name');
+    const accountName = values.get('--account-name');
+    const currencyValue = values.get('--currency');
+    const ownershipValue = values.get('--ownership');
+    const balanceValue = values.get('--balance-amount');
+    const accountTypeValue = values.get('--account-type');
+    const sourceValue = values.get('--goal-savings-source');
+    if (currencyValue !== undefined && !/^[A-Za-z]{3}$/.test(currencyValue)) {
+      throw new UsageError('--currency must be a three-letter currency code');
+    }
+    if (
+      ownershipValue !== undefined
+      && ownershipValue !== 'individual'
+      && ownershipValue !== 'joint'
+    ) {
+      throw new UsageError('--ownership must be individual or joint');
+    }
+    if (
+      accountTypeValue !== undefined
+      && accountTypeValue !== 'savings'
+      && accountTypeValue !== 'investments'
+    ) {
+      throw new UsageError('--account-type must be savings or investments');
+    }
+    if (sourceValue !== undefined && sourceValue !== 'true' && sourceValue !== 'false') {
       throw new UsageError('--goal-savings-source must be true or false');
+    }
+    const update = {
+      ...(institutionName === undefined
+        ? {}
+        : { institutionName: parseAccountName(institutionName, '--institution-name') }),
+      ...(accountName === undefined
+        ? {}
+        : { accountName: parseAccountName(accountName, '--account-name') }),
+      ...(currencyValue === undefined ? {} : { currency: currencyValue.toUpperCase() }),
+      ...(ownershipValue === undefined
+        ? {}
+        : { ownership: ownershipValue === 'individual' ? 'personal' as const : 'joint' as const }),
+      ...(balanceValue === undefined ? {} : { balanceAmount: parseAccountBalance(balanceValue) }),
+      ...(accountTypeValue === undefined
+        ? {}
+        : { accountType: accountTypeValue as 'savings' | 'investments' }),
+      ...(sourceValue === undefined ? {} : { isGoalSavingsSource: sourceValue === 'true' }),
+    };
+    if (Object.keys(update).length === 0) {
+      throw new UsageError('accounts update requires at least one field to update');
     }
     return withBaseUrl({
       command: 'accounts-update',
       accountRef: parseAccountRef(requiredOption(values, '--account-ref', 'accounts update')),
-      isGoalSavingsSource: source === 'true',
+      update,
+      apply,
+    }, baseUrl);
+  }
+  if (subcommand === 'remove') {
+    const { values, apply } = parseNamedOptions(
+      args,
+      'accounts remove',
+      new Set(['--account-ref']),
+    );
+    return withBaseUrl({
+      command: 'accounts-remove',
+      accountRef: parseAccountRef(requiredOption(values, '--account-ref', 'accounts remove')),
       apply,
     }, baseUrl);
   }
@@ -911,6 +1000,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     || command === 'ask-partner'
   ) {
     if (command === 'accounts' && subcommand === 'update') return 'accounts-update';
+    if (command === 'accounts' && subcommand === 'remove') return 'accounts-remove';
     return command;
   }
   if (command === 'investments') return 'investments';

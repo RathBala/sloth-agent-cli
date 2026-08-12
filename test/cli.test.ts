@@ -11,6 +11,7 @@ import {
 import {
   agentApiV1AccountsResponse,
   agentApiV1AccountMutationResponse,
+  agentApiV1AccountRemovalResponse,
   agentApiV1AssignmentResponse,
   agentApiV1BudgetResponse,
   agentApiV1CategoriesResponse,
@@ -131,9 +132,14 @@ describe('CLI execution', () => {
         'isGoalSavingsSource',
       ]],
       [['accounts', 'update', '--help'], [
-        '--account-ref REF', '--goal-savings-source true|false',
-        'Without --apply', 'write-enabled token', 'Partner-owned', 'manual accounts',
+        '--account-ref REF', '--institution-name NAME', '--ownership individual|joint',
+        '--balance-amount AMOUNT', '--goal-savings-source true|false',
+        'Without --apply', 'write-enabled token', 'Partner-owned', 'Manual accounts',
         'agent:write', 'Account not found',
+      ]],
+      [['accounts', 'remove', '--help'], [
+        '--account-ref REF', 'archive', 'retaining its underlying records',
+        'Without --apply', 'changed false',
       ]],
       [['investments', '--help'], [
         '--account-ref REF', 'cache-only', 'provider-native', 'holdings', 'read-only',
@@ -496,13 +502,19 @@ describe('CLI execution', () => {
     expect(io.stderr).toEqual([]);
   });
 
-  it('previews and applies goal-savings account updates', async () => {
+  it('previews and applies full manual account updates', async () => {
     const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
     const previewIo = createIo();
     const previewFetch = vi.fn();
     const previewCredentialStore = vi.fn();
     expect(await runCli([
       'accounts', 'update', '--account-ref', accountRef,
+      '--institution-name', 'Hargreaves Lansdown',
+      '--account-name', 'Stocks & Shares ISA',
+      '--currency', 'gbp',
+      '--ownership', 'individual',
+      '--balance-amount', '12500.75',
+      '--account-type', 'investments',
       '--goal-savings-source', 'false',
     ], {
       env: {},
@@ -516,7 +528,15 @@ describe('CLI execution', () => {
       dryRun: true,
       endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
       method: 'PATCH',
-      payload: { isGoalSavingsSource: false },
+      payload: {
+        institutionName: 'Hargreaves Lansdown',
+        accountName: 'Stocks & Shares ISA',
+        currency: 'GBP',
+        ownership: 'personal',
+        balanceAmount: 12500.75,
+        accountType: 'investments',
+        isGoalSavingsSource: false,
+      },
     });
 
     const applyIo = createIo();
@@ -540,6 +560,47 @@ describe('CLI execution', () => {
     );
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
       agentApiV1AccountMutationResponse,
+    );
+  });
+
+  it('previews and applies idempotent manual account removal', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    const previewCredentialStore = vi.fn();
+    expect(await runCli([
+      'accounts', 'remove', '--account-ref', accountRef,
+    ], {
+      env: {},
+      fetch: previewFetch,
+      getCredentialStore: previewCredentialStore,
+      ...previewIo,
+    })).toBe(0);
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(previewCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+      method: 'DELETE',
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1AccountRemovalResponse,
+    ));
+    expect(await runCli([
+      'accounts', 'remove', '--account-ref', accountRef, '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
+      agentApiV1AccountRemovalResponse,
     );
   });
 

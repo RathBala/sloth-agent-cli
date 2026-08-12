@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.8.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.9.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -27,7 +27,7 @@ where the CLI runs.
 New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`,
 `budget`, `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
-or line items, update planned budgets, change goal-savings account membership, ask a partner for an explanation, or manage goals. Token
+or line items, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals. Token
 permissions cannot be changed later - revoke and reissue the token instead.
 
 ### Local computer
@@ -305,19 +305,36 @@ Missing values are JSON
 are excluded, while enabled shared joint accounts follow Sloth's existing
 visibility rules.
 
-Goal-savings changes are previews unless `--apply` is present. Only
-caller-owned connected accounts can be changed; partner-owned shared accounts
-and fixed manual accounts return an explanatory error.
+Account changes are previews unless `--apply` is present. Connected accounts
+support only goal-savings membership. Manual current accounts support their
+institution, name, currency, and ownership. Manual balance accounts also
+support balance, Savings/Investments type, and goal-savings membership.
+Partner-owned shared accounts return an explanatory error.
 
 ```bash
 sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
-  --goal-savings-source true
+  --institution-name "Hargreaves Lansdown" \
+  --account-name "Stocks & Shares ISA" \
+  --currency GBP \
+  --ownership individual \
+  --balance-amount 12500.75 \
+  --account-type investments \
+  --goal-savings-source false
 
 sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
-  --goal-savings-source true \
+  --goal-savings-source false \
   --apply
+```
+
+Archive an owned manual account. The account disappears from active Sloth
+surfaces, but its underlying records are retained. Repeating an applied removal
+is safe and returns `changed: false`.
+
+```bash
+sloth-agent accounts remove --account-ref sloth_account_v1_...
+sloth-agent accounts remove --account-ref sloth_account_v1_... --apply
 ```
 
 Read linked investment accounts and their cached holdings:
