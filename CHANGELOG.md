@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-08-12
+
 - Read each goal's one-based priority and move one goal to a new position with
   automatic shifting of the intervening goals.
+
+## 0.7.0 - 2026-08-09
+
 - Read personal or joint budget periods with categories, line items, funding,
   and planned amounts.
 - Preview or apply planned line-item updates that overwrite the selected period

@@ -25,7 +25,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.7.0';
+export const CLI_VERSION = '0.8.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
