@@ -64,16 +64,33 @@ try {
     '.bin',
     isWindows ? 'sloth-agent.cmd' : 'sloth-agent',
   );
+  const packagedEntryPoint = path.join(
+    installDirectory,
+    'node_modules',
+    '@slothmoney',
+    'agent-cli',
+    'dist',
+    'bin.js',
+  );
+  assert(fs.existsSync(executable));
+  const runCliSync = (args, options = {}) => execFileSync(
+    isWindows ? process.execPath : executable,
+    isWindows ? [packagedEntryPoint, ...args] : args,
+    options,
+  );
+  const spawnCliSync = (args, options = {}) => spawnSync(
+    isWindows ? process.execPath : executable,
+    isWindows ? [packagedEntryPoint, ...args] : args,
+    options,
+  );
   assert.equal(
-    execFileSync(executable, ['--version'], {
+    runCliSync(['--version'], {
       encoding: 'utf8',
-      ...commandOptions,
     }).trim(),
     packageJson.version,
   );
-  const help = execFileSync(executable, ['--help'], {
+  const help = runCliSync(['--help'], {
     encoding: 'utf8',
-    ...commandOptions,
   });
   assert.match(help, /sloth-agent auth login/);
   assert.match(help, /sloth-agent auth status/);
@@ -144,22 +161,20 @@ try {
     [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
   ];
   for (const [args, expectedPatterns] of commandHelpCases) {
-    const commandHelp = execFileSync(executable, args, {
+    const commandHelp = runCliSync(args, {
       encoding: 'utf8',
-      ...commandOptions,
     });
     for (const expected of expectedPatterns) {
       assert.match(commandHelp, expected);
     }
   }
 
-  const goalCreatePreview = JSON.parse(execFileSync(executable, [
+  const goalCreatePreview = JSON.parse(runCliSync([
     'goals', 'create', '--name', 'Wedding', '--target-amount', '22000',
     '--target-month', '2027-06', '--type', 'spend',
   ], {
     encoding: 'utf8',
     env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
-    ...commandOptions,
   }));
   assert.deepEqual(goalCreatePreview, {
     dryRun: true,
@@ -173,12 +188,11 @@ try {
     },
   });
 
-  const goalTypePreview = JSON.parse(execFileSync(executable, [
+  const goalTypePreview = JSON.parse(runCliSync([
     'goals', 'update', '--goal-id', 'wedding', '--type', 'keep',
   ], {
     encoding: 'utf8',
     env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
-    ...commandOptions,
   }));
   assert.deepEqual(goalTypePreview, {
     dryRun: true,
@@ -188,12 +202,11 @@ try {
   });
 
   for (const [action, isSpent] of [['mark-spent', true], ['restore', false]]) {
-    const preview = JSON.parse(execFileSync(executable, [
+    const preview = JSON.parse(runCliSync([
       'goals', action, '--goal-id', 'wedding',
     ], {
       encoding: 'utf8',
       env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
-      ...commandOptions,
     }));
     assert.deepEqual(preview, {
       dryRun: true,
@@ -204,7 +217,7 @@ try {
   }
 
   const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
-  const updatePreview = JSON.parse(execFileSync(executable, [
+  const updatePreview = JSON.parse(runCliSync([
     'accounts', 'update', '--account-ref', accountRef,
     '--institution-name', 'Hargreaves Lansdown',
     '--ownership', 'individual',
@@ -212,7 +225,6 @@ try {
   ], {
     encoding: 'utf8',
     env: { ...process.env, SLOTH_AGENT_TOKEN: '' },
-    ...commandOptions,
   }));
   assert.deepEqual(updatePreview, {
     dryRun: true,
@@ -224,12 +236,11 @@ try {
       isGoalSavingsSource: false,
     },
   });
-  const removePreview = JSON.parse(execFileSync(executable, [
+  const removePreview = JSON.parse(runCliSync([
     'accounts', 'remove', '--account-ref', accountRef,
   ], {
     encoding: 'utf8',
     env: { ...process.env, SLOTH_AGENT_TOKEN: '' },
-    ...commandOptions,
   }));
   assert.deepEqual(removePreview, {
     dryRun: true,
@@ -241,8 +252,7 @@ try {
     path.join(installDirectory, 'node_modules', '@github', 'keytar'),
     { force: true, recursive: true },
   );
-  const environmentOnlyStatus = spawnSync(
-    executable,
+  const environmentOnlyStatus = spawnCliSync(
     ['auth', 'status', '--base-url', 'http://localhost:1'],
     {
       encoding: 'utf8',
@@ -250,7 +260,6 @@ try {
         ...process.env,
         SLOTH_AGENT_TOKEN: 'package-smoke-token',
       },
-      ...commandOptions,
     },
   );
   assert.equal(environmentOnlyStatus.status, 1);
