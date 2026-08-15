@@ -115,6 +115,34 @@ sloth-agent goals update --help
 sloth-agent ask-partner --help
 ```
 
+### How transaction categorisation is represented
+
+Personal and joint category assignments are separate. A personal assignment
+uses the transaction's top-level `categoryId`, `lineItemId`, and
+`categorySplits`. A joint-budget assignment uses the corresponding fields under
+`jointBudgetContribution`.
+
+A transaction can have no personal category while its joint-budget contribution
+already has a category and line item. To assess a transaction's categorisation,
+inspect both locations. An included joint contribution with a category and line
+item is already categorised for the joint budget. For example:
+
+```json
+{
+  "categoryId": null,
+  "lineItemId": null,
+  "jointBudgetContribution": {
+    "included": true,
+    "categoryId": "groceries",
+    "lineItemId": "joint-groceries"
+  }
+}
+```
+
+This transaction is uncategorised personally but categorised as Groceries for
+the joint budget. The `--uncategorized` filter applies to the selected
+assignment scope; personal is used when `--assignment-scope` is omitted.
+
 ### Categorise a transaction end to end
 
 1. Read categories and available budget line items:
@@ -127,23 +155,43 @@ A category is the broader parent. A line item is a child within one category.
 Line-item names such as `Other` may repeat, so preserve the full choice as
 `(scope, categoryId, lineItemId)`. Use the personal or joint line-item map that
 matches the transaction scope. For example, `Bills → Other` and `Subscriptions
-→ Other` are different choices.
+→ Other` are different choices. Choose the most specific suitable line item;
+if none fits, use that category's `Other` line item. Historical assignments
+without a line item should not be treated as a recommendation to omit one.
 
 2. Read uncategorised transactions:
 
 ```bash
-sloth-agent transactions --uncategorized --limit 50
+sloth-agent transactions \
+  --assignment-scope personal \
+  --uncategorized \
+  --limit 50
 ```
 
-3. Copy the exact `transactionRef` for the transaction and a `categoryId` from
-   the earlier outputs into `assignments.json`:
+To read uncategorised joint-budget contributions instead:
+
+```bash
+sloth-agent transactions \
+  --assignment-scope joint \
+  --uncategorized \
+  --limit 50
+```
+
+The remaining example continues with a personal assignment. For a joint
+assignment, set `"assignmentScope": "joint"` in the assignment payload and use
+`--assignment-scope joint` when checking the result.
+
+3. Copy the exact `transactionRef`, `categoryId`, and `lineItemId` from the
+   earlier outputs into `assignments.json`:
 
 ```json
 {
   "assignments": [
     {
       "transactionRef": "PASTE_THE_EXACT_TRANSACTION_REF_HERE",
-      "categoryId": "PASTE_A_CATEGORY_ID_HERE"
+      "assignmentScope": "personal",
+      "categoryId": "PASTE_A_CATEGORY_ID_HERE",
+      "lineItemId": "PASTE_A_LINE_ITEM_ID_HERE"
     }
   ]
 }
@@ -172,17 +220,19 @@ This step requires a token created with **Allow changes**.
 
 Inspect every item in the returned `succeeded` and `failed` arrays.
 
-6. Check the result. Successful assignments update the category and optional
-   budget line item on the original transaction. See the result in **Sloth
-   Money → Transactions**, or re-run the original transaction query without
-   `--uncategorized` and inspect its category fields:
+6. Check the result in the same assignment scope that you changed. Successful
+   assignments update the category and optional budget line item on the
+   original transaction. See the result in **Sloth Money → Transactions**, or
+   re-run the original transaction query without `--uncategorized` and inspect
+   both the personal and joint category fields:
 
 ```bash
-sloth-agent transactions --limit 50
+sloth-agent transactions --assignment-scope personal --limit 50
 ```
 
 The transaction should also disappear from the matching `--uncategorized`
-query. Assignments do not create a separate list.
+query. Confirm that an existing assignment in the other scope was not changed.
+Assignments do not create a separate list.
 
 ### Other workflows
 
