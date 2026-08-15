@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 - 2026-08-15
+
+- Require every goal create to specify a positive target amount and Keep or
+  Spend type, matching the breaking Agent Goals API v1 contract.
+- Expose `goalType` and nullable `spentAt`, allow active goal type changes, and
+  remove obsolete `isAchieved` and target-amount clearing assumptions.
+- Add preview-by-default `goals mark-spent` and `goals restore` actions that
+  send the canonical `isSpent` lifecycle update only with `--apply`.
 
 ## 0.9.1 - 2026-08-15
 

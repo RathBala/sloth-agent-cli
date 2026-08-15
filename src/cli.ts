@@ -25,7 +25,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.9.1';
+export const CLI_VERSION = '0.10.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -76,9 +76,11 @@ export function usageText(): string {
     '    [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent goals [list] [--base-url URL]',
-    '  sloth-agent goals create --name NAME [--target-amount AMOUNT]',
-    '    [--target-month YYYY-MM] [--apply] [--base-url URL]',
+    '  sloth-agent goals create --name NAME --target-amount AMOUNT',
+    '    --type keep|spend [--target-month YYYY-MM] [--apply] [--base-url URL]',
     '  sloth-agent goals update --goal-id ID [fields] [--apply] [--base-url URL]',
+    '  sloth-agent goals mark-spent --goal-id ID [--apply] [--base-url URL]',
+    '  sloth-agent goals restore --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent goals delete --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent ask-partner --transaction-ref REF [--base-url URL]',
     '',
@@ -630,12 +632,14 @@ export function goalsHelpText(): string {
   return [
     'Sloth Agent CLI — goals',
     '',
-    'List, create, update, or delete your savings goals.',
+    'List, create, update, mark spent, restore, or delete your savings goals.',
     '',
     'Commands:',
     '  sloth-agent goals list      List goals; "sloth-agent goals" is equivalent.',
     '  sloth-agent goals create    Preview or create a goal.',
     '  sloth-agent goals update    Preview or update selected goal fields.',
+    '  sloth-agent goals mark-spent Preview or mark a Spend goal spent.',
+    '  sloth-agent goals restore   Preview or restore a spent goal.',
     '  sloth-agent goals delete    Preview or permanently delete a goal.',
     '',
     'Help:',
@@ -664,7 +668,8 @@ export function goalsListHelpText(): string {
     '',
     'Output:',
     '  JSON containing currency and goals. Each goal contains id, name, priority,',
-    '  targetAmount, targetMonthKey, isAchieved, and sharedWithPartner.',
+    '  targetAmount, targetMonthKey, goalType, nullable spentAt, and',
+    '  sharedWithPartner.',
   ].join('\n');
 }
 
@@ -675,11 +680,12 @@ export function goalsCreateHelpText(): string {
     'Preview or create a goal.',
     '',
     'Usage:',
-    '  sloth-agent goals create --name NAME [options]',
+    '  sloth-agent goals create --name NAME --target-amount AMOUNT --type keep|spend [options]',
     '',
     'Options:',
     '  --name NAME                 Required. Goal name, 1 to 200 characters.',
-    '  --target-amount AMOUNT      Optional. Positive major-unit amount with up to 2 decimals.',
+    '  --target-amount AMOUNT      Required. Positive major-unit amount with up to 2 decimals.',
+    '  --type keep|spend           Required. Keep reserves funded money; Spend is spent later.',
     '  --target-month YYYY-MM      Optional. Target calendar month.',
     '  --apply                     Optional. Create the goal in Sloth Money.',
     '  --base-url URL              Optional. Override the API origin.',
@@ -692,8 +698,8 @@ export function goalsCreateHelpText(): string {
     '  New goals are private to the owner and appended to the existing goal order.',
     '',
     'Example:',
-    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000',
-    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000 --apply',
+    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000 --type keep',
+    '  sloth-agent goals create --name "Wedding" --target-amount 22000 --type spend --target-month 2027-06 --apply',
     '',
     'Output:',
     '  Preview mode returns dryRun, method, endpoint, and payload.',
@@ -714,10 +720,9 @@ export function goalsUpdateHelpText(): string {
     '  --goal-id ID                 Required. Goal ID from goals list or create output.',
     '  --name NAME                  Optional. Replacement name, 1 to 200 characters.',
     '  --target-amount AMOUNT       Optional. Positive amount with up to 2 decimals.',
-    '  --clear-target-amount        Optional. Remove the target amount.',
     '  --target-month YYYY-MM       Optional. Replace the target month.',
     '  --clear-target-month         Optional. Remove the target month.',
-    '  --achieved=true|false        Optional. Mark the goal achieved or active.',
+    '  --type keep|spend            Optional. Change how funded money is treated.',
     '  --priority POSITION          Optional. Positive whole-number position; 1 is highest.',
     '  --apply                      Optional. Write the partial update.',
     '  --base-url URL               Optional. Override the API origin.',
@@ -731,9 +736,8 @@ export function goalsUpdateHelpText(): string {
     '  Moving a goal shifts the intervening goals automatically.',
     '  Forecast assignments and shared progress refresh when the owner next opens',
     '  the Forecast screen.',
-    '  Set and clear options for the same field are mutually exclusive.',
-    '  Marking a goal achieved removes its forecast assignment.',
-    '  Marking it active again does not restore the previous assignment.',
+    '  Set and clear target-month options are mutually exclusive.',
+    '  Restore a spent goal before changing its type.',
     '  Change active shared pot target amounts in the Sloth Budget app, where',
     '  account balances can be reconciled across goals in priority order.',
     '  Sharing remains app-managed. Updates to an already shared goal remain visible',
@@ -744,7 +748,67 @@ export function goalsUpdateHelpText(): string {
     '  Applying requires a write-enabled token created with Allow changes.',
     '',
     'Example:',
+    '  sloth-agent goals update --goal-id wedding --type spend --apply',
     '  sloth-agent goals update --goal-id goal-3 --priority 2 --apply',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, endpoint, and payload.',
+    '  Apply mode returns the complete persisted goal and currency.',
+  ].join('\n');
+}
+
+export function goalsMarkSpentHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals mark-spent',
+    '',
+    'Preview or mark a Spend goal spent.',
+    '',
+    'Usage:',
+    '  sloth-agent goals mark-spent --goal-id ID [--apply] [--base-url URL]',
+    '',
+    'Options:',
+    '  --goal-id ID   Required. Spend goal ID from goals list or create output.',
+    '  --apply        Optional. Mark the goal spent in Sloth Money.',
+    '  --base-url URL Optional. Override the API origin.',
+    '  -h, --help     Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Safety and lifecycle:',
+    '  Without --apply, the command previews PATCH {"isSpent":true} and does not write.',
+    '  Keep goals cannot be marked spent. Change an active goal to Spend first.',
+    '  A spent goal is excluded from future goal allocation until restored.',
+    '',
+    'Example:',
+    '  sloth-agent goals mark-spent --goal-id wedding --apply',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, method, endpoint, and payload.',
+    '  Apply mode returns the complete persisted goal and currency.',
+  ].join('\n');
+}
+
+export function goalsRestoreHelpText(): string {
+  return [
+    'Sloth Agent CLI — goals restore',
+    '',
+    'Preview or restore a spent Spend goal.',
+    '',
+    'Usage:',
+    '  sloth-agent goals restore --goal-id ID [--apply] [--base-url URL]',
+    '',
+    'Options:',
+    '  --goal-id ID   Required. Spent goal ID from goals list output.',
+    '  --apply        Optional. Restore the goal in Sloth Money.',
+    '  --base-url URL Optional. Override the API origin.',
+    '  -h, --help     Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Safety and lifecycle:',
+    '  Without --apply, the command previews PATCH {"isSpent":false} and does not write.',
+    '  Restoring clears spentAt and returns the goal to allocation at its saved priority.',
+    '',
+    'Example:',
+    '  sloth-agent goals restore --goal-id wedding --apply',
     '',
     'Output:',
     '  Preview mode returns dryRun, method, endpoint, and payload.',
@@ -832,6 +896,8 @@ export function commandHelpText(topic: HelpTopic): string {
     'goals-list': goalsListHelpText,
     'goals-create': goalsCreateHelpText,
     'goals-update': goalsUpdateHelpText,
+    'goals-mark-spent': goalsMarkSpentHelpText,
+    'goals-restore': goalsRestoreHelpText,
     'goals-delete': goalsDeleteHelpText,
     'ask-partner': askPartnerHelpText,
   };
@@ -1276,12 +1342,11 @@ export async function runCli(
       const endpoint = `${baseUrl}/api/agent/v1/goals`;
       const payload = {
         name: parsed.name,
-        ...(parsed.targetAmount === undefined
-          ? {}
-          : { targetAmount: parsed.targetAmount }),
+        targetAmount: parsed.targetAmount,
         ...(parsed.targetMonthKey === undefined
           ? {}
           : { targetMonthKey: parsed.targetMonthKey }),
+        goalType: parsed.goalType,
       };
       if (!parsed.apply) {
         writeJson(writeStdout, {
@@ -1310,23 +1375,29 @@ export async function runCli(
       return 0;
     }
 
-    if (parsed.command === 'goals-update') {
+    if (
+      parsed.command === 'goals-update'
+      || parsed.command === 'goals-mark-spent'
+      || parsed.command === 'goals-restore'
+    ) {
       const endpoint = `${baseUrl}/api/agent/v1/goals/${encodeURIComponent(parsed.goalId)}`;
-      const payload = {
-        ...(parsed.name === undefined ? {} : { name: parsed.name }),
-        ...(parsed.targetAmount === undefined
-          ? {}
-          : { targetAmount: parsed.targetAmount }),
-        ...(parsed.targetMonthKey === undefined
-          ? {}
-          : { targetMonthKey: parsed.targetMonthKey }),
-        ...(parsed.isAchieved === undefined
-          ? {}
-          : { isAchieved: parsed.isAchieved }),
-        ...(parsed.priority === undefined
-          ? {}
-          : { priority: parsed.priority }),
-      };
+      const payload = parsed.command === 'goals-update'
+        ? {
+          ...(parsed.name === undefined ? {} : { name: parsed.name }),
+          ...(parsed.targetAmount === undefined
+            ? {}
+            : { targetAmount: parsed.targetAmount }),
+          ...(parsed.targetMonthKey === undefined
+            ? {}
+            : { targetMonthKey: parsed.targetMonthKey }),
+          ...(parsed.goalType === undefined
+            ? {}
+            : { goalType: parsed.goalType }),
+          ...(parsed.priority === undefined
+            ? {}
+            : { priority: parsed.priority }),
+        }
+        : { isSpent: parsed.command === 'goals-mark-spent' };
       if (!parsed.apply) {
         writeJson(writeStdout, {
           dryRun: true,
@@ -1347,12 +1418,12 @@ export async function runCli(
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       const data = parseApiResponse(
-        'goals-update',
+        parsed.command,
         await parseHttpResponse(response, token),
       );
       writeJson(
         writeStdout,
-        parsed.priority === undefined
+        parsed.command !== 'goals-update' || parsed.priority === undefined
           ? data
           : withUpdatedGoalPriority(data, parsed.priority),
       );

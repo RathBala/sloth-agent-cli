@@ -89,6 +89,8 @@ try {
   assert.match(help, /sloth-agent transactions/);
   assert.match(help, /sloth-agent goals create/);
   assert.match(help, /sloth-agent goals update/);
+  assert.match(help, /sloth-agent goals mark-spent/);
+  assert.match(help, /sloth-agent goals restore/);
   assert.match(help, /sloth-agent goals delete/);
 
   const commandHelpCases = [
@@ -134,8 +136,10 @@ try {
       /Assignments do not create a separate list\./,
     ]],
     [['goals', 'list', '--help'], [/No filters or singular get/]],
-    [['goals', 'create', '--help'], [/--name NAME\s+Required/]],
-    [['goals', 'update', '--help'], [/--clear-target-amount/, /--priority POSITION/, /Priority must be updated on its own/, /Priority 1 is highest/]],
+    [['goals', 'create', '--help'], [/--name NAME\s+Required/, /--target-amount AMOUNT\s+Required/, /--type keep\|spend\s+Required/]],
+    [['goals', 'update', '--help'], [/--type keep\|spend/, /--priority POSITION/, /Priority must be updated on its own/, /Restore a spent goal before changing its type/]],
+    [['goals', 'mark-spent', '--help'], [/\{"isSpent":true\}/, /Keep goals cannot be marked spent/, /Without --apply/]],
+    [['goals', 'restore', '--help'], [/\{"isSpent":false\}/, /clears spentAt/, /Without --apply/]],
     [['goals', 'delete', '--help'], [/removes its goal drift history/]],
     [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
   ];
@@ -147,6 +151,56 @@ try {
     for (const expected of expectedPatterns) {
       assert.match(commandHelp, expected);
     }
+  }
+
+  const goalCreatePreview = JSON.parse(execFileSync(executable, [
+    'goals', 'create', '--name', 'Wedding', '--target-amount', '22000',
+    '--target-month', '2027-06', '--type', 'spend',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
+    ...commandOptions,
+  }));
+  assert.deepEqual(goalCreatePreview, {
+    dryRun: true,
+    endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals',
+    method: 'POST',
+    payload: {
+      name: 'Wedding',
+      targetAmount: 22000,
+      targetMonthKey: '2027-06',
+      goalType: 'spend',
+    },
+  });
+
+  const goalTypePreview = JSON.parse(execFileSync(executable, [
+    'goals', 'update', '--goal-id', 'wedding', '--type', 'keep',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
+    ...commandOptions,
+  }));
+  assert.deepEqual(goalTypePreview, {
+    dryRun: true,
+    endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/wedding',
+    method: 'PATCH',
+    payload: { goalType: 'keep' },
+  });
+
+  for (const [action, isSpent] of [['mark-spent', true], ['restore', false]]) {
+    const preview = JSON.parse(execFileSync(executable, [
+      'goals', action, '--goal-id', 'wedding',
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
+      ...commandOptions,
+    }));
+    assert.deepEqual(preview, {
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/wedding',
+      method: 'PATCH',
+      payload: { isSpent },
+    });
   }
 
   const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
@@ -194,7 +248,7 @@ try {
       encoding: 'utf8',
       env: {
         ...process.env,
-        SLOTH_AGENT_TOKEN: 'sloth_pat_v1_package-smoke',
+        SLOTH_AGENT_TOKEN: 'package-smoke-token',
       },
       ...commandOptions,
     },

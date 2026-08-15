@@ -140,7 +140,8 @@ export const agentApiV1Goal = {
   name: 'Emergency fund',
   targetAmount: 12_000,
   targetMonthKey: '2027-06',
-  isAchieved: false,
+  goalType: 'keep',
+  spentAt: null,
   sharedWithPartner: false,
 } as const;
 

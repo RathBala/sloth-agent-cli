@@ -5,6 +5,10 @@ import {
   type CategoryType,
   type IconKey,
 } from './category-metadata.js';
+import {
+  isGoalType,
+  type GoalType,
+} from './goal-metadata.js';
 
 export interface CliEnvironment {
   SLOTH_AGENT_API_BASE_URL?: string;
@@ -51,6 +55,8 @@ export type HelpTopic =
   | 'goals-list'
   | 'goals-create'
   | 'goals-update'
+  | 'goals-mark-spent'
+  | 'goals-restore'
   | 'goals-delete'
   | 'ask-partner';
 
@@ -145,8 +151,9 @@ export type ParsedCommand =
     command: 'goals-create';
     baseUrl?: string;
     name: string;
-    targetAmount?: number;
+    targetAmount: number;
     targetMonthKey?: string;
+    goalType: GoalType;
     apply: boolean;
   }
   | {
@@ -154,10 +161,22 @@ export type ParsedCommand =
     baseUrl?: string;
     goalId: string;
     name?: string;
-    targetAmount?: number | null;
+    targetAmount?: number;
     targetMonthKey?: string | null;
-    isAchieved?: boolean;
+    goalType?: GoalType;
     priority?: number;
+    apply: boolean;
+  }
+  | {
+    command: 'goals-mark-spent';
+    baseUrl?: string;
+    goalId: string;
+    apply: boolean;
+  }
+  | {
+    command: 'goals-restore';
+    baseUrl?: string;
+    goalId: string;
     apply: boolean;
   }
   | {
@@ -253,11 +272,11 @@ function parseGoalPriority(value: string): number {
   return priority;
 }
 
-function parseExplicitBoolean(value: string, name: string): boolean {
-  if (value !== 'true' && value !== 'false') {
-    throw new UsageError(`${name} must be true or false`);
+function parseGoalType(value: string): GoalType {
+  if (!isGoalType(value)) {
+    throw new UsageError('--type must be keep or spend');
   }
-  return value === 'true';
+  return value;
 }
 
 function parseGoalName(value: string): string {
@@ -736,6 +755,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
     let name: string | undefined;
     let targetAmount: number | undefined;
     let targetMonthKey: string | undefined;
+    let goalType: GoalType | undefined;
     let apply = false;
 
     for (let index = 0; index < args.length; index += 1) {
@@ -753,6 +773,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         option !== '--name'
         && option !== '--target-amount'
         && option !== '--target-month'
+        && option !== '--type'
       ) {
         throw new UsageError(`Unknown goals create option: ${argument}`);
       }
@@ -771,21 +792,30 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
           parseGoalAmount(value, option),
           option,
         );
-      } else {
+      } else if (option === '--target-month') {
         targetMonthKey = setOnce(
           targetMonthKey,
           parseGoalMonthKey(value, option),
           option,
         );
+      } else {
+        goalType = setOnce(goalType, parseGoalType(value), option);
       }
     }
 
     if (!name) throw new UsageError('goals create requires --name <name>');
+    if (targetAmount === undefined) {
+      throw new UsageError('goals create requires --target-amount <amount>');
+    }
+    if (goalType === undefined) {
+      throw new UsageError('goals create requires --type <keep|spend>');
+    }
     return withBaseUrl({
       command: 'goals-create',
       name,
-      ...(targetAmount === undefined ? {} : { targetAmount }),
+      targetAmount,
       ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
+      goalType,
       apply,
     }, baseUrl);
   }
@@ -793,9 +823,9 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
   if (subcommand === 'update') {
     let goalId: string | undefined;
     let name: string | undefined;
-    let targetAmount: number | null | undefined;
+    let targetAmount: number | undefined;
     let targetMonthKey: string | null | undefined;
-    let isAchieved: boolean | undefined;
+    let goalType: GoalType | undefined;
     let priority: number | undefined;
     let apply = false;
 
@@ -804,15 +834,6 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       if (argument === '--apply') {
         if (apply) throw new UsageError('--apply may only be provided once');
         apply = true;
-        continue;
-      }
-      if (argument === '--clear-target-amount') {
-        if (targetAmount !== undefined) {
-          throw new UsageError(
-            '--target-amount and --clear-target-amount are mutually exclusive',
-          );
-        }
-        targetAmount = null;
         continue;
       }
       if (argument === '--clear-target-month') {
@@ -833,7 +854,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         && option !== '--name'
         && option !== '--target-amount'
         && option !== '--target-month'
-        && option !== '--achieved'
+        && option !== '--type'
         && option !== '--priority'
       ) {
         throw new UsageError(`Unknown goals update option: ${argument}`);
@@ -850,12 +871,11 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       } else if (option === '--name') {
         name = setOnce(name, parseGoalName(value), option);
       } else if (option === '--target-amount') {
-        if (targetAmount !== undefined) {
-          throw new UsageError(
-            '--target-amount and --clear-target-amount are mutually exclusive',
-          );
-        }
-        targetAmount = parseGoalAmount(value, option);
+        targetAmount = setOnce(
+          targetAmount,
+          parseGoalAmount(value, option),
+          option,
+        );
       } else if (option === '--target-month') {
         if (targetMonthKey !== undefined) {
           throw new UsageError(
@@ -866,11 +886,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       } else if (option === '--priority') {
         priority = setOnce(priority, parseGoalPriority(value), option);
       } else {
-        isAchieved = setOnce(
-          isAchieved,
-          parseExplicitBoolean(value, option),
-          option,
-        );
+        goalType = setOnce(goalType, parseGoalType(value), option);
       }
     }
 
@@ -879,7 +895,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       name === undefined
       && targetAmount === undefined
       && targetMonthKey === undefined
-      && isAchieved === undefined
+      && goalType === undefined
       && priority === undefined
     ) {
       throw new UsageError('goals update requires at least one field to update');
@@ -890,7 +906,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         name !== undefined
         || targetAmount !== undefined
         || targetMonthKey !== undefined
-        || isAchieved !== undefined
+        || goalType !== undefined
       )
     ) {
       throw new UsageError('--priority must be used on its own');
@@ -902,13 +918,17 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       ...(name === undefined ? {} : { name }),
       ...(targetAmount === undefined ? {} : { targetAmount }),
       ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
-      ...(isAchieved === undefined ? {} : { isAchieved }),
+      ...(goalType === undefined ? {} : { goalType }),
       ...(priority === undefined ? {} : { priority }),
       apply,
     }, baseUrl);
   }
 
-  if (subcommand === 'delete') {
+  if (
+    subcommand === 'mark-spent'
+    || subcommand === 'restore'
+    || subcommand === 'delete'
+  ) {
     let goalId: string | undefined;
     let apply = false;
 
@@ -924,7 +944,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         ? argument.split(/=(.*)/s, 2)
         : [argument, undefined];
       if (option !== '--goal-id') {
-        throw new UsageError(`Unknown goals delete option: ${argument}`);
+        throw new UsageError(`Unknown goals ${subcommand} option: ${argument}`);
       }
 
       const value = requireNonEmpty(
@@ -935,9 +955,15 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       goalId = setOnce(goalId, parseGoalId(value), option);
     }
 
-    if (!goalId) throw new UsageError('goals delete requires --goal-id <id>');
+    if (!goalId) {
+      throw new UsageError(`goals ${subcommand} requires --goal-id <id>`);
+    }
     return withBaseUrl({
-      command: 'goals-delete',
+      command: subcommand === 'mark-spent'
+        ? 'goals-mark-spent'
+        : subcommand === 'restore'
+          ? 'goals-restore'
+          : 'goals-delete',
       goalId,
       apply,
     }, baseUrl);
@@ -977,6 +1003,8 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'list') return 'goals-list';
     if (subcommand === 'create') return 'goals-create';
     if (subcommand === 'update') return 'goals-update';
+    if (subcommand === 'mark-spent') return 'goals-mark-spent';
+    if (subcommand === 'restore') return 'goals-restore';
     if (subcommand === 'delete') return 'goals-delete';
     return 'goals';
   }

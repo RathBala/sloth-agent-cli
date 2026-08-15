@@ -192,6 +192,8 @@ describe('CLI execution', () => {
         'goals list',
         'goals create',
         'goals update',
+        'goals mark-spent',
+        'goals restore',
         'goals delete',
       ]],
       [['goals', 'list', '--help'], [
@@ -204,6 +206,7 @@ describe('CLI execution', () => {
         '--name NAME',
         'Required',
         '--target-amount AMOUNT',
+        '--type keep|spend',
         '--target-month YYYY-MM',
         'Without --apply',
         'write-enabled token',
@@ -213,9 +216,8 @@ describe('CLI execution', () => {
       [['goals', 'update', '--help'], [
         '--goal-id ID',
         'Required',
-        '--clear-target-amount',
+        '--type keep|spend',
         '--clear-target-month',
-        '--achieved=true|false',
         '--priority POSITION',
         'Priority 1 is highest',
         'shifts the intervening goals',
@@ -225,6 +227,22 @@ describe('CLI execution', () => {
         'write-enabled token',
         'Allow changes',
         'Change active shared pot target amounts',
+      ]],
+      [['goals', 'mark-spent', '--help'], [
+        '--goal-id ID',
+        'Required',
+        'Without --apply',
+        '{"isSpent":true}',
+        'Keep goals cannot be marked spent',
+        'until restored',
+      ]],
+      [['goals', 'restore', '--help'], [
+        '--goal-id ID',
+        'Required',
+        'Without --apply',
+        '{"isSpent":false}',
+        'clears spentAt',
+        'saved priority',
       ]],
       [['goals', 'delete', '--help'], [
         '--goal-id ID',
@@ -669,6 +687,8 @@ describe('CLI execution', () => {
       '12000',
       '--target-month',
       '2027-06',
+      '--type',
+      'spend',
     ];
 
     expect(await runCli(argv, {
@@ -686,6 +706,7 @@ describe('CLI execution', () => {
         name: 'Emergency fund',
         targetAmount: 12_000,
         targetMonthKey: '2027-06',
+        goalType: 'spend',
       },
     });
 
@@ -708,6 +729,7 @@ describe('CLI execution', () => {
           name: 'Emergency fund',
           targetAmount: 12_000,
           targetMonthKey: '2027-06',
+          goalType: 'spend',
         }),
       }),
     );
@@ -722,10 +744,11 @@ describe('CLI execution', () => {
       'update',
       '--goal-id',
       'goal 1',
-      '--clear-target-amount',
+      '--target-amount',
+      '15000',
       '--target-month',
       '2027-12',
-      '--achieved=false',
+      '--type=spend',
     ];
     const previewIo = createIo();
     const previewFetch = vi.fn();
@@ -742,9 +765,9 @@ describe('CLI execution', () => {
       endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
       method: 'PATCH',
       payload: {
-        targetAmount: null,
+        targetAmount: 15_000,
         targetMonthKey: '2027-12',
-        isAchieved: false,
+        goalType: 'spend',
       },
     });
 
@@ -763,15 +786,91 @@ describe('CLI execution', () => {
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({
-          targetAmount: null,
+          targetAmount: 15_000,
           targetMonthKey: '2027-12',
-          isAchieved: false,
+          goalType: 'spend',
         }),
       }),
     );
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
       agentApiV1GoalMutationResponse,
     );
+  });
+
+  it.each([
+    ['mark-spent', true],
+    ['restore', false],
+  ] as const)('previews and applies goals %s', async (action, isSpent) => {
+    const argv = ['goals', action, '--goal-id', 'goal 1'];
+    const response = {
+      ...agentApiV1GoalMutationResponse,
+      goal: {
+        ...agentApiV1GoalMutationResponse.goal,
+        goalType: 'spend',
+        spentAt: isSpent ? '2026-08-15T12:00:00.000Z' : null,
+      },
+    };
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: previewFetch,
+      ...previewIo,
+    })).toBe(0);
+
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
+      method: 'PATCH',
+      payload: { isSpent },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      response,
+    ));
+    expect(await runCli([...argv, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals/goal%201',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ isSpent }),
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(response);
+  });
+
+  it.each([
+    {
+      argv: ['goals', 'mark-spent', '--goal-id', 'goal-1', '--apply'],
+      message: 'Only Spend goals can be marked spent',
+    },
+    {
+      argv: ['goals', 'update', '--goal-id', 'goal-1', '--type', 'keep', '--apply'],
+      message: 'Restore the goal before changing its type',
+    },
+  ])('prints Agent API lifecycle conflict: $message', async ({ argv, message }) => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      { error: message },
+      409,
+    ));
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(1);
+
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toBe(`${message}\n`);
   });
 
   it('previews and applies a goal priority move', async () => {

@@ -26,6 +26,11 @@ describe('CLI arguments', () => {
       parseArgs(['assign', '--help']),
       parseArgs(['goals', '--help']),
       parseArgs(['goals', 'list', '--help']),
+      parseArgs(['goals', 'create', '--help']),
+      parseArgs(['goals', 'update', '--help']),
+      parseArgs(['goals', 'mark-spent', '--help']),
+      parseArgs(['goals', 'restore', '--help']),
+      parseArgs(['goals', 'delete', '--help']),
       parseArgs(['ask-partner', '--help']),
     ]).toEqual([
       { command: 'help', topic: 'auth' },
@@ -45,6 +50,11 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'assign' },
       { command: 'help', topic: 'goals' },
       { command: 'help', topic: 'goals-list' },
+      { command: 'help', topic: 'goals-create' },
+      { command: 'help', topic: 'goals-update' },
+      { command: 'help', topic: 'goals-mark-spent' },
+      { command: 'help', topic: 'goals-restore' },
+      { command: 'help', topic: 'goals-delete' },
       { command: 'help', topic: 'ask-partner' },
     ]);
     expect(parseArgs(['categories', '--help', '--base-url'])).toEqual({
@@ -233,11 +243,14 @@ describe('CLI arguments', () => {
       '--target-amount=12000.50',
       '--target-month',
       '2027-06',
+      '--type',
+      'keep',
     ])).toEqual({
       command: 'goals-create',
       name: 'Emergency fund',
       targetAmount: 12_000.5,
       targetMonthKey: '2027-06',
+      goalType: 'keep',
       apply: false,
     });
 
@@ -245,10 +258,14 @@ describe('CLI arguments', () => {
       'goals',
       'create',
       '--name=Emergency fund',
+      '--target-amount=12000',
+      '--type=spend',
       '--apply',
     ])).toEqual({
       command: 'goals-create',
       name: 'Emergency fund',
+      targetAmount: 12_000,
+      goalType: 'spend',
       apply: true,
     });
   });
@@ -260,18 +277,18 @@ describe('CLI arguments', () => {
       '--goal-id',
       'goal-1',
       '--name=Six-month emergency fund',
-      '--clear-target-amount',
+      '--target-amount=15000.25',
       '--target-month',
       '2027-12',
-      '--achieved=false',
+      '--type=spend',
       '--apply',
     ])).toEqual({
       command: 'goals-update',
       goalId: 'goal-1',
       name: 'Six-month emergency fund',
-      targetAmount: null,
+      targetAmount: 15_000.25,
       targetMonthKey: '2027-12',
-      isAchieved: false,
+      goalType: 'spend',
       apply: true,
     });
 
@@ -300,6 +317,30 @@ describe('CLI arguments', () => {
       goalId: 'goal-3',
       priority: 2,
       apply: false,
+    });
+  });
+
+  it('parses Spend lifecycle actions with preview as the default', () => {
+    expect(parseArgs([
+      'goals',
+      'mark-spent',
+      '--goal-id=goal-1',
+    ])).toEqual({
+      command: 'goals-mark-spent',
+      goalId: 'goal-1',
+      apply: false,
+    });
+
+    expect(parseArgs([
+      'goals',
+      'restore',
+      '--goal-id',
+      'goal-1',
+      '--apply',
+    ])).toEqual({
+      command: 'goals-restore',
+      goalId: 'goal-1',
+      apply: true,
     });
   });
 
@@ -339,16 +380,48 @@ describe('CLI arguments', () => {
       'create',
       '--name',
       'Emergency fund',
+      '--type',
+      'keep',
+    ])).toThrow(/requires --target-amount/);
+    expect(() => parseArgs([
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
+      '--target-amount',
+      '12000',
+    ])).toThrow(/requires --type/);
+    expect(() => parseArgs([
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
+      '--target-amount',
+      '12000',
+      '--type',
+      'save',
+    ])).toThrow(/keep or spend/);
+    expect(() => parseArgs([
+      'goals',
+      'create',
+      '--name',
+      'Emergency fund',
       '--target-amount',
       '10.001',
+      '--type',
+      'keep',
     ])).toThrow(/two decimal places/);
     expect(() => parseArgs([
       'goals',
       'create',
       '--name',
       'Emergency fund',
+      '--target-amount',
+      '12000',
       '--target-month',
       '2027-13',
+      '--type',
+      'keep',
     ])).toThrow(/valid YYYY-MM month/);
     expect(() => parseArgs([
       'goals',
@@ -364,14 +437,14 @@ describe('CLI arguments', () => {
       '--target-amount',
       '12000',
       '--clear-target-amount',
-    ])).toThrow(/mutually exclusive/);
+    ])).toThrow(/Unknown goals update option/);
     expect(() => parseArgs([
       'goals',
       'update',
       '--goal-id',
       'goal-1',
       '--achieved=yes',
-    ])).toThrow(/true or false/);
+    ])).toThrow(/Unknown goals update option/);
     expect(() => parseArgs([
       'goals',
       'update',
@@ -399,6 +472,10 @@ describe('CLI arguments', () => {
       .toThrow(/Unknown goals command/);
     expect(() => parseArgs(['goals', 'delete']))
       .toThrow(/requires --goal-id/);
+    expect(() => parseArgs(['goals', 'mark-spent']))
+      .toThrow(/requires --goal-id/);
+    expect(() => parseArgs(['goals', 'restore', '--goal-id', 'goal-1', '--type', 'keep']))
+      .toThrow(/Unknown goals restore option/);
     expect(() => parseArgs([
       'goals',
       'delete',

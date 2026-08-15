@@ -3,6 +3,7 @@ import {
   UsageError,
 } from './errors.js';
 import { CATEGORY_TYPES, ICON_KEYS } from './category-metadata.js';
+import { isGoalType } from './goal-metadata.js';
 
 export interface AgentCategorySplit {
   categoryId: string;
@@ -51,6 +52,8 @@ type ApiCommand =
   | 'goals-list'
   | 'goals-create'
   | 'goals-update'
+  | 'goals-mark-spent'
+  | 'goals-restore'
   | 'goals-delete';
 type JsonObject = Record<string, unknown>;
 
@@ -430,7 +433,8 @@ function isGoal(value: unknown): boolean {
       'name',
       'targetAmount',
       'targetMonthKey',
-      'isAchieved',
+      'goalType',
+      'spentAt',
       'sharedWithPartner',
     ])
     && typeof value.id === 'string'
@@ -448,7 +452,12 @@ function isGoal(value: unknown): boolean {
         && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.targetMonthKey)
       )
     )
-    && typeof value.isAchieved === 'boolean'
+    && isGoalType(value.goalType)
+    && (
+      value.goalType === 'spend'
+        ? value.spentAt === null || isIsoDateTime(value.spentAt)
+        : value.spentAt === null
+    )
     && typeof value.sharedWithPartner === 'boolean'
   );
 }

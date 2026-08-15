@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.9.1 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.10.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -112,6 +112,8 @@ sloth-agent transactions --help
 sloth-agent assign --help
 sloth-agent goals create --help
 sloth-agent goals update --help
+sloth-agent goals mark-spent --help
+sloth-agent goals restore --help
 sloth-agent ask-partner --help
 ```
 
@@ -413,45 +415,64 @@ Goal writes are previews unless `--apply` is present:
 sloth-agent goals create \
   --name "Emergency fund" \
   --target-amount 12000 \
-  --target-month 2027-06
+  --type keep
 
 sloth-agent goals create \
-  --name "Emergency fund" \
-  --target-amount 12000 \
+  --name "Wedding" \
+  --target-amount 22000 \
   --target-month 2027-06 \
+  --type spend \
   --apply
 ```
 
-Use the `id` from list or create output to update or delete goals:
+Every goal is either Keep or Spend. A Keep goal continues reserving its funded
+money. A Spend goal reserves money until you explicitly mark it spent. Goal
+list, create, and update output includes lowercase `goalType` and nullable
+`spentAt`; `spentAt` is an ISO timestamp only after a Spend goal is marked
+spent.
+
+Use the `id` from list or create output to update a goal, change its type, or
+move it in the priority order:
 
 ```bash
 sloth-agent goals update \
   --goal-id goal-id \
-  --clear-target-amount \
   --target-month 2027-12 \
-  --achieved=false \
+  --type spend \
   --apply
 
 sloth-agent goals update \
   --goal-id house-goal-id \
   --priority 2 \
   --apply
+```
+
+Marking spent and restoring are also previews by default:
+
+```bash
+sloth-agent goals mark-spent --goal-id goal-id
+sloth-agent goals mark-spent --goal-id goal-id --apply
+
+sloth-agent goals restore --goal-id goal-id
+sloth-agent goals restore --goal-id goal-id --apply
 
 sloth-agent goals delete --goal-id goal-id --apply
 ```
 
-Updates are partial. Use `--clear-target-amount` or `--clear-target-month` to
-remove an optional value. Marking a goal achieved removes its forecast
-assignment. Deleting a goal also removes its forecast assignments and drift
-history. Goal sharing remains app-managed. Change an active shared goal's
-pot-tracked target amount in the Sloth Budget app, where account balances can
-be reallocated across goals in priority order. Goal list output includes a
+Updates are partial. Use `--clear-target-month` to remove the optional month.
+A Keep goal cannot be marked spent. A spent goal must be restored before its
+type can change; the API returns these lifecycle conflicts without hiding the
+required recovery action. Restoring clears `spentAt` and returns the goal to
+allocation at its saved priority. Deleting a goal also removes its forecast
+assignments and drift history.
+
+Goal sharing remains app-managed. Change an active shared goal's pot-tracked
+target amount in the Sloth Budget app, where account balances can be
+reallocated across goals in priority order. Goal list output includes a
 one-based `priority`; `1` is highest. Moving one goal automatically shifts the
-goals between its old and new positions. The
-priority option must be used on its own, and the write persists immediately.
-Forecast assignments and shared pot
-progress are browser-owned derived state and refresh when the owner next opens
-the Forecast screen.
+goals between its old and new positions. The priority option must be used on
+its own. Forecast assignments and shared pot progress are browser-owned
+derived state and refresh when the owner next opens the Forecast screen.
 
 Read uncategorised contributions to the joint budget:
 

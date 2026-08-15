@@ -173,6 +173,18 @@ describe('API response validation', () => {
       'goals-update',
       agentApiV1GoalMutationResponse,
     )).toBe(agentApiV1GoalMutationResponse);
+    const spentGoalResponse = {
+      currency: 'GBP',
+      goal: {
+        ...agentApiV1GoalMutationResponse.goal,
+        goalType: 'spend',
+        spentAt: '2026-08-15T12:00:00.000Z',
+      },
+    } as const;
+    expect(parseApiResponse('goals-mark-spent', spentGoalResponse))
+      .toBe(spentGoalResponse);
+    expect(parseApiResponse('goals-restore', agentApiV1GoalMutationResponse))
+      .toBe(agentApiV1GoalMutationResponse);
     expect(parseApiResponse(
       'goals-delete',
       agentApiV1GoalDeleteResponse,
@@ -269,6 +281,25 @@ describe('API response validation', () => {
       currency: 'GBP',
       goal: { ...agentApiV1GoalMutationResponse.goal, unexpected: true },
     })).toThrow(/invalid goals-update response/i);
+    expect(() => parseApiResponse('goals-list', {
+      currency: 'GBP',
+      goals: [{
+        ...agentApiV1GoalMutationResponse.goal,
+        isAchieved: false,
+      }],
+    })).toThrow(/invalid goals-list response/i);
+    expect(() => parseApiResponse('goals-update', {
+      currency: 'GBP',
+      goal: { ...agentApiV1GoalMutationResponse.goal, spentAt: 'not-an-iso-timestamp' },
+    })).toThrow(/invalid goals-update response/i);
+    expect(() => parseApiResponse('goals-list', {
+      currency: 'GBP',
+      goals: [{
+        ...agentApiV1GoalMutationResponse.goal,
+        goalType: 'keep',
+        spentAt: '2026-08-15T12:00:00.000Z',
+      }],
+    })).toThrow(/invalid goals-list response/i);
     expect(() => parseApiResponse('goals-list', {
       currency: 'GBP',
       goals: [{ ...agentApiV1GoalMutationResponse.goal, priority: 0 }],
