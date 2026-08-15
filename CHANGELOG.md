@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.9.1 - 2026-08-15
+
+- Clarify how personal and joint category assignments appear in transaction
+  results and how assignment scope affects uncategorised filters.
+- Document complete category and line-item assignments, including the
+  category-specific `Other` fallback when no more specific line item fits.
+- Extend command-help and clean-installed package checks for the categorisation
+  workflow.
+
 ## 0.9.0 - 2026-08-12
 
 - Manage owned manual balance and manual transaction accounts through partial
