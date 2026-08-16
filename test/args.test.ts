@@ -561,6 +561,34 @@ describe('CLI arguments', () => {
       input: 'budget.json',
       apply: true,
     });
+    expect(parseArgs([
+      'budget', 'move', '--scope=personal', '--period=2026-08',
+      '--from-category-id', 'activities', '--to-category-id=groceries',
+      '--amount', '52.95', '--apply',
+    ])).toEqual({
+      command: 'budget-move',
+      scope: 'personal',
+      periodKey: '2026-08',
+      fromCategoryId: 'activities',
+      toCategoryId: 'groceries',
+      amountPence: 5_295,
+      apply: true,
+    });
+    expect(parseArgs([
+      'budget', 'move', '--scope', 'joint', '--from-category-id', 'to-assign',
+      '--to-category-id', 'groceries', '--amount', '0.01',
+    ])).toMatchObject({
+      command: 'budget-move',
+      amountPence: 1,
+      apply: false,
+    });
+    expect(parseArgs([
+      'budget', 'move', '--scope', 'personal', '--from-category-id', 'activities',
+      '--to-category-id', 'groceries', '--amount', '90071992547409.90',
+    ])).toMatchObject({
+      command: 'budget-move',
+      amountPence: 9_007_199_254_740_990,
+    });
   });
 
   it('requires valid explicit budget options', () => {
@@ -572,6 +600,18 @@ describe('CLI arguments', () => {
       .toThrow(/requires --input/);
     expect(() => parseArgs(['budget', '--scope', 'personal', '--apply']))
       .toThrow(/Unknown budget option/);
+    expect(() => parseArgs([
+      'budget', 'move', '--scope', 'personal', '--from-category-id', 'groceries',
+      '--to-category-id', 'groceries', '--amount', '1',
+    ])).toThrow(/must differ/);
+    expect(() => parseArgs([
+      'budget', 'move', '--scope', 'personal', '--from-category-id', 'activities',
+      '--to-category-id', 'groceries', '--amount', '0',
+    ])).toThrow(/positive amount/);
+    expect(() => parseArgs([
+      'budget', 'move', '--scope', 'personal', '--from-category-id', 'activities',
+      '--to-category-id', 'groceries', '--amount', '90071992547409.92',
+    ])).toThrow(/positive amount/);
   });
 
   it('parses auth commands and their login input modes', () => {

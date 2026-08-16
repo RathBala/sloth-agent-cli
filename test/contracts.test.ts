@@ -10,6 +10,7 @@ import {
   agentApiV1AccountMutationResponse,
   agentApiV1AccountRemovalResponse,
   agentApiV1AssignmentResponse,
+  agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
@@ -133,6 +134,8 @@ describe('API response validation', () => {
       .toBe(agentApiV1BudgetResponse);
     expect(parseApiResponse('budget-update', agentApiV1BudgetResponse))
       .toBe(agentApiV1BudgetResponse);
+    expect(parseApiResponse('budget-move', agentApiV1BudgetMovementResponse))
+      .toBe(agentApiV1BudgetMovementResponse);
     const overallocatedBudget = {
       ...agentApiV1BudgetResponse,
       funding: {

@@ -101,6 +101,7 @@ try {
   assert.match(help, /sloth-agent investments/);
   assert.match(help, /sloth-agent budget --scope personal\|joint/);
   assert.match(help, /sloth-agent budget update/);
+  assert.match(help, /sloth-agent budget move/);
   assert.match(help, /sloth-agent categories create/);
   assert.match(help, /sloth-agent line-items create/);
   assert.match(help, /sloth-agent transactions/);
@@ -118,6 +119,7 @@ try {
     [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
     [['budget', '--help'], [/--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
+    [['budget', 'move', '--help'], [/--from-category-id ID/, /--amount AMOUNT/, /9,007,199,254,740,991/, /To Assign/, /Without --apply/, /may become negative/, /does not change planned amounts/]],
     [['categories', '--help'], [
       /A category is the broader parent\./,
       /most specific suitable line item/,
@@ -215,6 +217,27 @@ try {
       payload: { isSpent },
     });
   }
+
+  const budgetMovePreview = JSON.parse(runCliSync([
+    'budget', 'move', '--scope', 'personal', '--period', '2026-08',
+    '--from-category-id', 'activities', '--to-category-id', 'groceries',
+    '--amount', '52.95',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
+  }));
+  assert.deepEqual(budgetMovePreview, {
+    dryRun: true,
+    endpoint: 'https://budget.slothmoney.app/api/agent/v1/budget-movements',
+    method: 'POST',
+    payload: {
+      scope: 'personal',
+      periodKey: '2026-08',
+      fromCategoryId: 'activities',
+      toCategoryId: 'groceries',
+      amountPence: 5295,
+    },
+  });
 
   const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
   const updatePreview = JSON.parse(runCliSync([

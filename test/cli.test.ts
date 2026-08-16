@@ -13,6 +13,7 @@ import {
   agentApiV1AccountMutationResponse,
   agentApiV1AccountRemovalResponse,
   agentApiV1AssignmentResponse,
+  agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
@@ -109,6 +110,11 @@ describe('CLI execution', () => {
       [['budget', 'update', '--help'], [
         '--input FILE', 'plannedPence', 'Without --apply',
         'selected period and every explicit future plan', 'Historical periods cannot be changed',
+      ]],
+      [['budget', 'move', '--help'], [
+        '--from-category-id ID', '--to-category-id ID', '--amount AMOUNT',
+        '9,007,199,254,740,991', 'To Assign', 'Without --apply', 'current assigned balances',
+        'does not change planned amounts',
       ]],
       [['categories', 'create', '--help'], [
         '--name NAME', '--icon-key KEY', '--type TYPE', 'Without --apply',
@@ -1365,6 +1371,92 @@ describe('CLI execution', () => {
       ...malformedIo,
     })).toBe(1);
     expect(malformedIo.stderr.join('')).toContain('Invalid budget response');
+  });
+
+  it('previews a budget movement without loading credentials or contacting the API', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn();
+    const getCredentialStore = vi.fn();
+
+    expect(await runCli([
+      'budget', 'move', '--scope', 'personal', '--period', '2026-08',
+      '--from-category-id', 'activities', '--to-category-id', 'groceries',
+      '--amount', '52.95',
+    ], {
+      env: {}, fetch: fetchMock, getCredentialStore, ...io,
+    })).toBe(0);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(io.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/budget-movements',
+      method: 'POST',
+      payload: {
+        scope: 'personal',
+        periodKey: '2026-08',
+        fromCategoryId: 'activities',
+        toCategoryId: 'groceries',
+        amountPence: 5_295,
+      },
+    });
+  });
+
+  it('applies a budget movement and validates the returned balances', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1BudgetMovementResponse));
+
+    expect(await runCli([
+      'budget', 'move', '--scope', 'personal', '--from-category-id', 'activities',
+      '--to-category-id', 'groceries', '--amount', '52.95', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: fetchMock, ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/budget-movements',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          scope: 'personal',
+          fromCategoryId: 'activities',
+          toCategoryId: 'groceries',
+          amountPence: 5_295,
+        }),
+      }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetMovementResponse);
+  });
+
+  it.each([
+    {
+      label: 'a different movement',
+      response: { ...agentApiV1BudgetMovementResponse, amountPence: 5_294 },
+    },
+    {
+      label: 'unrelated affected balances',
+      response: {
+        ...agentApiV1BudgetMovementResponse,
+        categoryBalances: [
+          { categoryId: 'groceries', assignedPence: 65_295 },
+          { categoryId: 'groceries', assignedPence: 65_295 },
+        ],
+      },
+    },
+  ])('rejects a budget movement response describing $label', async ({ response }) => {
+    const io = createIo();
+
+    expect(await runCli([
+      'budget', 'move', '--scope', 'personal', '--from-category-id', 'activities',
+      '--to-category-id', 'groceries', '--amount', '52.95', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: vi.fn().mockResolvedValue(jsonResponse(response)),
+      ...io,
+    })).toBe(1);
+
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toContain('Invalid budget-move response');
   });
 
   it('applies assignments and returns failure for mixed results', async () => {

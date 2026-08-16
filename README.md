@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect accounts, investments, and budgets, manage goals, update planned amounts, and categorise transactions through the
+Use your own agent to inspect accounts, investments, and budgets, manage goals, move assigned budget money, update planned amounts, and categorise transactions through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.10.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.11.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -27,7 +27,7 @@ where the CLI runs.
 New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`,
 `budget`, `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
-or line items, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals. Token
+or line items, move assigned budget money, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals. Token
 permissions cannot be changed later - revoke and reissue the token instead.
 
 ### Local computer
@@ -105,6 +105,7 @@ sloth-agent auth login --help
 sloth-agent accounts --help
 sloth-agent budget --help
 sloth-agent budget update --help
+sloth-agent budget move --help
 sloth-agent categories --help
 sloth-agent categories create --help
 sloth-agent line-items create --help
@@ -284,6 +285,37 @@ period and everything after it. Earlier and historical periods remain unchanged.
 
 Without `--apply`, the CLI validates the file locally and does not load a token
 or contact Sloth Money. Applying requires a write-enabled token.
+
+Move current assigned money between two categories, or use the reserved
+`to-assign` ID to move money to or from To Assign:
+
+```bash
+sloth-agent budget move \
+  --scope personal \
+  --from-category-id activities \
+  --to-category-id groceries \
+  --amount 52.95
+
+sloth-agent budget move \
+  --scope personal \
+  --from-category-id activities \
+  --to-category-id groceries \
+  --amount 52.95 \
+  --apply
+```
+
+Copy category IDs from `sloth-agent budget` output. `--amount` is expressed in
+the budget currency and accepts up to two decimal places; the CLI converts the
+decimal digits exactly and sends a positive safe-integer number of pence to the
+API. Without `--apply`, the command validates and prints the exact request
+without loading credentials or contacting Sloth Money.
+
+Applying subtracts and adds the amount atomically, records the movement in the
+budget history, and returns the affected assigned balances. It does not change
+planned line-item amounts or future budget plans. Like the UI, it permits a
+source category or To Assign to become negative; an automated workflow should
+choose donors from its own available-balance policy. Historical periods cannot
+be changed, and applying requires a write-enabled token.
 
 Create or rename a custom category. Writes are previews until `--apply` is
 present:

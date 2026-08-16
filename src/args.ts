@@ -43,6 +43,7 @@ export type HelpTopic =
   | 'accounts-remove'
   | 'investments'
   | 'budget'
+  | 'budget-move'
   | 'budget-update'
   | 'categories'
   | 'categories-create'
@@ -98,6 +99,16 @@ export type ParsedCommand =
     baseUrl?: string;
     scope: 'personal' | 'joint';
     periodKey?: string;
+  }
+  | {
+    command: 'budget-move';
+    baseUrl?: string;
+    scope: 'personal' | 'joint';
+    periodKey?: string;
+    fromCategoryId: string;
+    toCategoryId: string;
+    amountPence: number;
+    apply: boolean;
   }
   | {
     command: 'budget-update';
@@ -243,15 +254,34 @@ function requireNonEmpty(value: string, name: string): string {
   return value;
 }
 
-function parseGoalAmount(value: string, name: string): number {
+function validatePositiveDecimalAmount(value: string, name: string): void {
   if (!/^\d+(?:\.\d{1,2})?$/.test(value)) {
     throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
   }
+  const digits = value.replace('.', '');
+  if (!/[1-9]/.test(digits)) {
+    throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
+  }
+}
+
+function parsePositiveDecimalAmount(value: string, name: string): number {
+  validatePositiveDecimalAmount(value, name);
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
   }
   return amount;
+}
+
+function parsePositiveAmountPence(value: string, name: string): number {
+  validatePositiveDecimalAmount(value, name);
+  const [wholePounds, fractionalPounds = ''] = value.split('.');
+  const amountPence = BigInt(wholePounds!) * 100n
+    + BigInt(fractionalPounds.padEnd(2, '0'));
+  if (amountPence > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
+  }
+  return Number(amountPence);
 }
 
 function parseGoalMonthKey(value: string, name: string): string {
@@ -302,7 +332,10 @@ function parseGoalId(value: string): string {
   return goalId;
 }
 
-function parseResourceId(value: string, option: '--category-id' | '--line-item-id'): string {
+function parseResourceId(
+  value: string,
+  option: '--category-id' | '--line-item-id' | '--from-category-id' | '--to-category-id',
+): string {
   const id = value.trim();
   if (
     !id
@@ -313,7 +346,7 @@ function parseResourceId(value: string, option: '--category-id' | '--line-item-i
       return codePoint !== undefined && (codePoint < 32 || codePoint === 127);
     })
   ) {
-    const resource = option === '--category-id' ? 'category' : 'line-item';
+    const resource = option === '--line-item-id' ? 'line-item' : 'category';
     throw new UsageError(`${option} must be a valid ${resource} document ID`);
   }
   return id;
@@ -584,16 +617,24 @@ function parseInvestments(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
-  const update = args[0] === 'update';
-  if (update) args.shift();
+  const subcommand = args[0] === 'update' || args[0] === 'move' ? args.shift() : undefined;
+  const update = subcommand === 'update';
+  const move = subcommand === 'move';
+  const commandLabel = update ? 'budget update' : move ? 'budget move' : 'budget';
   const { values, apply } = parseNamedOptions(
     args,
-    update ? 'budget update' : 'budget',
-    new Set(update ? ['--scope', '--period', '--input'] : ['--scope', '--period']),
+    commandLabel,
+    new Set(
+      update
+        ? ['--scope', '--period', '--input']
+        : move
+          ? ['--scope', '--period', '--from-category-id', '--to-category-id', '--amount']
+          : ['--scope', '--period'],
+    ),
   );
-  if (!update && apply) throw new UsageError('Unknown budget option: --apply');
+  if (!update && !move && apply) throw new UsageError('Unknown budget option: --apply');
 
-  const scope = requiredOption(values, '--scope', update ? 'budget update' : 'budget');
+  const scope = requiredOption(values, '--scope', commandLabel);
   if (scope !== 'personal' && scope !== 'joint') {
     throw new UsageError('--scope must be personal or joint');
   }
@@ -602,7 +643,32 @@ function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
     scope: scope as 'personal' | 'joint',
     ...(period === undefined ? {} : { periodKey: parseGoalMonthKey(period, '--period') }),
   };
-  if (!update) return withBaseUrl({ command: 'budget', ...common }, baseUrl);
+  if (!update && !move) return withBaseUrl({ command: 'budget', ...common }, baseUrl);
+
+  if (move) {
+    const fromCategoryId = parseResourceId(
+      requiredOption(values, '--from-category-id', commandLabel),
+      '--from-category-id',
+    );
+    const toCategoryId = parseResourceId(
+      requiredOption(values, '--to-category-id', commandLabel),
+      '--to-category-id',
+    );
+    if (fromCategoryId === toCategoryId) {
+      throw new UsageError('--from-category-id and --to-category-id must differ');
+    }
+    return withBaseUrl({
+      command: 'budget-move',
+      ...common,
+      fromCategoryId,
+      toCategoryId,
+      amountPence: parsePositiveAmountPence(
+        requiredOption(values, '--amount', commandLabel),
+        '--amount',
+      ),
+      apply,
+    }, baseUrl);
+  }
 
   return withBaseUrl({
     command: 'budget-update',
@@ -789,7 +855,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       } else if (option === '--target-amount') {
         targetAmount = setOnce(
           targetAmount,
-          parseGoalAmount(value, option),
+          parsePositiveDecimalAmount(value, option),
           option,
         );
       } else if (option === '--target-month') {
@@ -873,7 +939,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       } else if (option === '--target-amount') {
         targetAmount = setOnce(
           targetAmount,
-          parseGoalAmount(value, option),
+          parsePositiveDecimalAmount(value, option),
           option,
         );
       } else if (option === '--target-month') {
@@ -1019,7 +1085,9 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     return undefined;
   }
   if (command === 'budget') {
-    return subcommand === 'update' ? 'budget-update' : 'budget';
+    if (subcommand === 'update') return 'budget-update';
+    if (subcommand === 'move') return 'budget-move';
+    return 'budget';
   }
   if (
     command === 'accounts'

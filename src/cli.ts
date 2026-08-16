@@ -11,6 +11,7 @@ import { ICON_KEYS } from './category-metadata.js';
 import {
   parseApiResponse,
   validateAssignmentPayload,
+  validateBudgetMovementResponse,
   validateBudgetUpdatePayload,
 } from './contracts.js';
 import {
@@ -25,7 +26,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.10.0';
+export const CLI_VERSION = '0.11.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -65,6 +66,8 @@ export function usageText(): string {
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
+    '  sloth-agent budget move --scope personal|joint [--period YYYY-MM]',
+    '    --from-category-id ID --to-category-id ID --amount AMOUNT [--apply]',
     '  sloth-agent categories [list] [--base-url URL]',
     '  sloth-agent categories create --name NAME --icon-key KEY --type TYPE [--apply]',
     '  sloth-agent categories rename --category-id ID --name NAME [--apply]',
@@ -507,6 +510,48 @@ export function budgetUpdateHelpText(): string {
   ].join('\n');
 }
 
+export function budgetMoveHelpText(): string {
+  return [
+    'Sloth Agent CLI — budget move',
+    '',
+    'Preview or move assigned money between categories or To Assign.',
+    '',
+    'Usage:',
+    '  sloth-agent budget move --scope personal|joint [--period YYYY-MM] --from-category-id ID --to-category-id ID --amount AMOUNT [--apply] [--base-url URL]',
+    '',
+    'Required inputs:',
+    '  --scope personal|joint  Budget ownership scope.',
+    '  --from-category-id ID   Source category ID, or to-assign.',
+    '  --to-category-id ID     Destination category ID, or to-assign.',
+    '  --amount AMOUNT         Positive amount in the budget currency, with up to two decimals.',
+    '                          The integer-pence value must be at most 9,007,199,254,740,991.',
+    '',
+    'Optional inputs:',
+    '  --period YYYY-MM        Defaults to the current Sloth budget period.',
+    '  --apply                 Send the movement. Without it, only validate and preview.',
+    '  --base-url URL          Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Write behavior:',
+    '  Without --apply, returns JSON locally without loading credentials or contacting Sloth Money.',
+    '  With --apply, atomically subtracts from the source and adds to the destination.',
+    '  Use the reserved ID to-assign to move money to or from To Assign.',
+    '  The move changes current assigned balances and records budget movement history.',
+    '  The source category or To Assign may become negative, so choose the source deliberately.',
+    '  It does not change planned amounts or future budget plans.',
+    '  Historical periods cannot be changed. Applying requires agent:write.',
+    '',
+    'Output:',
+    '  Preview mode returns dryRun, endpoint, method, and the amountPence payload.',
+    '  Apply mode returns the period, currency, movement, To Assign balance, and affected category balances.',
+    '',
+    'Examples:',
+    '  sloth-agent budget move --scope personal --from-category-id activities --to-category-id groceries --amount 52.95',
+    '  sloth-agent budget move --scope personal --from-category-id activities --to-category-id groceries --amount 52.95 --apply',
+  ].join('\n');
+}
+
 export function transactionsHelpText(): string {
   return [
     'Sloth Agent CLI — transactions',
@@ -884,6 +929,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'accounts-remove': accountsRemoveHelpText,
     investments: investmentsHelpText,
     budget: budgetHelpText,
+    'budget-move': budgetMoveHelpText,
     'budget-update': budgetUpdateHelpText,
     categories: categoriesHelpText,
     'categories-create': categoriesCreateHelpText,
@@ -1243,6 +1289,24 @@ export async function runCli(
       });
       return 0;
     }
+    const budgetMovementPayload = parsed.command === 'budget-move'
+      ? {
+        scope: parsed.scope,
+        ...(parsed.periodKey === undefined ? {} : { periodKey: parsed.periodKey }),
+        fromCategoryId: parsed.fromCategoryId,
+        toCategoryId: parsed.toCategoryId,
+        amountPence: parsed.amountPence,
+      }
+      : undefined;
+    if (parsed.command === 'budget-move' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: `${baseUrl}/api/agent/v1/budget-movements`,
+        method: 'POST',
+        payload: budgetMovementPayload,
+      });
+      return 0;
+    }
 
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
@@ -1294,6 +1358,21 @@ export async function runCli(
       const data = parseApiResponse(
         parsed.command,
         await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'budget-move') {
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/budget-movements`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(budgetMovementPayload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = validateBudgetMovementResponse(
+        await parseHttpResponse(response, token),
+        budgetMovementPayload!,
       );
       writeJson(writeStdout, data);
       return 0;

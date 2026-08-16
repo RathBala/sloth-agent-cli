@@ -40,6 +40,7 @@ type ApiCommand =
   | 'accounts-remove'
   | 'investments'
   | 'budget'
+  | 'budget-move'
   | 'budget-update'
   | 'categories'
   | 'categories-create'
@@ -538,6 +539,94 @@ function isBudgetResponse(value: unknown): boolean {
   );
 }
 
+interface BudgetMovementResponse {
+  moved: true;
+  scope: 'personal' | 'joint';
+  periodKey: string;
+  currency: string;
+  fromCategoryId: string;
+  toCategoryId: string;
+  amountPence: number;
+  toAssignPence: number;
+  categoryBalances: Array<{ categoryId: string; assignedPence: number }>;
+}
+
+function isBudgetMovementResponse(value: unknown): value is BudgetMovementResponse {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, [
+      'moved',
+      'scope',
+      'periodKey',
+      'currency',
+      'fromCategoryId',
+      'toCategoryId',
+      'amountPence',
+      'toAssignPence',
+      'categoryBalances',
+    ])
+    && value.moved === true
+    && (value.scope === 'personal' || value.scope === 'joint')
+    && typeof value.periodKey === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.periodKey)
+    && isCurrency(value.currency)
+    && typeof value.fromCategoryId === 'string'
+    && value.fromCategoryId.trim().length > 0
+    && typeof value.toCategoryId === 'string'
+    && value.toCategoryId.trim().length > 0
+    && value.fromCategoryId !== value.toCategoryId
+    && isNonnegativeSafeInteger(value.amountPence)
+    && value.amountPence > 0
+    && isSafeInteger(value.toAssignPence)
+    && Array.isArray(value.categoryBalances)
+    && value.categoryBalances.length >= 1
+    && value.categoryBalances.length <= 2
+    && value.categoryBalances.every((balance) => (
+      isObject(balance)
+      && hasOnlyFields(balance, ['categoryId', 'assignedPence'])
+      && typeof balance.categoryId === 'string'
+      && balance.categoryId.trim().length > 0
+      && isSafeInteger(balance.assignedPence)
+    ))
+  );
+}
+
+interface BudgetMovementExpectation {
+  scope: 'personal' | 'joint';
+  periodKey?: string;
+  fromCategoryId: string;
+  toCategoryId: string;
+  amountPence: number;
+}
+
+export function validateBudgetMovementResponse(
+  value: unknown,
+  expected: BudgetMovementExpectation,
+): unknown {
+  if (!isBudgetMovementResponse(value)) {
+    throw new ApiError('Invalid budget-move response from the Agent API');
+  }
+
+  const expectedCategoryIds = [expected.fromCategoryId, expected.toCategoryId]
+    .filter(categoryId => categoryId !== 'to-assign')
+    .sort();
+  const actualCategoryIds = value.categoryBalances
+    .map(balance => balance.categoryId)
+    .sort();
+  const matchesRequest = value.scope === expected.scope
+    && (expected.periodKey === undefined || value.periodKey === expected.periodKey)
+    && value.fromCategoryId === expected.fromCategoryId
+    && value.toCategoryId === expected.toCategoryId
+    && value.amountPence === expected.amountPence;
+  const matchesAffectedCategories = actualCategoryIds.length === expectedCategoryIds.length
+    && actualCategoryIds.every((categoryId, index) => categoryId === expectedCategoryIds[index]);
+
+  if (!matchesRequest || !matchesAffectedCategories) {
+    throw new ApiError('Invalid budget-move response from the Agent API');
+  }
+  return value;
+}
+
 function isNullableNonEmptyString(value: unknown): boolean {
   return value === null || (
     typeof value === 'string'
@@ -713,6 +802,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
         ? isInvestmentsResponse(value)
     : command === 'budget' || command === 'budget-update'
       ? isBudgetResponse(value)
+    : command === 'budget-move'
+      ? isBudgetMovementResponse(value)
     : command === 'categories'
       ? isCategoryResponse(value)
       : command === 'categories-create' || command === 'categories-rename'

@@ -186,3 +186,18 @@ export const agentApiV1BudgetResponse = {
     }],
   }],
 } as const;
+
+export const agentApiV1BudgetMovementResponse = {
+  moved: true,
+  scope: 'personal',
+  periodKey: '2026-08',
+  currency: 'GBP',
+  fromCategoryId: 'activities',
+  toCategoryId: 'groceries',
+  amountPence: 5_295,
+  toAssignPence: 12_000,
+  categoryBalances: [
+    { categoryId: 'activities', assignedPence: 4_705 },
+    { categoryId: 'groceries', assignedPence: 49_295 },
+  ],
+} as const;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0 - 2026-08-16
+
+- Add preview-by-default `budget move` for atomically moving current assigned
+  money between categories or To Assign without changing planned budgets.
+- Accept human-readable currency amounts at the CLI boundary, send integer
+  pence to the Agent API, and validate the returned affected balances.
+
 ## 0.10.0 - 2026-08-15
 
 - Require every goal create to specify a positive target amount and Keep or
