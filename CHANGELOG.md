@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0 - 2026-08-16
+
+- Add read-only `budget status` for current-period assigned, spent, and
+  available category amounts, including refresh and unallocated-activity
+  signals for safer automated budget review.
+
 ## 0.11.0 - 2026-08-16
 
 - Add preview-by-default `budget move` for atomically moving current assigned

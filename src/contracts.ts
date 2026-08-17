@@ -40,6 +40,7 @@ type ApiCommand =
   | 'accounts-remove'
   | 'investments'
   | 'budget'
+  | 'budget-status'
   | 'budget-move'
   | 'budget-update'
   | 'categories'
@@ -347,29 +348,37 @@ function isTransaction(value: unknown): boolean {
   );
 }
 
+const REFRESH_STATUSES = new Set(['skipped', 'completed', 'in_progress', 'partial', 'failed']);
+const REFRESH_REASONS = new Set([
+  'all_fetched_today',
+  'no_api_connections',
+  'no_selected_accounts',
+  'refreshed',
+  'wait_timeout',
+  'account_failures',
+  'partial_already_attempted',
+  'refresh_error',
+]);
+
+function isRefreshStatus(value: unknown): boolean {
+  return (
+    isObject(value)
+    && hasOnlyFields(value, ['status', 'reason', 'utcDate'])
+    && typeof value.status === 'string'
+    && REFRESH_STATUSES.has(value.status)
+    && typeof value.reason === 'string'
+    && REFRESH_REASONS.has(value.reason)
+    && isIsoDate(value.utcDate)
+  );
+}
+
 function isTransactionsResponse(value: unknown): boolean {
-  const validStatuses = new Set(['skipped', 'completed', 'in_progress', 'partial', 'failed']);
-  const validReasons = new Set([
-    'all_fetched_today',
-    'no_api_connections',
-    'no_selected_accounts',
-    'refreshed',
-    'wait_timeout',
-    'account_failures',
-    'refresh_error',
-  ]);
-  const refresh = isObject(value) ? value.refresh : undefined;
   return (
     isObject(value)
     && Array.isArray(value.transactions)
     && value.transactions.every(isTransaction)
     && (value.nextCursor === null || typeof value.nextCursor === 'string')
-    && isObject(refresh)
-    && typeof refresh.status === 'string'
-    && validStatuses.has(refresh.status)
-    && typeof refresh.reason === 'string'
-    && validReasons.has(refresh.reason)
-    && isIsoDate(refresh.utcDate)
+    && isRefreshStatus(value.refresh)
   );
 }
 
@@ -536,6 +545,79 @@ function isBudgetResponse(value: unknown): boolean {
     )
     && Array.isArray(value.categories)
     && value.categories.every(isBudgetCategory)
+  );
+}
+
+function isBudgetStatusResponse(value: unknown): boolean {
+  if (
+    !isObject(value)
+    || !hasOnlyFields(value, [
+      'scope',
+      'periodKey',
+      'periodStatus',
+      'currency',
+      'effectiveFromPeriodKey',
+      'funding',
+      'activity',
+      'refresh',
+      'categories',
+    ])
+  ) return false;
+
+  return (
+    (value.scope === 'personal' || value.scope === 'joint')
+    && typeof value.periodKey === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.periodKey)
+    && value.periodStatus === 'current'
+    && isCurrency(value.currency)
+    && typeof value.effectiveFromPeriodKey === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.effectiveFromPeriodKey)
+    && (
+      value.funding === null
+      || (
+        isObject(value.funding)
+        && hasOnlyFields(value.funding, ['toAssignPence', 'nextPeriodReservePence'])
+        && isSafeInteger(value.funding.toAssignPence)
+        && isSafeInteger(value.funding.nextPeriodReservePence)
+      )
+    )
+    && isObject(value.activity)
+    && hasOnlyFields(value.activity, [
+      'startDate',
+      'endDate',
+      'transactionCount',
+      'uncategorizedSpentPence',
+      'unmappedSpentPence',
+    ])
+    && isIsoDate(value.activity.startDate)
+    && isIsoDate(value.activity.endDate)
+    && value.activity.startDate <= value.activity.endDate
+    && isNonnegativeSafeInteger(value.activity.transactionCount)
+    && isSafeInteger(value.activity.uncategorizedSpentPence)
+    && isSafeInteger(value.activity.unmappedSpentPence)
+    && isRefreshStatus(value.refresh)
+    && Array.isArray(value.categories)
+    && value.categories.every((category) => (
+      isObject(category)
+      && hasOnlyFields(category, [
+        'id',
+        'name',
+        'plannedPence',
+        'assignedPence',
+        'spentPence',
+        'availablePence',
+      ])
+      && typeof category.id === 'string'
+      && category.id.trim().length > 0
+      && typeof category.name === 'string'
+      && category.name.trim().length > 0
+      && isNonnegativeSafeInteger(category.plannedPence)
+      && isSafeInteger(category.assignedPence)
+      && isSafeInteger(category.spentPence)
+      && isSafeInteger(category.availablePence)
+      && Number.isSafeInteger(category.assignedPence - category.spentPence)
+      && category.availablePence === category.assignedPence - category.spentPence
+    ))
   );
 }
 
@@ -802,6 +884,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
         ? isInvestmentsResponse(value)
     : command === 'budget' || command === 'budget-update'
       ? isBudgetResponse(value)
+    : command === 'budget-status'
+      ? isBudgetStatusResponse(value)
     : command === 'budget-move'
       ? isBudgetMovementResponse(value)
     : command === 'categories'

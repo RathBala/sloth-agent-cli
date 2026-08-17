@@ -187,6 +187,38 @@ export const agentApiV1BudgetResponse = {
   }],
 } as const;
 
+export const agentApiV1BudgetStatusResponse = {
+  scope: 'personal',
+  periodKey: '2026-08',
+  periodStatus: 'current',
+  currency: 'GBP',
+  effectiveFromPeriodKey: '2026-08',
+  funding: {
+    toAssignPence: 12_000,
+    nextPeriodReservePence: 5_000,
+  },
+  activity: {
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+    transactionCount: 3,
+    uncategorizedSpentPence: 2_500,
+    unmappedSpentPence: 0,
+  },
+  refresh: {
+    status: 'completed',
+    reason: 'refreshed',
+    utcDate: '2026-08-09',
+  },
+  categories: [{
+    id: 'groceries',
+    name: 'Groceries',
+    plannedPence: 45_000,
+    assignedPence: 44_000,
+    spentPence: 49_295,
+    availablePence: -5_295,
+  }],
+} as const;
+
 export const agentApiV1BudgetMovementResponse = {
   moved: true,
   scope: 'personal',

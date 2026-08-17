@@ -552,6 +552,12 @@ describe('CLI arguments', () => {
       periodKey: '2026-08',
     });
     expect(parseArgs([
+      'budget', 'status', '--scope=personal',
+    ])).toEqual({
+      command: 'budget-status',
+      scope: 'personal',
+    });
+    expect(parseArgs([
       'budget', 'update', '--scope=joint', '--period=2026-09',
       '--input', 'budget.json', '--apply',
     ])).toEqual({
@@ -600,6 +606,8 @@ describe('CLI arguments', () => {
       .toThrow(/requires --input/);
     expect(() => parseArgs(['budget', '--scope', 'personal', '--apply']))
       .toThrow(/Unknown budget option/);
+    expect(() => parseArgs(['budget', 'status', '--scope', 'personal', '--period', '2026-08']))
+      .toThrow(/Unknown budget status option/);
     expect(() => parseArgs([
       'budget', 'move', '--scope', 'personal', '--from-category-id', 'groceries',
       '--to-category-id', 'groceries', '--amount', '1',

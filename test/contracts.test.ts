@@ -12,6 +12,7 @@ import {
   agentApiV1AssignmentResponse,
   agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
+  agentApiV1BudgetStatusResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
@@ -132,6 +133,8 @@ describe('API response validation', () => {
     )).toBe(agentApiV1CategoriesResponse);
     expect(parseApiResponse('budget', agentApiV1BudgetResponse))
       .toBe(agentApiV1BudgetResponse);
+    expect(parseApiResponse('budget-status', agentApiV1BudgetStatusResponse))
+      .toBe(agentApiV1BudgetStatusResponse);
     expect(parseApiResponse('budget-update', agentApiV1BudgetResponse))
       .toBe(agentApiV1BudgetResponse);
     expect(parseApiResponse('budget-move', agentApiV1BudgetMovementResponse))
@@ -241,6 +244,13 @@ describe('API response validation', () => {
       ...agentApiV1BudgetResponse,
       categories: [{ ...agentApiV1BudgetResponse.categories[0], assignedPence: '44000' }],
     })).toThrow(/invalid budget response/i);
+    expect(() => parseApiResponse('budget-status', {
+      ...agentApiV1BudgetStatusResponse,
+      activity: {
+        ...agentApiV1BudgetStatusResponse.activity,
+        rawTransactions: [],
+      },
+    })).toThrow(/invalid budget-status response/i);
     expect(() => parseApiResponse('budget-update', {
       ...agentApiV1BudgetResponse,
       unexpected: true,

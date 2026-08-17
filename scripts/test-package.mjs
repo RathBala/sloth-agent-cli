@@ -100,6 +100,7 @@ try {
   assert.match(help, /sloth-agent accounts remove/);
   assert.match(help, /sloth-agent investments/);
   assert.match(help, /sloth-agent budget --scope personal\|joint/);
+  assert.match(help, /sloth-agent budget status/);
   assert.match(help, /sloth-agent budget update/);
   assert.match(help, /sloth-agent budget move/);
   assert.match(help, /sloth-agent categories create/);
@@ -118,6 +119,7 @@ try {
     [['accounts', 'remove', '--help'], [/archive/, /retaining its underlying records/, /Without --apply/, /changed false/]],
     [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
     [['budget', '--help'], [/--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
+    [['budget', 'status', '--help'], [/current Sloth budget period/, /spentPence/, /availablePence/, /uncategorizedSpentPence/, /read-only/, /refresh/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
     [['budget', 'move', '--help'], [/--from-category-id ID/, /--amount AMOUNT/, /9,007,199,254,740,991/, /To Assign/, /Without --apply/, /may become negative/, /does not change planned amounts/]],
     [['categories', '--help'], [

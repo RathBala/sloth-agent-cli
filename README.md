@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.11.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.12.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -104,6 +104,7 @@ options, output, and examples:
 sloth-agent auth login --help
 sloth-agent accounts --help
 sloth-agent budget --help
+sloth-agent budget status --help
 sloth-agent budget update --help
 sloth-agent budget move --help
 sloth-agent categories --help
@@ -248,6 +249,21 @@ sloth-agent budget --scope personal --period 2026-08
 The result includes the budget period and status, currency, the effective plan,
 stored funding amounts when available, categories, line items, and planned
 amounts in pence.
+
+Read current assigned, spent, and available money without aggregating
+transactions yourself:
+
+```bash
+sloth-agent budget status --scope personal
+```
+
+The server applies its normal once-per-UTC-day automatic transaction refresh
+policy before returning the current Sloth period dates and signed booked
+activity. For each category, `availablePence` is
+`assignedPence - spentPence`; a negative value is over budget, and refunds
+reduce `spentPence`. Check `refresh`,
+`activity.uncategorizedSpentPence`, and `activity.unmappedSpentPence` before
+using the result to suggest a reallocation. This command is read-only.
 
 Update selected line-item amounts by creating `budget.json`:
 

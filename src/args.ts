@@ -43,6 +43,7 @@ export type HelpTopic =
   | 'accounts-remove'
   | 'investments'
   | 'budget'
+  | 'budget-status'
   | 'budget-move'
   | 'budget-update'
   | 'categories'
@@ -99,6 +100,11 @@ export type ParsedCommand =
     baseUrl?: string;
     scope: 'personal' | 'joint';
     periodKey?: string;
+  }
+  | {
+    command: 'budget-status';
+    baseUrl?: string;
+    scope: 'personal' | 'joint';
   }
   | {
     command: 'budget-move';
@@ -617,26 +623,43 @@ function parseInvestments(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
-  const subcommand = args[0] === 'update' || args[0] === 'move' ? args.shift() : undefined;
+  const subcommand = args[0] === 'status' || args[0] === 'update' || args[0] === 'move'
+    ? args.shift()
+    : undefined;
+  const status = subcommand === 'status';
   const update = subcommand === 'update';
   const move = subcommand === 'move';
-  const commandLabel = update ? 'budget update' : move ? 'budget move' : 'budget';
+  const commandLabel = status
+    ? 'budget status'
+    : update
+      ? 'budget update'
+      : move
+        ? 'budget move'
+        : 'budget';
   const { values, apply } = parseNamedOptions(
     args,
     commandLabel,
     new Set(
-      update
-        ? ['--scope', '--period', '--input']
+      status
+        ? ['--scope']
+        : update
+          ? ['--scope', '--period', '--input']
         : move
           ? ['--scope', '--period', '--from-category-id', '--to-category-id', '--amount']
           : ['--scope', '--period'],
     ),
   );
-  if (!update && !move && apply) throw new UsageError('Unknown budget option: --apply');
+  if (!update && !move && apply) throw new UsageError(`Unknown ${commandLabel} option: --apply`);
 
   const scope = requiredOption(values, '--scope', commandLabel);
   if (scope !== 'personal' && scope !== 'joint') {
     throw new UsageError('--scope must be personal or joint');
+  }
+  if (status) {
+    return withBaseUrl({
+      command: 'budget-status',
+      scope: scope as 'personal' | 'joint',
+    }, baseUrl);
   }
   const period = values.get('--period');
   const common = {
@@ -1085,6 +1108,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     return undefined;
   }
   if (command === 'budget') {
+    if (subcommand === 'status') return 'budget-status';
     if (subcommand === 'update') return 'budget-update';
     if (subcommand === 'move') return 'budget-move';
     return 'budget';

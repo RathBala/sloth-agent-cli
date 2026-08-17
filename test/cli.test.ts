@@ -15,6 +15,7 @@ import {
   agentApiV1AssignmentResponse,
   agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
+  agentApiV1BudgetStatusResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
@@ -106,6 +107,10 @@ describe('CLI execution', () => {
       [['budget', '--help'], [
         '--scope personal|joint', '--period YYYY-MM', 'read-only',
         'periodStatus', 'funding', 'categories[].lineItems',
+      ]],
+      [['budget', 'status', '--help'], [
+        '--scope personal|joint', 'current Sloth budget period', 'read-only',
+        'spentPence', 'availablePence', 'uncategorizedSpentPence', 'refresh',
       ]],
       [['budget', 'update', '--help'], [
         '--input FILE', 'plannedPence', 'Without --apply',
@@ -1311,6 +1316,26 @@ describe('CLI execution', () => {
       expect.objectContaining({ method: 'GET' }),
     );
     expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetResponse);
+  });
+
+  it('reads current budget status and asks the API to wait for refresh', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1BudgetStatusResponse));
+
+    expect(await runCli(['budget', 'status', '--scope', 'personal'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/budget-status?scope=personal',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Prefer: 'wait=45' }),
+      }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetStatusResponse);
   });
 
   it('previews a budget update without loading credentials or contacting the API', async () => {

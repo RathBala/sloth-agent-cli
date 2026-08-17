@@ -26,7 +26,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.11.0';
+export const CLI_VERSION = '0.12.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -64,6 +64,7 @@ export function usageText(): string {
     '  sloth-agent accounts remove --account-ref REF [--apply]',
     '  sloth-agent investments [--account-ref REF] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
+    '  sloth-agent budget status --scope personal|joint [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
     '  sloth-agent budget move --scope personal|joint [--period YYYY-MM]',
@@ -468,6 +469,36 @@ export function budgetHelpText(): string {
     '  funding contains current stored to-assign and reserve amounts when that period exists.',
     '  categories[].lineItems contains line-item IDs, names, and planned amounts in pence.',
     '  Categories also include plannedPence and assignedPence.',
+  ].join('\n');
+}
+
+export function budgetStatusHelpText(): string {
+  return [
+    'Sloth Agent CLI — budget status',
+    '',
+    'Read assigned, spent, and available money for the current Sloth budget period.',
+    '',
+    'Usage:',
+    '  sloth-agent budget status --scope personal|joint [--base-url URL]',
+    '',
+    'Options:',
+    '  --scope personal|joint  Required. Budget ownership scope.',
+    '  --base-url URL          Optional. Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access and freshness:',
+    '  This command is read-only, requires agent:read, and never changes the budget.',
+    '  The server applies its normal once-per-UTC-day automatic transaction refresh policy.',
+    '  Inspect refresh.status and refresh.reason before relying on the result.',
+    '',
+    'Output:',
+    '  categories[].assignedPence is the money assigned to the category.',
+    '  categories[].spentPence is signed booked activity; refunds reduce it.',
+    '  categories[].availablePence equals assignedPence minus spentPence.',
+    '  Negative availablePence means the category is over budget.',
+    '  activity contains the period dates, transaction count, uncategorizedSpentPence,',
+    '  and unmappedSpentPence. Review either nonzero value before moving money.',
   ].join('\n');
 }
 
@@ -929,6 +960,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'accounts-remove': accountsRemoveHelpText,
     investments: investmentsHelpText,
     budget: budgetHelpText,
+    'budget-status': budgetStatusHelpText,
     'budget-move': budgetMoveHelpText,
     'budget-update': budgetUpdateHelpText,
     categories: categoriesHelpText,
@@ -1589,18 +1621,22 @@ export async function runCli(
       return 0;
     }
 
-    if (parsed.command === 'budget') {
+    if (parsed.command === 'budget' || parsed.command === 'budget-status') {
       const query = new URLSearchParams({ scope: parsed.scope });
-      if (parsed.periodKey !== undefined) query.set('periodKey', parsed.periodKey);
+      if (parsed.command === 'budget' && parsed.periodKey !== undefined) {
+        query.set('periodKey', parsed.periodKey);
+      }
       const response = await fetchImplementation(
-        `${baseUrl}/api/agent/v1/budgets?${query.toString()}`,
+        `${baseUrl}/api/agent/v1/${parsed.command === 'budget' ? 'budgets' : 'budget-status'}?${query.toString()}`,
         {
           method: 'GET',
-          headers,
+          headers: parsed.command === 'budget-status'
+            ? { ...headers, Prefer: 'wait=45' }
+            : headers,
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         },
       );
-      const data = parseApiResponse('budget', await parseHttpResponse(response, token));
+      const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
       return 0;
     }
