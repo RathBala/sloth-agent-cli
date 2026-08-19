@@ -133,7 +133,8 @@ try {
     [['line-items', 'rename', '--help'], [/--line-item-id ID/, /Historical snapshots remain unchanged/]],
     [['transactions', '--help'], [
       /selected assignment scope/,
-      /Personal is used when omitted/,
+      /--shared\[=true\|false\]/,
+      /native scope is used when omitted/,
       /1 to 200/,
       /--line-item-id ID/,
       /waits up to 45 seconds/,
@@ -144,10 +145,14 @@ try {
       /uncategorised personally while its joint-budget contribution/,
     ]],
     [['assign', '--help'], [
-      /An assignment categorises an existing transaction/,
+      /transaction sharing and category assignments/,
+      /sharing\.isShared/,
+      /shareRatio/,
+      /userExclusiveAmountPence/,
+      /partnerExclusiveAmountPence/,
       /PASTE_THE_EXACT_TRANSACTION_REF_HERE/,
       /PASTE_A_LINE_ITEM_ID_HERE/,
-      /Personal is used when assignmentScope is omitted/,
+      /native scope is used when assignmentScope is omitted/,
       /most specific suitable line item/,
       /category's Other line item/,
       /transactions --assignment-scope personal --uncategorized/,
@@ -277,6 +282,32 @@ try {
     path.join(installDirectory, 'node_modules', '@github', 'keytar'),
     { force: true, recursive: true },
   );
+  const assignmentPath = path.join(installDirectory, 'sharing-assignment.json');
+  const assignmentPayload = {
+    assignments: [{
+      transactionRef: 'sloth_txn_package_smoke',
+      sharing: {
+        isShared: true,
+        shareRatio: 0.6,
+        userExclusiveAmountPence: 500,
+        partnerExclusiveAmountPence: 0,
+      },
+      assignmentScope: 'joint',
+      categoryId: 'groceries',
+    }],
+  };
+  fs.writeFileSync(assignmentPath, JSON.stringify(assignmentPayload));
+  const assignmentPreview = JSON.parse(runCliSync([
+    'assign', '--input', assignmentPath,
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: '' },
+  }));
+  assert.deepEqual(assignmentPreview, {
+    dryRun: true,
+    endpoint: 'https://budget.slothmoney.app/api/agent/v1/transaction-assignments',
+    payload: assignmentPayload,
+  });
   const environmentOnlyStatus = spawnCliSync(
     ['auth', 'status', '--base-url', 'http://localhost:1'],
     {

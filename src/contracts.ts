@@ -13,6 +13,12 @@ export interface AgentCategorySplit {
 
 export interface AgentAssignment {
   transactionRef: string;
+  sharing?: {
+    isShared: boolean;
+    shareRatio?: number;
+    userExclusiveAmountPence?: number;
+    partnerExclusiveAmountPence?: number;
+  };
   assignmentScope?: 'personal' | 'joint';
   categoryId?: string | null;
   lineItemId?: string | null;
@@ -114,6 +120,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
     assignment,
     new Set([
       'transactionRef',
+      'sharing',
       'assignmentScope',
       'categoryId',
       'lineItemId',
@@ -124,6 +131,58 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
   );
 
   requireString(assignment.transactionRef, `${label}.transactionRef`);
+  let sharing: AgentAssignment['sharing'];
+  if (assignment.sharing !== undefined) {
+    const sharingValue = requireObject(assignment.sharing, `${label}.sharing`);
+    rejectUnknownFields(sharingValue, new Set([
+      'isShared',
+      'shareRatio',
+      'userExclusiveAmountPence',
+      'partnerExclusiveAmountPence',
+    ]), `${label}.sharing`);
+    if (typeof sharingValue.isShared !== 'boolean') {
+      throw new UsageError(`${label}.sharing.isShared must be true or false`);
+    }
+    if (
+      sharingValue.shareRatio !== undefined
+      && (
+        typeof sharingValue.shareRatio !== 'number'
+        || !Number.isFinite(sharingValue.shareRatio)
+        || sharingValue.shareRatio < 0
+        || sharingValue.shareRatio > 1
+      )
+    ) {
+      throw new UsageError(`${label}.sharing.shareRatio must be a number from 0 to 1`);
+    }
+    for (const field of ['userExclusiveAmountPence', 'partnerExclusiveAmountPence'] as const) {
+      if (
+        sharingValue[field] !== undefined
+        && (!Number.isSafeInteger(sharingValue[field]) || Number(sharingValue[field]) < 0)
+      ) {
+        throw new UsageError(`${label}.sharing.${field} must be a nonnegative safe integer`);
+      }
+    }
+    if (
+      sharingValue.isShared === false
+      && (
+        sharingValue.shareRatio !== undefined
+        || sharingValue.userExclusiveAmountPence !== undefined
+        || sharingValue.partnerExclusiveAmountPence !== undefined
+      )
+    ) {
+      throw new UsageError(`${label}.sharing cannot include split fields when isShared is false`);
+    }
+    sharing = {
+      isShared: sharingValue.isShared,
+      ...(sharingValue.shareRatio === undefined ? {} : { shareRatio: sharingValue.shareRatio }),
+      ...(sharingValue.userExclusiveAmountPence === undefined
+        ? {}
+        : { userExclusiveAmountPence: Number(sharingValue.userExclusiveAmountPence) }),
+      ...(sharingValue.partnerExclusiveAmountPence === undefined
+        ? {}
+        : { partnerExclusiveAmountPence: Number(sharingValue.partnerExclusiveAmountPence) }),
+    };
+  }
   if (
     assignment.assignmentScope !== undefined
     && assignment.assignmentScope !== 'personal'
@@ -161,12 +220,25 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
   const hasCategory = typeof assignment.categoryId === 'string' && assignment.categoryId.trim().length > 0;
   const isClear = assignment.categoryId === null && (!categorySplits || categorySplits.length === 0);
   const hasSplits = Array.isArray(categorySplits) && categorySplits.length > 0;
-  if (!hasCategory && !isClear && !hasSplits) {
+  const hasCategoryOperation = hasCategory || isClear || hasSplits;
+  if (!hasCategoryOperation && sharing === undefined) {
     throw new UsageError(`${label}.categoryId or categorySplits is required`);
+  }
+  if (
+    !hasCategoryOperation
+    && (
+      assignment.assignmentScope !== undefined
+      || assignment.lineItemId !== undefined
+      || assignment.incomeSubtype !== undefined
+      || assignment.categorySplits !== undefined
+    )
+  ) {
+    throw new UsageError(`${label} category options require categoryId or categorySplits`);
   }
 
   return {
     transactionRef: assignment.transactionRef as string,
+    ...(sharing === undefined ? {} : { sharing }),
     ...(assignment.assignmentScope !== undefined
       ? { assignmentScope: assignment.assignmentScope as 'personal' | 'joint' }
       : {}),
@@ -383,17 +455,82 @@ function isTransactionsResponse(value: unknown): boolean {
 }
 
 function isAssignmentResponse(value: unknown): boolean {
+  const isResponseSplit = (split: unknown): boolean => (
+    isObject(split)
+    && hasOnlyFields(split, ['categoryId', 'amountPence', 'lineItemId'])
+    && typeof split.categoryId === 'string'
+    && isNonnegativeSafeInteger(split.amountPence)
+    && split.amountPence > 0
+    && (split.lineItemId === undefined || typeof split.lineItemId === 'string')
+  );
+  const isContribution = (contribution: unknown): boolean => (
+    isObject(contribution)
+    && hasOnlyFields(contribution, [
+      'eligible', 'included', 'amountPence', 'categoryId', 'lineItemId',
+      'categorySplits', 'incomeSubtype',
+    ])
+    && typeof contribution.eligible === 'boolean'
+    && typeof contribution.included === 'boolean'
+    && isNonnegativeSafeInteger(contribution.amountPence)
+    && contribution.amountPence > 0
+    && (contribution.categoryId === null || typeof contribution.categoryId === 'string')
+    && (contribution.lineItemId === null || typeof contribution.lineItemId === 'string')
+    && Array.isArray(contribution.categorySplits)
+    && contribution.categorySplits.every(isResponseSplit)
+    && (
+      contribution.incomeSubtype === null
+      || contribution.incomeSubtype === 'pay'
+      || contribution.incomeSubtype === 'interest'
+    )
+  );
+  const isSharing = (sharing: unknown): boolean => (
+    isObject(sharing)
+    && hasOnlyFields(sharing, [
+      'isShared', 'shareRatio', 'sharedAmountPence', 'userExclusiveAmountPence',
+      'partnerExclusiveAmountPence', 'jointBudgetContribution',
+    ])
+    && typeof sharing.isShared === 'boolean'
+    && typeof sharing.shareRatio === 'number'
+    && Number.isFinite(sharing.shareRatio)
+    && sharing.shareRatio >= 0
+    && sharing.shareRatio <= 1
+    && isNonnegativeSafeInteger(sharing.sharedAmountPence)
+    && isNonnegativeSafeInteger(sharing.userExclusiveAmountPence)
+    && isNonnegativeSafeInteger(sharing.partnerExclusiveAmountPence)
+    && (
+      sharing.jointBudgetContribution === null
+      || isContribution(sharing.jointBudgetContribution)
+    )
+  );
+  const isCategoryResult = (item: JsonObject): boolean => (
+    (item.assignmentScope === 'personal' || item.assignmentScope === 'joint')
+    && (item.categoryId === null || typeof item.categoryId === 'string')
+    && (item.lineItemId === null || typeof item.lineItemId === 'string')
+    && Array.isArray(item.categorySplits)
+    && item.categorySplits.every(isResponseSplit)
+    && (
+      item.incomeSubtype === null
+      || item.incomeSubtype === 'pay'
+      || item.incomeSubtype === 'interest'
+    )
+  );
   return (
     isObject(value)
     && Array.isArray(value.succeeded)
     && value.succeeded.every((item) => (
       isObject(item)
+      && hasOnlyFields(item, [
+        'transactionRef', 'categoryId', 'lineItemId', 'categorySplits',
+        'incomeSubtype', 'assignmentScope', 'sharing',
+      ])
       && typeof item.transactionRef === 'string'
-      && (item.assignmentScope === 'personal' || item.assignmentScope === 'joint')
+      && (isCategoryResult(item) || isSharing(item.sharing))
+      && (item.sharing === undefined || isSharing(item.sharing))
     ))
     && Array.isArray(value.failed)
     && value.failed.every((item) => (
       isObject(item)
+      && hasOnlyFields(item, ['transactionRef', 'error'])
       && typeof item.error === 'string'
       && (item.transactionRef === undefined || typeof item.transactionRef === 'string')
     ))

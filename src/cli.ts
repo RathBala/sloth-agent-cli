@@ -26,7 +26,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.12.0';
+export const CLI_VERSION = '0.13.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -74,7 +74,7 @@ export function usageText(): string {
     '  sloth-agent categories rename --category-id ID --name NAME [--apply]',
     '  sloth-agent line-items create --scope personal|joint --category-id ID --name NAME [--apply]',
     '  sloth-agent line-items rename --scope personal|joint --category-id ID --line-item-id ID --name NAME [--apply]',
-    '  sloth-agent transactions [--uncategorized[=true|false]] [--limit N]',
+    '  sloth-agent transactions [--uncategorized[=true|false]] [--shared[=true|false]] [--limit N]',
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
     '    [--account-id ID] [--category-id ID] [--line-item-id ID]',
     '    [--cursor CURSOR] [--base-url URL]',
@@ -595,6 +595,7 @@ export function transactionsHelpText(): string {
     'Options:',
     '  --uncategorized[=true|false]  Optional. Filter the selected assignment scope by state;',
     '                                  with no value, use true.',
+    '  --shared[=true|false]         Optional. Filter by partner-sharing state; with no value, use true.',
     '  --limit N                     Optional. Integer from 1 to 200; omit for API default.',
     '  --start-date YYYY-MM-DD        Optional. Include transactions on or after this date.',
     '  --end-date YYYY-MM-DD          Optional. Include transactions on or before this date.',
@@ -603,7 +604,7 @@ export function transactionsHelpText(): string {
     '  --category-id ID               Optional. Filter by category ID.',
     '  --line-item-id ID              Optional. Filter primary or split assignments by line-item ID.',
     '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
-    '                                  Personal is used when omitted.',
+    '                                  The transaction\'s native scope is used when omitted.',
     '  --cursor CURSOR                Optional. Continue from a previous nextCursor.',
     '  --base-url URL                 Optional. Override the API origin.',
     '  -h, --help                     Show this help.',
@@ -637,8 +638,7 @@ export function assignHelpText(): string {
   return [
     'Sloth Agent CLI — assign',
     '',
-    'An assignment categorises an existing transaction e.g. assigning category Groceries to a transaction.',
-    'Validate, preview, or apply category assignments from a JSON file.',
+    'Validate, preview, or apply transaction sharing and category assignments from a JSON file.',
     '',
     'Usage:',
     '  sloth-agent assign --input FILE [--apply] [--base-url URL]',
@@ -661,7 +661,11 @@ export function assignHelpText(): string {
     '',
     'Input:',
     '  The top-level object must contain an assignments array.',
-    '  Each assignment requires transactionRef and a categoryId or non-empty categorySplits.',
+    '  Each assignment requires transactionRef and at least one category operation or sharing object.',
+    '  sharing.isShared is required. shareRatio is optional from 0 to 1 and is your share.',
+    '  userExclusiveAmountPence and partnerExclusiveAmountPence are optional nonnegative integers.',
+    '  Omitted split values use saved defaults for a first share and preserve an existing split.',
+    '  Set sharing.isShared to false on its own to unshare and retain the dormant joint category.',
     '  Copy the exact transactionRef from transactions output and categoryId from',
     '  categories output. The example values below are placeholders.',
     '  Set categoryId to null to clear an assignment.',
@@ -673,7 +677,8 @@ export function assignHelpText(): string {
     '  a split lineItemId is optional.',
     '  incomeSubtype is optional and accepts "pay", "interest", or null.',
     '  assignmentScope is optional and accepts "personal" or "joint".',
-    '  Personal is used when assignmentScope is omitted.',
+    '  The transaction\'s native scope is used when assignmentScope is omitted for category-only requests.',
+    '  Combined requests use Joint when you have no exclusive amount and Personal when you do.',
     '',
     'Workflow:',
     '  sloth-agent categories',
@@ -687,7 +692,8 @@ export function assignHelpText(): string {
     '    "assignments": [',
     '      {',
     '        "transactionRef": "PASTE_THE_EXACT_TRANSACTION_REF_HERE",',
-    '        "assignmentScope": "personal",',
+    '        "sharing": { "isShared": true, "shareRatio": 0.6 },',
+    '        "assignmentScope": "joint",',
     '        "categoryId": "PASTE_A_CATEGORY_ID_HERE",',
     '        "lineItemId": "PASTE_A_LINE_ITEM_ID_HERE"',
     '      }',
@@ -1105,6 +1111,7 @@ function buildTransactionsQuery(
   if (filters.uncategorized !== undefined) {
     params.set('uncategorized', String(filters.uncategorized));
   }
+  if (filters.shared !== undefined) params.set('shared', String(filters.shared));
   if (filters.limit !== undefined) params.set('limit', String(filters.limit));
   if (filters.startDate !== undefined) params.set('startDate', filters.startDate);
   if (filters.endDate !== undefined) params.set('endDate', filters.endDate);
@@ -1339,6 +1346,17 @@ export async function runCli(
       });
       return 0;
     }
+    const assignmentPayload = parsed.command === 'assign'
+      ? validateAssignmentPayload(readAssignmentFile(parsed.input))
+      : undefined;
+    if (parsed.command === 'assign' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: `${baseUrl}/api/agent/v1/transaction-assignments`,
+        payload: assignmentPayload,
+      });
+      return 0;
+    }
 
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
@@ -1566,12 +1584,8 @@ export async function runCli(
     }
 
     if (parsed.command === 'assign') {
-      const payload = validateAssignmentPayload(readAssignmentFile(parsed.input));
+      const payload = assignmentPayload!;
       const endpoint = `${baseUrl}/api/agent/v1/transaction-assignments`;
-      if (!parsed.apply) {
-        writeJson(writeStdout, { dryRun: true, endpoint, payload });
-        return 0;
-      }
       const response = await fetchImplementation(endpoint, {
         method: 'POST',
         headers: {

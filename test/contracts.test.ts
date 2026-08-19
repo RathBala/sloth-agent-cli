@@ -86,6 +86,28 @@ describe('assignment payload validation', () => {
     });
   });
 
+  it('accepts sharing-only and combined assignments', () => {
+    const payload = {
+      assignments: [
+        { transactionRef: 'sloth_txn_1', sharing: { isShared: true } },
+        {
+          transactionRef: 'sloth_txn_2',
+          sharing: {
+            isShared: true,
+            shareRatio: 0.6,
+            userExclusiveAmountPence: 500,
+            partnerExclusiveAmountPence: 0,
+          },
+          assignmentScope: 'joint',
+          categoryId: 'groceries',
+        },
+        { transactionRef: 'sloth_txn_3', sharing: { isShared: false } },
+      ],
+    };
+
+    expect(validateAssignmentPayload(payload)).toEqual(payload);
+  });
+
   it('rejects malformed or ambiguous assignment data', () => {
     expect(() => validateAssignmentPayload({ assignments: [] })).toThrow(/between 1 and 100/);
     expect(() => validateAssignmentPayload({
@@ -100,6 +122,32 @@ describe('assignment payload validation', () => {
     expect(() => validateAssignmentPayload({
       assignments: [{ transactionRef: 'sloth_txn_1', categoryId: null, unexpected: true }],
     })).toThrow(/unknown field/);
+    for (const sharing of [
+      {},
+      { isShared: true, shareRatio: -0.1 },
+      { isShared: true, shareRatio: 1.1 },
+      { isShared: true, userExclusiveAmountPence: 1.5 },
+      { isShared: true, partnerExclusiveAmountPence: -1 },
+      { isShared: false, shareRatio: 0.5 },
+    ]) {
+      expect(() => validateAssignmentPayload({
+        assignments: [{ transactionRef: 'sloth_txn_1', sharing }],
+      })).toThrow();
+    }
+    for (const categoryOption of [
+      { assignmentScope: 'joint' },
+      { lineItemId: 'weekly' },
+      { incomeSubtype: 'pay' },
+      { categorySplits: null },
+    ]) {
+      expect(() => validateAssignmentPayload({
+        assignments: [{
+          transactionRef: 'sloth_txn_1',
+          sharing: { isShared: true },
+          ...categoryOption,
+        }],
+      })).toThrow(/category options require/);
+    }
   });
 });
 
@@ -163,6 +211,29 @@ describe('API response validation', () => {
       'assign',
       agentApiV1AssignmentResponse,
     )).toBe(agentApiV1AssignmentResponse);
+    const sharingResponse = {
+      succeeded: [{
+        transactionRef: 'sloth_txn_1',
+        sharing: {
+          isShared: true,
+          shareRatio: 0.6,
+          sharedAmountPence: 2_000,
+          userExclusiveAmountPence: 0,
+          partnerExclusiveAmountPence: 0,
+          jointBudgetContribution: {
+            eligible: true,
+            included: true,
+            amountPence: 2_000,
+            categoryId: null,
+            lineItemId: null,
+            categorySplits: [],
+            incomeSubtype: null,
+          },
+        },
+      }],
+      failed: [],
+    };
+    expect(parseApiResponse('assign', sharingResponse)).toBe(sharingResponse);
     expect(parseApiResponse(
       'ask-partner',
       agentApiV1ExplanationResponse,
@@ -279,6 +350,20 @@ describe('API response validation', () => {
       },
     })).toThrow(/invalid transactions response/i);
     expect(() => parseApiResponse('assign', { succeeded: [], failed: 'nope' })).toThrow(/invalid assignment response/i);
+    expect(() => parseApiResponse('assign', {
+      succeeded: [{
+        transactionRef: 'sloth_txn_1',
+        sharing: {
+          isShared: true,
+          shareRatio: 0.6,
+          sharedAmountPence: 1.5,
+          userExclusiveAmountPence: 0,
+          partnerExclusiveAmountPence: 0,
+          jointBudgetContribution: null,
+        },
+      }],
+      failed: [],
+    })).toThrow(/invalid assignment response/i);
     expect(() => parseApiResponse('ask-partner', {
       requestId: 'ter_1',
       publicUrl: 'not a URL',

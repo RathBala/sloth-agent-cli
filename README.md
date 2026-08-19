@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.12.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.13.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -94,8 +94,8 @@ remotely in **Sloth Money Settings > Developer access**.
 
 ## Commands
 
-An assignment categorises an existing transaction e.g. assigning category
-Groceries to a transaction.
+An assignment can change an owned transaction's sharing, categorisation, or
+both.
 
 Every command has built-in reference documentation covering its inputs,
 options, output, and examples:
@@ -145,7 +145,8 @@ item is already categorised for the joint budget. For example:
 
 This transaction is uncategorised personally but categorised as Groceries for
 the joint budget. The `--uncategorized` filter applies to the selected
-assignment scope; personal is used when `--assignment-scope` is omitted.
+assignment scope; the transaction's native scope is used when
+`--assignment-scope` is omitted.
 
 ### Categorise a transaction end to end
 
@@ -237,6 +238,71 @@ sloth-agent transactions --assignment-scope personal --limit 50
 The transaction should also disappear from the matching `--uncategorized`
 query. Confirm that an existing assignment in the other scope was not changed.
 Assignments do not create a separate list.
+
+### Share and categorise a transaction
+
+Find an owned, unshared booked transaction:
+
+```bash
+sloth-agent transactions --shared=false --q "sainsbury" --limit 20
+```
+
+Copy its exact `transactionRef` into `assignments.json`. This example shares
+the transaction 60/40, keeps £5 for you personally, and categorises the shared
+remainder as Groceries in Joint:
+
+```json
+{
+  "assignments": [
+    {
+      "transactionRef": "PASTE_THE_EXACT_TRANSACTION_REF_HERE",
+      "sharing": {
+        "isShared": true,
+        "shareRatio": 0.6,
+        "userExclusiveAmountPence": 500,
+        "partnerExclusiveAmountPence": 0
+      },
+      "assignmentScope": "joint",
+      "categoryId": "groceries"
+    }
+  ]
+}
+```
+
+Preview stays local and does not load credentials or call the API:
+
+```bash
+sloth-agent assign --input assignments.json
+```
+
+Apply with a token created using **Allow changes**, then read back the same
+state shown in the Web App:
+
+```bash
+sloth-agent assign --input assignments.json --apply
+sloth-agent transactions --shared=true --q "sainsbury" --limit 20
+```
+
+When `sharing` contains only `"isShared": true`, a first share uses the
+couple's saved ratio, falling back to `0.5`, and shares the full amount. On an
+already shared transaction, omitted split fields preserve their current values.
+Set both exclusive pence fields to zero to share the full amount again.
+
+To unshare, send `"sharing": { "isShared": false }` without ratio or exclusive
+fields. Sloth clears the active split but keeps the Joint category dormant, so
+sharing it again restores that category. Current-period Joint pay income is
+reconciled; interest and completed periods keep their existing behaviour.
+
+Sharing is available only for your booked personal-account transactions when
+you have an active partner and Joint budget. Partner-owned rows and native
+joint-account rows cannot be changed this way. Foreign-currency rows can still
+be shared for settlement, but their returned contribution has `eligible: false`
+and `included: false`.
+
+If a combined item omits `assignmentScope`, the category uses Joint when you
+have no exclusive amount and Personal when you do. Category-only items retain
+their existing Personal/native default. Each item commits atomically, while a
+bulk request remains best-effort across items.
 
 ### Other workflows
 

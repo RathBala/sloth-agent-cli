@@ -488,6 +488,7 @@ describe('CLI arguments', () => {
     expect(parseArgs([
       'transactions',
       '--uncategorized=false',
+      '--shared',
       '--limit',
       '200',
       '--start-date',
@@ -509,6 +510,7 @@ describe('CLI arguments', () => {
       command: 'transactions',
       filters: {
         uncategorized: false,
+        shared: true,
         limit: 200,
         startDate: '2026-05-01',
         endDate: '2026-05-31',
@@ -522,6 +524,11 @@ describe('CLI arguments', () => {
     });
 
     expect(() => parseArgs(['transactions', '--limit', '201'])).toThrow(/between 1 and 200/);
+    expect(parseArgs(['transactions', '--shared=false'])).toEqual({
+      command: 'transactions',
+      filters: { shared: false },
+    });
+    expect(() => parseArgs(['transactions', '--shared=yes'])).toThrow(/true or false/);
     expect(() => parseArgs(['transactions', '--start-date', '2026-02-30'])).toThrow(/valid YYYY-MM-DD/);
     expect(() => parseArgs([
       'transactions',

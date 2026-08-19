@@ -159,8 +159,9 @@ describe('CLI execution', () => {
       ]],
       [['transactions', '--help'], [
         '--uncategorized[=true|false]',
+        '--shared[=true|false]',
         'selected assignment scope',
-        'Personal is used when omitted',
+        'native scope is used when omitted',
         '--limit N',
         'Integer from 1 to 200',
         '--cursor CURSOR',
@@ -175,7 +176,10 @@ describe('CLI execution', () => {
         'is already categorised. To assess its categorisation, inspect both locations.',
       ]],
       [['assign', '--help'], [
-        'An assignment categorises an existing transaction e.g. assigning category Groceries to a transaction.',
+        'sharing',
+        'shareRatio',
+        'userExclusiveAmountPence',
+        'partnerExclusiveAmountPence',
         '--input FILE',
         'Required',
         'Without --apply',
@@ -184,7 +188,7 @@ describe('CLI execution', () => {
         'categorySplits',
         'non-empty array or null',
         'lineItemId is optional',
-        'Personal is used when assignmentScope is omitted',
+        'native scope is used when assignmentScope is omitted',
         'choose the most specific suitable line item',
         'category\'s Other line item',
         'PASTE_THE_EXACT_TRANSACTION_REF_HERE',
@@ -1160,6 +1164,7 @@ describe('CLI execution', () => {
     expect(await runCli([
       'transactions',
       '--uncategorized=false',
+      '--shared=false',
       '--limit',
       '25',
       '--start-date',
@@ -1185,7 +1190,7 @@ describe('CLI execution', () => {
     })).toBe(0);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&lineItemId=weekly&assignmentScope=joint&cursor=cursor-1',
+      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&shared=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&lineItemId=weekly&assignmentScope=joint&cursor=cursor-1',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Prefer: 'wait=45' }),
@@ -1283,21 +1288,38 @@ describe('CLI execution', () => {
   });
 
   it('previews assignments without calling the API', async () => {
-    const input = writeAssignments({
-      assignments: [{ transactionRef: 'sloth_txn_1', categoryId: 'groceries' }],
-    });
+    const payload = {
+      assignments: [{
+        transactionRef: 'sloth_txn_1',
+        sharing: {
+          isShared: true,
+          shareRatio: 0.6,
+          userExclusiveAmountPence: 500,
+          partnerExclusiveAmountPence: 0,
+        },
+        assignmentScope: 'joint',
+        categoryId: 'groceries',
+      }],
+    };
+    const input = writeAssignments(payload);
     const fetchMock = vi.fn();
+    const getCredentialStore = vi.fn(() => {
+      throw new Error('credential store must not load for preview');
+    });
     const io = createIo();
 
     expect(await runCli(['assign', '--input', input], {
-      env: { SLOTH_AGENT_TOKEN: 'token' },
+      env: {},
       fetch: fetchMock,
+      getCredentialStore,
       ...io,
     })).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(JSON.parse(io.stdout.join(''))).toMatchObject({
+    expect(getCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(io.stdout.join(''))).toEqual({
       dryRun: true,
       endpoint: 'https://budget.slothmoney.app/api/agent/v1/transaction-assignments',
+      payload,
     });
   });
 

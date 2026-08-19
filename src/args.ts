@@ -22,6 +22,7 @@ interface GlobalOptions {
 
 export interface TransactionFilters {
   uncategorized?: boolean;
+  shared?: boolean;
   limit?: number;
   startDate?: string;
   endDate?: string;
@@ -380,6 +381,18 @@ function parseTransactions(args: string[]): TransactionFilters {
         throw new UsageError('--uncategorized must be true or false');
       }
       filters.uncategorized = setOnce(filters.uncategorized, value === 'true', '--uncategorized');
+      continue;
+    }
+    if (argument === '--shared') {
+      filters.shared = setOnce(filters.shared, true, '--shared');
+      continue;
+    }
+    if (argument.startsWith('--shared=')) {
+      const value = argument.slice('--shared='.length);
+      if (value !== 'true' && value !== 'false') {
+        throw new UsageError('--shared must be true or false');
+      }
+      filters.shared = setOnce(filters.shared, value === 'true', '--shared');
       continue;
     }
 

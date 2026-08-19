@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.0 - 2026-08-19
+
+- Let `assign` share or unshare an owned booked personal transaction, update
+  its ratio and exclusive amounts in pence, and combine sharing with category
+  assignment in one atomic item.
+- Add `transactions --shared[=true|false]` and strict validation for persisted
+  sharing results, including the resulting joint-budget contribution.
+- Keep preview local and credential-free while printing the exact payload that
+  apply mode will send.
+
 ## 0.12.0 - 2026-08-16
 
 - Add read-only `budget status` for current-period assigned, spent, and
