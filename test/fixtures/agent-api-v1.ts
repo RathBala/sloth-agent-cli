@@ -93,6 +93,7 @@ export const agentApiV1TransactionsResponse = {
     currency: 'GBP',
     date: '2026-05-01',
     status: 'booked',
+    accountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
     accountId: 'account-1',
     accountDocId: 'account-doc-1',
     requisitionId: 'req-1',

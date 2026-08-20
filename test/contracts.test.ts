@@ -336,6 +336,13 @@ describe('API response validation', () => {
     expect(() => parseApiResponse('transactions', { transactions: 'not-an-array' })).toThrow(/invalid transactions response/i);
     expect(() => parseApiResponse('transactions', {
       ...agentApiV1TransactionsResponse,
+      transactions: [{
+        ...agentApiV1TransactionsResponse.transactions[0],
+        accountRef: 'account-1',
+      }],
+    })).toThrow(/invalid transactions response/i);
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
       refresh: {
         status: 'done-ish',
         reason: 'raw provider failure',

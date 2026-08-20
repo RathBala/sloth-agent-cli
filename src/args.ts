@@ -27,6 +27,7 @@ export interface TransactionFilters {
   startDate?: string;
   endDate?: string;
   q?: string;
+  accountRef?: string;
   accountId?: string;
   categoryId?: string;
   lineItemId?: string;
@@ -404,6 +405,7 @@ function parseTransactions(args: string[]): TransactionFilters {
       '--start-date',
       '--end-date',
       '--q',
+      '--account-ref',
       '--account-id',
       '--category-id',
       '--line-item-id',
@@ -436,6 +438,8 @@ function parseTransactions(args: string[]): TransactionFilters {
       }
     } else if (name === '--q') {
       filters.q = setOnce(filters.q, value, name);
+    } else if (name === '--account-ref') {
+      filters.accountRef = setOnce(filters.accountRef, parseAccountRef(value), name);
     } else if (name === '--account-id') {
       filters.accountId = setOnce(filters.accountId, value, name);
     } else if (name === '--category-id') {
@@ -458,6 +462,9 @@ function parseTransactions(args: string[]): TransactionFilters {
     && filters.endDate < filters.startDate
   ) {
     throw new UsageError('--end-date must not be before --start-date');
+  }
+  if (filters.accountRef !== undefined && filters.accountId !== undefined) {
+    throw new UsageError('Use either --account-ref or --account-id, not both');
   }
 
   return filters;

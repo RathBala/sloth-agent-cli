@@ -485,6 +485,7 @@ describe('CLI arguments', () => {
   });
 
   it('parses transaction filters and validates their values', () => {
+    const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
     expect(parseArgs([
       'transactions',
       '--uncategorized=false',
@@ -496,8 +497,8 @@ describe('CLI arguments', () => {
       '--end-date=2026-05-31',
       '--q',
       'tesco',
-      '--account-id',
-      'account-1',
+      '--account-ref',
+      accountRef,
       '--category-id',
       'groceries',
       '--line-item-id',
@@ -515,7 +516,7 @@ describe('CLI arguments', () => {
         startDate: '2026-05-01',
         endDate: '2026-05-31',
         q: 'tesco',
-        accountId: 'account-1',
+        accountRef,
         categoryId: 'groceries',
         lineItemId: 'weekly',
         assignmentScope: 'joint',
@@ -538,6 +539,11 @@ describe('CLI arguments', () => {
       '2026-05-01',
     ])).toThrow(/end-date must not be before --start-date/);
     expect(() => parseArgs(['transactions', '--q', ''])).toThrow(/requires a value/);
+    expect(() => parseArgs(['transactions', '--account-ref', 'account-1']))
+      .toThrow(/valid accountRef/);
+    expect(() => parseArgs([
+      'transactions', '--account-ref', accountRef, '--account-id', 'account-1',
+    ])).toThrow(/either --account-ref or --account-id/);
   });
 
   it('parses assignment and partner commands', () => {

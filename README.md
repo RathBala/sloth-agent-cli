@@ -471,6 +471,20 @@ Missing values are JSON
 are excluded, while enabled shared joint accounts follow Sloth's existing
 visibility rules.
 
+Use an account's opaque reference to read only its transactions. Transaction
+rows return the same `accountRef`, so pagination and follow-up reads keep the
+account boundary explicit:
+
+```bash
+sloth-agent transactions \
+  --account-ref PASTE_THE_EXACT_ACCOUNT_REF_HERE \
+  --limit 50
+```
+
+Copy the value from `sloth-agent accounts`. The older `--account-id` filter is
+still accepted for compatibility, but new workflows should use
+`--account-ref`. Do not provide both filters in one command.
+
 Account changes are previews unless `--apply` is present. Connected accounts
 support only goal-savings membership. Manual current accounts support their
 institution, name, currency, and ownership. Manual balance accounts also

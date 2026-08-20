@@ -600,7 +600,8 @@ export function transactionsHelpText(): string {
     '  --start-date YYYY-MM-DD        Optional. Include transactions on or after this date.',
     '  --end-date YYYY-MM-DD          Optional. Include transactions on or before this date.',
     '  --q TEXT                       Optional. Search transactions by text.',
-    '  --account-id ID                Optional. Filter by account ID.',
+    '  --account-ref REF              Optional. Filter by the opaque accountRef from sloth-agent accounts.',
+    '  --account-id ID                Optional legacy filter by provider or stored account ID.',
     '  --category-id ID               Optional. Filter by category ID.',
     '  --line-item-id ID              Optional. Filter primary or split assignments by line-item ID.',
     '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
@@ -612,6 +613,7 @@ export function transactionsHelpText(): string {
     '',
     'Constraints:',
     '  All filters are omitted by default.',
+    '  Use either --account-ref or --account-id, not both.',
     '  --end-date must not be before --start-date.',
     '  The first transaction read each UTC day may refresh linked bank data.',
     '  Refresh remotely persists booked transactions and account balances.',
@@ -1116,6 +1118,7 @@ function buildTransactionsQuery(
   if (filters.startDate !== undefined) params.set('startDate', filters.startDate);
   if (filters.endDate !== undefined) params.set('endDate', filters.endDate);
   if (filters.q !== undefined) params.set('q', filters.q);
+  if (filters.accountRef !== undefined) params.set('accountRef', filters.accountRef);
   if (filters.accountId !== undefined) params.set('accountId', filters.accountId);
   if (filters.categoryId !== undefined) params.set('categoryId', filters.categoryId);
   if (filters.lineItemId !== undefined) params.set('lineItemId', filters.lineItemId);

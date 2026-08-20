@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `transactions --account-ref REF` using the opaque reference returned by
+  `sloth-agent accounts`, while retaining `--account-id` for compatibility.
+- Require every transaction result to include its matching `accountRef`.
+
 ## 0.13.0 - 2026-08-19
 
 - Let `assign` share or unshare an owned booked personal transaction, update

@@ -166,6 +166,8 @@ describe('CLI execution', () => {
         'Integer from 1 to 200',
         '--cursor CURSOR',
         '--line-item-id ID',
+        '--account-ref REF',
+        'sloth-agent accounts',
         'must not be before --start-date',
         'waits up to 45 seconds',
         'remotely persists booked transactions',
@@ -1156,6 +1158,7 @@ describe('CLI execution', () => {
   });
 
   it('emits the documented transaction query shape', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
     const io = createIo();
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
       agentApiV1TransactionsResponse,
@@ -1173,8 +1176,8 @@ describe('CLI execution', () => {
       '2026-05-31',
       '--q',
       'tesco',
-      '--account-id',
-      'account-1',
+      '--account-ref',
+      accountRef,
       '--category-id',
       'groceries',
       '--line-item-id',
@@ -1190,7 +1193,7 @@ describe('CLI execution', () => {
     })).toBe(0);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&shared=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountId=account-1&categoryId=groceries&lineItemId=weekly&assignmentScope=joint&cursor=cursor-1',
+      `https://budget.slothmoney.app/api/agent/v1/transactions?uncategorized=false&shared=false&limit=25&startDate=2026-05-01&endDate=2026-05-31&q=tesco&accountRef=${encodeURIComponent(accountRef)}&categoryId=groceries&lineItemId=weekly&assignmentScope=joint&cursor=cursor-1`,
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Prefer: 'wait=45' }),

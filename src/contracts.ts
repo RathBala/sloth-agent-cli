@@ -379,6 +379,8 @@ function isTransaction(value: unknown): boolean {
     && typeof value.currency === 'string'
     && typeof value.date === 'string'
     && value.status === 'booked'
+    && typeof value.accountRef === 'string'
+    && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
     && typeof value.accountId === 'string'
     && typeof value.accountDocId === 'string'
     && typeof value.requisitionId === 'string'
