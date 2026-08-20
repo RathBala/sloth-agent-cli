@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Make every parent help page list its nested commands, and give
+  `line-items --help` its own group page instead of generic top-level usage.
+
 ## 0.14.0 - 2026-08-20
 
 - Add `transactions --account-ref REF` using the opaque reference returned by

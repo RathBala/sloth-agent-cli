@@ -111,24 +111,29 @@ try {
   assert.match(help, /sloth-agent goals mark-spent/);
   assert.match(help, /sloth-agent goals restore/);
   assert.match(help, /sloth-agent goals delete/);
+  assert.match(help, /Every nested subcommand has its own help/);
 
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
-    [['accounts', '--help'], [/existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalSavingsSource/]],
+    [['accounts', '--help'], [/accounts list/, /accounts update/, /accounts remove/, /existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalSavingsSource/]],
     [['accounts', 'update', '--help'], [/--institution-name NAME/, /--ownership individual\|joint/, /--goal-savings-source true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
     [['accounts', 'remove', '--help'], [/archive/, /retaining its underlying records/, /Without --apply/, /changed false/]],
     [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
-    [['budget', '--help'], [/--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
+    [['budget', '--help'], [/sloth-agent budget\s+Read one budget period\./, /budget status/, /budget update/, /budget move/, /--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
     [['budget', 'status', '--help'], [/current Sloth budget period/, /spentPence/, /availablePence/, /uncategorizedSpentPence/, /read-only/, /refresh/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
     [['budget', 'move', '--help'], [/--from-category-id ID/, /--amount AMOUNT/, /9,007,199,254,740,991/, /To Assign/, /Without --apply/, /may become negative/, /does not change planned amounts/]],
     [['categories', '--help'], [
+      /categories list/,
+      /categories create/,
+      /categories rename/,
       /A category is the broader parent\./,
       /most specific suitable line item/,
       /category's "Other" line item/,
     ]],
     [['categories', 'create', '--help'], [/--icon-key KEY/, /no mutation request/]],
     [['categories', 'rename', '--help'], [/Built-in categories are immutable/]],
+    [['line-items', '--help'], [/line-items create/, /line-items rename/, /command-specific details/]],
     [['line-items', 'create', '--help'], [/at zero/, /explicit future plans/]],
     [['line-items', 'rename', '--help'], [/--line-item-id ID/, /Historical snapshots remain unchanged/]],
     [['transactions', '--help'], [

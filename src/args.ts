@@ -52,6 +52,7 @@ export type HelpTopic =
   | 'categories'
   | 'categories-create'
   | 'categories-rename'
+  | 'line-items'
   | 'line-items-create'
   | 'line-items-rename'
   | 'transactions'
@@ -1126,7 +1127,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
   if (command === 'line-items') {
     if (subcommand === 'create') return 'line-items-create';
     if (subcommand === 'rename') return 'line-items-rename';
-    return undefined;
+    return 'line-items';
   }
   if (command === 'budget') {
     if (subcommand === 'status') return 'budget-status';

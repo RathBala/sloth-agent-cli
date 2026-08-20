@@ -80,6 +80,7 @@ describe('CLI execution', () => {
     expect(helpIo.stdout.join('')).toContain('sloth-agent transactions');
     expect(helpIo.stdout.join('')).toContain('[--account-ref REF] [--account-id ID]');
     expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
+    expect(helpIo.stdout.join('')).toContain('Every nested subcommand has its own help');
     expect(helpIo.stdout.join('')).toContain('view-only');
     expect(helpIo.stderr).toEqual([]);
 
@@ -99,6 +100,9 @@ describe('CLI execution', () => {
       [['auth', 'status', '--help'], ['live API request', 'remoteStatus']],
       [['auth', 'logout', '--help'], ['does not revoke', 'SLOTH_AGENT_TOKEN']],
       [['categories', '--help'], [
+        'categories list',
+        'categories create',
+        'categories rename',
         'A category is the broader parent.',
         'Bills → Other',
         '(scope, categoryId, lineItemId)',
@@ -106,6 +110,8 @@ describe('CLI execution', () => {
         'read-only',
       ]],
       [['budget', '--help'], [
+        'sloth-agent budget         Read one budget period.',
+        'budget status', 'budget update', 'budget move',
         '--scope personal|joint', '--period YYYY-MM', 'read-only',
         'periodStatus', 'funding', 'categories[].lineItems',
       ]],
@@ -136,7 +142,13 @@ describe('CLI execution', () => {
       [['line-items', 'rename', '--help'], [
         '--line-item-id ID', '--name NAME', 'Without --apply', 'write-enabled token',
       ]],
+      [['line-items', '--help'], [
+        'line-items create', 'line-items rename', 'command-specific details',
+      ]],
       [['accounts', '--help'], [
+        'accounts list',
+        'accounts update',
+        'accounts remove',
         'existing Sloth account inventory',
         'read-only',
         'native currency',

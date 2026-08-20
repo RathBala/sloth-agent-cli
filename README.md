@@ -98,7 +98,7 @@ An assignment can change an owned transaction's sharing, categorisation, or
 both.
 
 Every command has built-in reference documentation covering its inputs,
-options, output, and examples:
+options, output, and examples. For example:
 
 ```bash
 sloth-agent auth login --help
@@ -109,6 +109,7 @@ sloth-agent budget update --help
 sloth-agent budget move --help
 sloth-agent categories --help
 sloth-agent categories create --help
+sloth-agent line-items --help
 sloth-agent line-items create --help
 sloth-agent transactions --help
 sloth-agent assign --help

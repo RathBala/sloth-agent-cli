@@ -17,10 +17,14 @@
 
 - Use npm and commit `package-lock.json`.
 - Use Red / Green / Refactor for functional changes.
+- For work that adds, changes, or reviews a public command, option, help route,
+  or CLI contract, use the canonical `agent-cli-design` skill before editing.
 - When adding or changing a command or option, update its command-specific
   `-h`/`--help` in the same change. State required and optional inputs,
   accepted formats or ranges, defaults, output, and write/dry-run behaviour,
-  then add a help-routing or packed-binary regression test.
+  then add a help-routing or packed-binary regression test. For a nested
+  command, update both the top-level command index and its parent-group index,
+  and cover the parent group in a parser or packed-binary regression test.
 - For any externally visible command, option, output, authentication, or Agent
   API contract change, inventory the sibling `sloth-site` public documentation
   before release. Update applicable developer pages and review affected privacy
