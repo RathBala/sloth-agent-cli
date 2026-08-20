@@ -1,4 +1,5 @@
 import { UsageError } from './errors.js';
+import { isAccountRef } from './account-ref.js';
 import {
   CATEGORY_TYPES,
   ICON_KEYS,
@@ -505,7 +506,7 @@ function requiredOption(values: Map<string, string>, option: string, commandLabe
 }
 
 function parseAccountRef(value: string): string {
-  if (!/^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value)) {
+  if (!isAccountRef(value)) {
     throw new UsageError('--account-ref must be a valid accountRef from sloth-agent accounts');
   }
   return value;

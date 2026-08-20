@@ -2,6 +2,7 @@ import {
   ApiError,
   UsageError,
 } from './errors.js';
+import { isAccountRef } from './account-ref.js';
 import { CATEGORY_TYPES, ICON_KEYS } from './category-metadata.js';
 import { isGoalType } from './goal-metadata.js';
 
@@ -379,8 +380,7 @@ function isTransaction(value: unknown): boolean {
     && typeof value.currency === 'string'
     && typeof value.date === 'string'
     && value.status === 'booked'
-    && typeof value.accountRef === 'string'
-    && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
+    && isAccountRef(value.accountRef)
     && typeof value.accountId === 'string'
     && typeof value.accountDocId === 'string'
     && typeof value.requisitionId === 'string'
@@ -872,8 +872,7 @@ function isAccount(value: unknown): boolean {
       'connectionState',
       'isGoalSavingsSource',
     ])
-    && typeof value.accountRef === 'string'
-    && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
+    && isAccountRef(value.accountRef)
     && isNullableNonEmptyString(value.accountName)
     && isNullableNonEmptyString(value.institutionName)
     && (
@@ -927,8 +926,7 @@ function isAccountRemovalResponse(value: unknown): boolean {
     && hasOnlyFields(value, ['removed', 'changed', 'accountRef'])
     && value.removed === true
     && typeof value.changed === 'boolean'
-    && typeof value.accountRef === 'string'
-    && /^sloth_account_v1_[A-Za-z0-9_-]{43}$/.test(value.accountRef)
+    && isAccountRef(value.accountRef)
   );
 }
 

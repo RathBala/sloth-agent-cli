@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 - 2026-08-20
 
 - Add `transactions --account-ref REF` using the opaque reference returned by
   `sloth-agent accounts`, while retaining `--account-id` for compatibility.

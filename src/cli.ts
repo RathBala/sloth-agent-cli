@@ -26,7 +26,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.13.0';
+export const CLI_VERSION = '0.14.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -76,7 +76,7 @@ export function usageText(): string {
     '  sloth-agent line-items rename --scope personal|joint --category-id ID --line-item-id ID --name NAME [--apply]',
     '  sloth-agent transactions [--uncategorized[=true|false]] [--shared[=true|false]] [--limit N]',
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
-    '    [--account-id ID] [--category-id ID] [--line-item-id ID]',
+    '    [--account-ref REF] [--account-id ID] [--category-id ID] [--line-item-id ID]',
     '    [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent goals [list] [--base-url URL]',
@@ -601,6 +601,7 @@ export function transactionsHelpText(): string {
     '  --end-date YYYY-MM-DD          Optional. Include transactions on or before this date.',
     '  --q TEXT                       Optional. Search transactions by text.',
     '  --account-ref REF              Optional. Filter by the opaque accountRef from sloth-agent accounts.',
+    '                                  Copy the exact sloth_account_v1_... value.',
     '  --account-id ID                Optional legacy filter by provider or stored account ID.',
     '  --category-id ID               Optional. Filter by category ID.',
     '  --line-item-id ID              Optional. Filter primary or split assignments by line-item ID.',
@@ -621,6 +622,7 @@ export function transactionsHelpText(): string {
     '',
     'Output:',
     '  JSON containing transactions, nextCursor, and structured refresh status.',
+    '  Every transaction includes accountRef for its originating account.',
     '  Refresh failures do not hide readable cached transactions.',
     '  Personal assignments use the top-level categoryId, lineItemId, and categorySplits.',
     '  Joint assignments appear under jointBudgetContribution.',
