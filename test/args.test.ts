@@ -543,9 +543,8 @@ describe('CLI arguments', () => {
     expect(() => parseArgs(['transactions', '--q', ''])).toThrow(/requires a value/);
     expect(() => parseArgs(['transactions', '--account-ref', 'account-1']))
       .toThrow(/valid accountRef/);
-    expect(() => parseArgs([
-      'transactions', '--account-ref', accountRef, '--account-id', 'account-1',
-    ])).toThrow(/either --account-ref or --account-id/);
+    expect(() => parseArgs(['transactions', '--account-id', 'account-1']))
+      .toThrow(/Unknown transactions option: --account-id/);
   });
 
   it('parses assignment and partner commands', () => {

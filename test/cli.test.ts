@@ -105,7 +105,8 @@ describe('CLI execution', () => {
     const helpIo = createIo();
     expect(await runCli(['--help'], { env: {}, ...helpIo })).toBe(0);
     expect(helpIo.stdout.join('')).toContain('sloth-agent transactions');
-    expect(helpIo.stdout.join('')).toContain('[--account-ref REF] [--account-id ID]');
+    expect(helpIo.stdout.join('')).toContain('[--account-ref REF]');
+    expect(helpIo.stdout.join('')).not.toContain('--account-id');
     expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
     expect(helpIo.stdout.join('')).toContain('Every nested subcommand has its own help');
     expect(helpIo.stdout.join('')).toContain('view-only');
@@ -1281,11 +1282,9 @@ describe('CLI execution', () => {
     );
   });
 
-  it('retains the legacy transaction account ID filter', async () => {
+  it('rejects the removed transaction account ID filter before making a request', async () => {
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
-      agentApiV1TransactionsResponse,
-    ));
+    const fetchMock = vi.fn();
 
     expect(await runCli([
       'transactions',
@@ -1295,12 +1294,10 @@ describe('CLI execution', () => {
       env: { SLOTH_AGENT_TOKEN: 'token' },
       fetch: fetchMock,
       ...io,
-    })).toBe(0);
+    })).toBe(2);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://budget.slothmoney.app/api/agent/v1/transactions?accountId=legacy-account-1',
-      expect.objectContaining({ method: 'GET' }),
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(io.stderr.join('')).toMatch(/Unknown transactions option: --account-id/);
   });
 
   it('previews category creation without a mutation request and applies encoded category rename', async () => {

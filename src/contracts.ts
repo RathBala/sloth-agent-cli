@@ -502,9 +502,6 @@ function isTransaction(value: unknown): boolean {
     && typeof value.date === 'string'
     && value.status === 'booked'
     && isAccountRef(value.accountRef)
-    && typeof value.accountId === 'string'
-    && typeof value.accountDocId === 'string'
-    && typeof value.requisitionId === 'string'
     && (value.scope === 'personal' || value.scope === 'joint')
     && (value.categoryId === null || typeof value.categoryId === 'string')
     && (value.lineItemId === null || typeof value.lineItemId === 'string')

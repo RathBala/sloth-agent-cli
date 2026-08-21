@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.14.1 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.15.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -533,9 +533,8 @@ sloth-agent transactions \
   --limit 50
 ```
 
-Copy the value from `sloth-agent accounts`. The older `--account-id` filter is
-still accepted for compatibility, but new workflows should use
-`--account-ref`. Do not provide both filters in one command.
+Copy the value from `sloth-agent accounts`. Account references are the public
+account identifier for transaction filtering.
 
 Account changes are previews unless `--apply` is present. Connected accounts
 support only goal-savings membership. Manual current accounts support their

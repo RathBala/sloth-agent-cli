@@ -27,7 +27,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.14.1';
+export const CLI_VERSION = '0.15.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -77,7 +77,7 @@ export function usageText(): string {
     '  sloth-agent line-items rename --scope personal|joint --category-id ID --line-item-id ID --name NAME [--apply]',
     '  sloth-agent transactions [--uncategorized[=true|false]] [--shared[=true|false]] [--limit N]',
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
-    '    [--account-ref REF] [--account-id ID] [--category-id ID] [--line-item-id ID]',
+    '    [--account-ref REF] [--category-id ID] [--line-item-id ID]',
     '    [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent rules [list] [--base-url URL]',
@@ -649,7 +649,6 @@ export function transactionsHelpText(): string {
     '  --q TEXT                       Optional. Search transactions by text.',
     '  --account-ref REF              Optional. Filter by the opaque accountRef from sloth-agent accounts.',
     '                                  Copy the exact sloth_account_v1_... value.',
-    '  --account-id ID                Optional legacy filter by provider or stored account ID.',
     '  --category-id ID               Optional. Filter by category ID.',
     '  --line-item-id ID              Optional. Filter primary or split assignments by line-item ID.',
     '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
@@ -661,7 +660,6 @@ export function transactionsHelpText(): string {
     '',
     'Constraints:',
     '  All filters are omitted by default.',
-    '  Use either --account-ref or --account-id, not both.',
     '  --end-date must not be before --start-date.',
     '  The first transaction read each UTC day may refresh linked bank data.',
     '  Refresh remotely persists booked transactions and account balances.',
@@ -1331,7 +1329,6 @@ function buildTransactionsQuery(
   if (filters.endDate !== undefined) params.set('endDate', filters.endDate);
   if (filters.q !== undefined) params.set('q', filters.q);
   if (filters.accountRef !== undefined) params.set('accountRef', filters.accountRef);
-  if (filters.accountId !== undefined) params.set('accountId', filters.accountId);
   if (filters.categoryId !== undefined) params.set('categoryId', filters.categoryId);
   if (filters.lineItemId !== undefined) params.set('lineItemId', filters.lineItemId);
   if (filters.assignmentScope !== undefined) {

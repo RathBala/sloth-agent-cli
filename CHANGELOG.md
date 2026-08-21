@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 - 2026-08-21
 
-- Add `rules` commands to list, read, preview, apply, and delete notification rules anchored to existing transaction references.
-- Add optional one-time PDF renewal-date extraction. Preview mode keeps the file local; apply mode sends it for extraction and the service discards it without storing the contract.
-- Keep recurring predictions and transaction creation outside the Rules contract.
+- Add `rules` commands to list, read, preview, apply, and delete notification
+  rules anchored to existing transaction references.
+- Add optional one-time PDF renewal-date extraction. Preview mode keeps the
+  file local; apply mode sends it for extraction and the service discards it
+  without storing the contract.
+- Keep recurring predictions and transaction creation outside the Rules
+  contract.
+- Remove the legacy transaction `--account-id` filter and stop exposing
+  internal account and connection locator fields in transaction responses.
+  Use the opaque `accountRef` returned by `sloth-agent accounts`.
 
 ## 0.14.1 - 2026-08-21
 

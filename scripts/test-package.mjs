@@ -106,6 +106,7 @@ try {
   assert.match(help, /sloth-agent categories create/);
   assert.match(help, /sloth-agent line-items create/);
   assert.match(help, /sloth-agent transactions/);
+  assert.doesNotMatch(help, /--account-id/);
   assert.match(help, /sloth-agent goals create/);
   assert.match(help, /sloth-agent goals update/);
   assert.match(help, /sloth-agent goals mark-spent/);
@@ -139,6 +140,7 @@ try {
     [['transactions', '--help'], [
       /selected assignment scope/,
       /--shared\[=true\|false\]/,
+      /--account-ref REF/,
       /native scope is used when omitted/,
       /1 to 200/,
       /--line-item-id ID/,
@@ -181,7 +183,19 @@ try {
     for (const expected of expectedPatterns) {
       assert.match(commandHelp, expected);
     }
+    if (args[0] === 'transactions') {
+      assert.doesNotMatch(commandHelp, /--account-id/);
+    }
   }
+
+  const removedAccountId = spawnCliSync([
+    'transactions', '--account-id', 'legacy-account-1',
+  ], {
+    encoding: 'utf8',
+    env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
+  });
+  assert.equal(removedAccountId.status, 2);
+  assert.match(removedAccountId.stderr, /Unknown transactions option: --account-id/);
 
   const goalCreatePreview = JSON.parse(runCliSync([
     'goals', 'create', '--name', 'Wedding', '--target-amount', '22000',
