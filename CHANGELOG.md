@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.14.1 - 2026-08-21
 
 - Make every parent help page list its nested commands, and give
   `line-items --help` its own group page instead of generic top-level usage.
