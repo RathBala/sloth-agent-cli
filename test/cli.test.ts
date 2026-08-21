@@ -24,6 +24,8 @@ import {
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
   agentApiV1InvestmentsResponse,
+  agentApiV1NotificationRule,
+  agentApiV1RenewalExtractionResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -74,6 +76,16 @@ function writeNotificationRule(payload: unknown): string {
   return filePath;
 }
 
+function writeContractPdf(filename = 'contract.pdf', bytes = 20): string {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-agent-contract-test-'));
+  tempDirectories.push(directory);
+  const filePath = path.join(directory, filename);
+  const content = Buffer.alloc(bytes, 0x20);
+  content.write('%PDF-1.4');
+  fs.writeFileSync(filePath, content);
+  return filePath;
+}
+
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -88,7 +100,7 @@ describe('CLI execution', () => {
     const input = writeNotificationRule({
       amountChange: { enabled: true, comparison: 'increase', baselinePence: 3184 },
       renewalReminder: { enabled: true, renewalDate: '2027-07-30', leadDays: 30 },
-      delivery: { inApp: true, email: true },
+      delivery: { email: true },
     });
     expect(await runCli([
       'rules', 'set', '--transaction-ref', 'sloth_txn_example', '--input', input,
@@ -96,9 +108,73 @@ describe('CLI execution', () => {
     expect(JSON.parse(io.stdout.join(''))).toMatchObject({
       dryRun: true,
       method: 'PUT',
-      payload: { transactionRef: 'sloth_txn_example', delivery: { inApp: true, email: true } },
+      payload: { transactionRef: 'sloth_txn_example', delivery: { email: true } },
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('writes the canonical notification rule request and accepts computed response fields', async () => {
+    const io = createIo();
+    const input = writeNotificationRule({
+      amountChange: { enabled: true, comparison: 'increase', baselinePence: 3184 },
+      renewalReminder: { enabled: true, renewalDate: '2027-07-30', leadDays: 30 },
+      delivery: { email: true },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ rule: agentApiV1NotificationRule }));
+
+    expect(await runCli([
+      'rules', 'set', '--transaction-ref', 'sloth_txn_opaque', '--input', input, '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: fetchMock, ...io,
+    }), io.stderr.join('')).toBe(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/agent/v1/notification-rules/for-transaction?'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          transactionRef: 'sloth_txn_opaque',
+          amountChange: { enabled: true, comparison: 'increase', baselinePence: 3184 },
+          renewalReminder: { enabled: true, renewalDate: '2027-07-30', leadDays: 30 },
+          delivery: { email: true },
+        }),
+      }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual({ rule: agentApiV1NotificationRule });
+  });
+
+  it('sends the canonical contract extraction request and accepts no detected date', async () => {
+    const io = createIo();
+    const contract = writeContractPdf('aviva-renewal.pdf');
+    const contentBase64 = fs.readFileSync(contract).toString('base64');
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1RenewalExtractionResponse));
+
+    expect(await runCli([
+      'rules', 'scan-contract', '--contract', contract, '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: fetchMock, ...io,
+    }), io.stderr.join('')).toBe(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/notification-rules/extract-renewal',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          filename: 'aviva-renewal.pdf',
+          mimeType: 'application/pdf',
+          contentBase64,
+        }),
+      }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1RenewalExtractionResponse);
+  });
+
+  it('rejects PDFs whose base64 form would exceed the API limit', async () => {
+    const io = createIo();
+    const contract = writeContractPdf('too-large.pdf', 6_000_001);
+
+    expect(await runCli([
+      'rules', 'scan-contract', '--contract', contract,
+    ], { env: {}, ...io })).toBe(2);
+    expect(io.stderr.join('')).toContain('no larger than 6 MB');
   });
 
   it('prints help and version without requiring a token', async () => {
@@ -268,6 +344,8 @@ describe('CLI execution', () => {
         'baselinePence',
         'renewalDate',
         'delivery',
+        '1 to 365',
+        'In-app notifications are always included',
         'Without --apply',
         'write-enabled token',
         'rule.json',

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import nodePath from 'node:path';
 
 import {
   type CliEnvironment,
@@ -30,6 +31,7 @@ import {
 
 export const CLI_VERSION = '0.16.0';
 const REQUEST_TIMEOUT_MS = 60_000;
+const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
   '',
   'API origin:',
@@ -1127,13 +1129,13 @@ export function rulesSetHelpText(): string {
     '      "renewalDate": "2027-07-30",',
     '      "leadDays": 30',
     '    },',
-    '    "delivery": { "inApp": true, "email": true }',
+    '    "delivery": { "email": true }',
     '  }',
     '',
     '  comparison accepts increase or any. baselinePence is a positive integer.',
     '  renewalDate is YYYY-MM-DD or null when its reminder is disabled.',
-    '  leadDays is an integer from 0 to 365. At least one condition must be enabled.',
-    '  delivery.inApp must be true; delivery.email adds email delivery.',
+    '  leadDays is an integer from 1 to 365. At least one condition must be enabled.',
+    '  In-app notifications are always included. delivery.email adds email delivery.',
     '',
     'Write behavior:',
     '  Without --apply, Sloth validates the file and prints a local preview.',
@@ -1404,7 +1406,7 @@ function readContractPdf(filePath: string): Buffer {
     const message = error instanceof Error ? error.message : String(error);
     throw new UsageError(`Failed to read contract PDF: ${message}`);
   }
-  if (file.length === 0 || file.length > 6 * 1024 * 1024 || file.subarray(0, 4).toString() !== '%PDF') {
+  if (file.length === 0 || file.length > MAX_CONTRACT_PDF_BYTES || file.subarray(0, 4).toString() !== '%PDF') {
     throw new UsageError('Contract must be a PDF no larger than 6 MB');
   }
   return file;
@@ -2110,8 +2112,9 @@ export async function runCli(
           method: 'POST',
           headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fileBase64: contract.toString('base64'),
+            filename: nodePath.basename(parsed.contract),
             mimeType: 'application/pdf',
+            contentBase64: contract.toString('base64'),
           }),
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         },

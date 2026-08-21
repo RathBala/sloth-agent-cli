@@ -231,3 +231,30 @@ export const agentApiV1BudgetMovementResponse = {
     { categoryId: 'groceries', assignedPence: 49_295 },
   ],
 } as const;
+
+export const agentApiV1NotificationRule = {
+  id: 'rule_opaque',
+  transactionRef: 'sloth_txn_opaque',
+  merchantName: 'Pact Coffee',
+  currency: 'GBP',
+  sourceAmountPence: 3184,
+  amountChange: {
+    enabled: true,
+    comparison: 'increase',
+    baselinePence: 3184,
+  },
+  renewalReminder: {
+    enabled: true,
+    renewalDate: '2027-07-30',
+    leadDays: 30,
+    remindOn: '2027-06-30',
+  },
+  delivery: { inApp: true, email: true },
+  createdAt: null,
+  updatedAt: '2026-08-20T08:00:00.000Z',
+} as const;
+
+export const agentApiV1RenewalExtractionResponse = {
+  renewalDate: null,
+  confidence: 'low',
+} as const;

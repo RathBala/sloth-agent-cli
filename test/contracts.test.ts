@@ -5,6 +5,7 @@ import {
   validateReceiptConfirmation,
   validateAssignmentPayload,
   validateBudgetUpdatePayload,
+  validateNotificationRulePayload,
 } from '../src/contracts.js';
 import {
   agentApiV1AccountsResponse,
@@ -22,8 +23,41 @@ import {
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
   agentApiV1InvestmentsResponse,
+  agentApiV1NotificationRule,
+  agentApiV1RenewalExtractionResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
+
+describe('notification rule contracts', () => {
+  it('accepts the Agent API write shape and rejects computed response fields in input', () => {
+    const input = {
+      amountChange: { enabled: true, comparison: 'increase', baselinePence: 3184 },
+      renewalReminder: { enabled: true, renewalDate: '2027-07-30', leadDays: 30 },
+      delivery: { email: true },
+    } as const;
+
+    expect(validateNotificationRulePayload(input)).toEqual(input);
+    expect(() => validateNotificationRulePayload({
+      ...input,
+      delivery: { inApp: true, email: true },
+    })).toThrow(/unknown field.*inApp/i);
+    expect(() => validateNotificationRulePayload({
+      ...input,
+      renewalReminder: { ...input.renewalReminder, leadDays: 0 },
+    })).toThrow(/1 to 365/i);
+  });
+
+  it('accepts canonical rule and extraction responses', () => {
+    expect(parseApiResponse('rules-get', { rule: agentApiV1NotificationRule }))
+      .toEqual({ rule: agentApiV1NotificationRule });
+    expect(parseApiResponse('rules-set', { rule: agentApiV1NotificationRule }))
+      .toEqual({ rule: agentApiV1NotificationRule });
+    expect(parseApiResponse('rules-list', { rules: [agentApiV1NotificationRule] }))
+      .toEqual({ rules: [agentApiV1NotificationRule] });
+    expect(parseApiResponse('rules-scan-contract', agentApiV1RenewalExtractionResponse))
+      .toEqual(agentApiV1RenewalExtractionResponse);
+  });
+});
 
 describe('budget update payload validation', () => {
   it('accepts unique nonnegative line-item allocations', () => {

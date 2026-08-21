@@ -52,7 +52,7 @@ export interface NotificationRulePayload {
     renewalDate: string | null;
     leadDays: number;
   };
-  delivery: { inApp: true; email: boolean };
+  delivery: { email: boolean };
 }
 
 export interface ReceiptConfirmation {
@@ -142,7 +142,7 @@ export function validateNotificationRulePayload(value: unknown): NotificationRul
   const delivery = requireObject(payload.delivery, 'delivery');
   rejectUnknownFields(amountChange, new Set(['enabled', 'comparison', 'baselinePence']), 'amountChange');
   rejectUnknownFields(renewalReminder, new Set(['enabled', 'renewalDate', 'leadDays']), 'renewalReminder');
-  rejectUnknownFields(delivery, new Set(['inApp', 'email']), 'delivery');
+  rejectUnknownFields(delivery, new Set(['email']), 'delivery');
   if (typeof amountChange.enabled !== 'boolean') throw new UsageError('amountChange.enabled must be true or false');
   if (amountChange.comparison !== 'increase' && amountChange.comparison !== 'any') {
     throw new UsageError('amountChange.comparison must be increase or any');
@@ -157,11 +157,11 @@ export function validateNotificationRulePayload(value: unknown): NotificationRul
   if (renewalReminder.enabled && renewalReminder.renewalDate === null) {
     throw new UsageError('renewalReminder.renewalDate is required when enabled');
   }
-  if (!Number.isSafeInteger(renewalReminder.leadDays) || Number(renewalReminder.leadDays) < 0 || Number(renewalReminder.leadDays) > 365) {
-    throw new UsageError('renewalReminder.leadDays must be an integer from 0 to 365');
+  if (!Number.isSafeInteger(renewalReminder.leadDays) || Number(renewalReminder.leadDays) < 1 || Number(renewalReminder.leadDays) > 365) {
+    throw new UsageError('renewalReminder.leadDays must be an integer from 1 to 365');
   }
-  if (delivery.inApp !== true || typeof delivery.email !== 'boolean') {
-    throw new UsageError('delivery must include inApp: true and an email boolean');
+  if (typeof delivery.email !== 'boolean') {
+    throw new UsageError('delivery.email must be true or false');
   }
   if (!amountChange.enabled && !renewalReminder.enabled) {
     throw new UsageError('At least one notification rule must be enabled');
@@ -177,17 +177,24 @@ export function validateNotificationRulePayload(value: unknown): NotificationRul
       renewalDate: renewalReminder.renewalDate as string | null,
       leadDays: Number(renewalReminder.leadDays),
     },
-    delivery: { inApp: true, email: delivery.email },
+    delivery: { email: delivery.email },
   };
 }
 
 function isNotificationRule(value: unknown): boolean {
   if (!isObject(value)) return false;
+  const renewalReminder = value.renewalReminder;
+  const delivery = value.delivery;
+  if (!isObject(renewalReminder) || !isObject(delivery)) return false;
   try {
     validateNotificationRulePayload({
       amountChange: value.amountChange,
-      renewalReminder: value.renewalReminder,
-      delivery: value.delivery,
+      renewalReminder: {
+        enabled: renewalReminder.enabled,
+        renewalDate: renewalReminder.renewalDate,
+        leadDays: renewalReminder.leadDays,
+      },
+      delivery: { email: delivery.email },
     });
   } catch {
     return false;
@@ -201,8 +208,12 @@ function isNotificationRule(value: unknown): boolean {
     && typeof value.merchantName === 'string'
     && typeof value.currency === 'string'
     && Number.isSafeInteger(value.sourceAmountPence)
-    && typeof value.createdAt === 'string'
-    && typeof value.updatedAt === 'string';
+    && hasOnlyFields(renewalReminder, ['enabled', 'renewalDate', 'leadDays', 'remindOn'])
+    && (renewalReminder.remindOn === null || isIsoDate(renewalReminder.remindOn))
+    && hasOnlyFields(delivery, ['inApp', 'email'])
+    && delivery.inApp === true
+    && (value.createdAt === null || isIsoDateTime(value.createdAt))
+    && (value.updatedAt === null || isIsoDateTime(value.updatedAt));
 }
 
 function isNotificationRuleResponse(value: unknown): boolean {
@@ -228,7 +239,7 @@ function isNotificationRuleDeleteResponse(value: unknown): boolean {
 function isRenewalExtractionResponse(value: unknown): boolean {
   return isObject(value)
     && hasOnlyFields(value, ['renewalDate', 'confidence'])
-    && isIsoDate(value.renewalDate)
+    && (value.renewalDate === null || isIsoDate(value.renewalDate))
     && (value.confidence === 'high' || value.confidence === 'medium' || value.confidence === 'low');
 }
 

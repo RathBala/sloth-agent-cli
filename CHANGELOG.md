@@ -8,6 +8,13 @@
   sent to the confirmed evidence endpoint.
 - Keep reviewed receipt rows simple: `id`, `label`, and a signed amount, with
   discounts represented as negative rows.
+- Match notification-rule writes to the Agent API by sending only the optional
+  email choice while keeping in-app delivery server-owned and always enabled.
+- Accept computed renewal reminder dates and nullable rule timestamps in rule
+  responses, and accept a null extracted date when a PDF contains no usable
+  renewal date.
+- Send contract PDFs with the required filename and content fields, and align
+  the local 6 MB limit with the API's encoded-content limit.
 
 ## 0.15.0 - 2026-08-21
 
