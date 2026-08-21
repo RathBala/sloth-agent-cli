@@ -13,6 +13,7 @@ import {
   validateAssignmentPayload,
   validateBudgetMovementResponse,
   validateBudgetUpdatePayload,
+  validateNotificationRulePayload,
 } from './contracts.js';
 import {
   type CredentialStoreFactory,
@@ -79,6 +80,11 @@ export function usageText(): string {
     '    [--account-ref REF] [--account-id ID] [--category-id ID] [--line-item-id ID]',
     '    [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
+    '  sloth-agent rules [list] [--base-url URL]',
+    '  sloth-agent rules get --transaction-ref REF [--base-url URL]',
+    '  sloth-agent rules set --transaction-ref REF --input rule.json [--apply]',
+    '  sloth-agent rules delete --transaction-ref REF [--apply]',
+    '  sloth-agent rules scan-contract --contract FILE.pdf [--apply]',
     '  sloth-agent goals [list] [--base-url URL]',
     '  sloth-agent goals create --name NAME --target-amount AMOUNT',
     '    --type keep|spend [--target-month YYYY-MM] [--apply] [--base-url URL]',
@@ -1000,6 +1006,140 @@ export function askPartnerHelpText(): string {
   ].join('\n');
 }
 
+export function rulesHelpText(): string {
+  return [
+    'Sloth Agent CLI — rules',
+    '',
+    'Manage notifications for future payments that match an existing transaction.',
+    'Rules do not create transactions or recurring predictions.',
+    '',
+    'Commands:',
+    '  rules list           List every saved notification rule.',
+    '  rules get            Read the rule for one transaction.',
+    '  rules set            Preview or save a rule for one transaction.',
+    '  rules delete         Preview or remove a rule.',
+    '  rules scan-contract  Validate or scan a PDF for its renewal date.',
+    '',
+    'Use the exact transactionRef returned by sloth-agent transactions.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function rulesGetHelpText(): string {
+  return [
+    'Sloth Agent CLI — rules get',
+    '',
+    'Read the saved notification rule for one existing transaction.',
+    '',
+    'Usage:',
+    '  sloth-agent rules get --transaction-ref REF',
+    '',
+    'Required:',
+    '  --transaction-ref REF  The exact transactionRef from sloth-agent transactions.',
+    '',
+    'Behavior:',
+    '  This command is read-only and requires an agent:read token.',
+    '',
+    'Output:',
+    '  JSON containing the saved rule, or rule: null when no rule exists.',
+    '',
+    'Example:',
+    '  sloth-agent rules get --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function rulesSetHelpText(): string {
+  return [
+    'Sloth Agent CLI — rules set',
+    '',
+    'Preview or save notification conditions for one existing transaction.',
+    '',
+    'Usage:',
+    '  sloth-agent rules set --transaction-ref REF --input FILE [--apply]',
+    '',
+    'Required:',
+    '  --transaction-ref REF  The exact transactionRef from sloth-agent transactions.',
+    '  --input FILE            A JSON rule file such as rule.json.',
+    '',
+    'Input:',
+    '  {',
+    '    "amountChange": {',
+    '      "enabled": true,',
+    '      "comparison": "increase",',
+    '      "baselinePence": 3184',
+    '    },',
+    '    "renewalReminder": {',
+    '      "enabled": true,',
+    '      "renewalDate": "2027-07-30",',
+    '      "leadDays": 30',
+    '    },',
+    '    "delivery": { "inApp": true, "email": true }',
+    '  }',
+    '',
+    '  comparison accepts increase or any. baselinePence is a positive integer.',
+    '  renewalDate is YYYY-MM-DD or null when its reminder is disabled.',
+    '  leadDays is an integer from 0 to 365. At least one condition must be enabled.',
+    '  delivery.inApp must be true; delivery.email adds email delivery.',
+    '',
+    'Write behavior:',
+    '  Without --apply, Sloth validates the file and prints a local preview.',
+    '  With --apply, Sloth replaces the saved rule using a write-enabled token.',
+    '',
+    'Example:',
+    '  sloth-agent rules set --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE \\',
+    '    --input rule.json --apply',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function rulesDeleteHelpText(): string {
+  return [
+    'Sloth Agent CLI — rules delete',
+    '',
+    'Preview or remove the notification rule for one existing transaction.',
+    '',
+    'Usage:',
+    '  sloth-agent rules delete --transaction-ref REF [--apply]',
+    '',
+    'Required:',
+    '  --transaction-ref REF  The exact transactionRef from sloth-agent transactions.',
+    '',
+    'Write behavior:',
+    '  Without --apply, Sloth prints a local deletion preview.',
+    '  With --apply, Sloth removes the rule using a write-enabled token.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function rulesScanContractHelpText(): string {
+  return [
+    'Sloth Agent CLI — rules scan-contract',
+    '',
+    'Validate or scan a contract PDF for its renewal date.',
+    '',
+    'Usage:',
+    '  sloth-agent rules scan-contract --contract FILE.pdf [--apply]',
+    '',
+    'Required:',
+    '  --contract FILE.pdf  A PDF no larger than 6 MB.',
+    '',
+    'Behavior:',
+    '  Without --apply, the PDF is validated locally and is not sent anywhere.',
+    '  With --apply, the PDF is sent using a write-enabled token.',
+    '',
+    'Contract privacy:',
+    '  Sloth extracts a renewal date and then discards the file. It is not stored.',
+    '',
+    'Output:',
+    '  JSON containing renewalDate and confidence: high, medium, or low.',
+    '',
+    'Example:',
+    '  sloth-agent rules scan-contract --contract contract.pdf --apply',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
 export function commandHelpText(topic: HelpTopic): string {
   const helpByTopic: Record<HelpTopic, () => string> = {
     auth: authHelpText,
@@ -1022,6 +1162,11 @@ export function commandHelpText(topic: HelpTopic): string {
     'line-items-rename': lineItemsRenameHelpText,
     transactions: transactionsHelpText,
     assign: assignHelpText,
+    rules: rulesHelpText,
+    'rules-get': rulesGetHelpText,
+    'rules-set': rulesSetHelpText,
+    'rules-delete': rulesDeleteHelpText,
+    'rules-scan-contract': rulesScanContractHelpText,
     goals: goalsHelpText,
     'goals-list': goalsListHelpText,
     'goals-create': goalsCreateHelpText,
@@ -1148,6 +1293,29 @@ function readBudgetFile(filePath: string): unknown {
     const message = error instanceof Error ? error.message : String(error);
     throw new UsageError(`Failed to read budget JSON: ${message}`);
   }
+}
+
+function readNotificationRuleFile(filePath: string): unknown {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`Failed to read notification rule JSON: ${message}`);
+  }
+}
+
+function readContractPdf(filePath: string): Buffer {
+  let file: Buffer;
+  try {
+    file = fs.readFileSync(filePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`Failed to read contract PDF: ${message}`);
+  }
+  if (file.length === 0 || file.length > 6 * 1024 * 1024 || file.subarray(0, 4).toString() !== '%PDF') {
+    throw new UsageError('Contract must be a PDF no larger than 6 MB');
+  }
+  return file;
 }
 
 function buildTransactionsQuery(
@@ -1405,6 +1573,46 @@ export async function runCli(
       return 0;
     }
 
+    const notificationRulePayload = parsed.command === 'rules-set'
+      ? validateNotificationRulePayload(readNotificationRuleFile(parsed.input))
+      : undefined;
+    const notificationRuleEndpoint = (
+      parsed.command === 'rules-get'
+      || parsed.command === 'rules-set'
+      || parsed.command === 'rules-delete'
+    )
+      ? `${baseUrl}/api/agent/v1/notification-rules/for-transaction?${new URLSearchParams({
+        transactionRef: parsed.transactionRef,
+      }).toString()}`
+      : undefined;
+    if (parsed.command === 'rules-set' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: notificationRuleEndpoint,
+        method: 'PUT',
+        payload: { transactionRef: parsed.transactionRef, ...notificationRulePayload! },
+      });
+      return 0;
+    }
+    if (parsed.command === 'rules-delete' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: notificationRuleEndpoint,
+        method: 'DELETE',
+      });
+      return 0;
+    }
+    if (parsed.command === 'rules-scan-contract' && !parsed.apply) {
+      const contract = readContractPdf(parsed.contract);
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: `${baseUrl}/api/agent/v1/notification-rules/extract-renewal`,
+        method: 'POST',
+        contract: { bytes: contract.length, mimeType: 'application/pdf' },
+      });
+      return 0;
+    }
+
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
@@ -1645,6 +1853,59 @@ export async function runCli(
       const data = parseApiResponse('assign', await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
       return hasFailures(data) ? 1 : 0;
+    }
+
+    if (parsed.command === 'rules-list') {
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/notification-rules`, {
+        method: 'GET', headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      writeJson(writeStdout, parseApiResponse('rules-list', await parseHttpResponse(response, token)));
+      return 0;
+    }
+
+    if (parsed.command === 'rules-get') {
+      const response = await fetchImplementation(notificationRuleEndpoint!, {
+        method: 'GET', headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      writeJson(writeStdout, parseApiResponse('rules-get', await parseHttpResponse(response, token)));
+      return 0;
+    }
+
+    if (parsed.command === 'rules-set') {
+      const response = await fetchImplementation(notificationRuleEndpoint!, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactionRef: parsed.transactionRef, ...notificationRulePayload! }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      writeJson(writeStdout, parseApiResponse('rules-set', await parseHttpResponse(response, token)));
+      return 0;
+    }
+
+    if (parsed.command === 'rules-delete') {
+      const response = await fetchImplementation(notificationRuleEndpoint!, {
+        method: 'DELETE', headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      writeJson(writeStdout, parseApiResponse('rules-delete', await parseHttpResponse(response, token)));
+      return 0;
+    }
+
+    if (parsed.command === 'rules-scan-contract') {
+      const contract = readContractPdf(parsed.contract);
+      const response = await fetchImplementation(
+        `${baseUrl}/api/agent/v1/notification-rules/extract-renewal`,
+        {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileBase64: contract.toString('base64'),
+            mimeType: 'application/pdf',
+          }),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+      writeJson(writeStdout, parseApiResponse('rules-scan-contract', await parseHttpResponse(response, token)));
+      return 0;
     }
 
     if (parsed.command === 'ask-partner') {

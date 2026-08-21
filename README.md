@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect accounts, investments, and budgets, manage goals, move assigned budget money, update planned amounts, and categorise transactions through the
+Use your own agent to inspect accounts, investments, and budgets, manage goals, move assigned budget money, update planned amounts, categorise transactions, and configure payment notifications through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -112,6 +112,7 @@ sloth-agent categories create --help
 sloth-agent line-items --help
 sloth-agent line-items create --help
 sloth-agent transactions --help
+sloth-agent rules --help
 sloth-agent assign --help
 sloth-agent goals create --help
 sloth-agent goals update --help
@@ -119,6 +120,56 @@ sloth-agent goals mark-spent --help
 sloth-agent goals restore --help
 sloth-agent ask-partner --help
 ```
+
+### Add a transaction notification rule
+
+Rules watch future payments that match an existing transaction. They can alert
+you when the amount changes or before a renewal date. They do not create
+transactions or recurring predictions.
+
+First, run `sloth-agent transactions` and copy the exact `transactionRef` into
+`rule.json` alongside this rule definition:
+
+```json
+{
+  "amountChange": {
+    "enabled": true,
+    "comparison": "increase",
+    "baselinePence": 3184
+  },
+  "renewalReminder": {
+    "enabled": true,
+    "renewalDate": "2027-07-30",
+    "leadDays": 30
+  },
+  "delivery": {
+    "inApp": true,
+    "email": true
+  }
+}
+```
+
+Preview the write locally, then apply the same validated file:
+
+```bash
+sloth-agent rules set \
+  --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE \
+  --input rule.json
+
+sloth-agent rules set \
+  --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE \
+  --input rule.json \
+  --apply
+```
+
+To extract a renewal date first, scan a PDF no larger than 6 MB:
+
+```bash
+sloth-agent rules scan-contract --contract contract.pdf --apply
+```
+
+The PDF is discarded after extraction and is not stored. Scanning only returns
+the date and confidence; use `rules set` to save the resulting reminder.
 
 ### How transaction categorisation is represented
 

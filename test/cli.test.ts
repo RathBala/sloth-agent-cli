@@ -66,6 +66,14 @@ function writeAssignments(payload: unknown): string {
   return filePath;
 }
 
+function writeNotificationRule(payload: unknown): string {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-agent-rule-test-'));
+  tempDirectories.push(directory);
+  const filePath = path.join(directory, 'rule.json');
+  fs.writeFileSync(filePath, JSON.stringify(payload));
+  return filePath;
+}
+
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -74,6 +82,25 @@ function jsonResponse(data: unknown, status = 200) {
 }
 
 describe('CLI execution', () => {
+  it('previews notification rule writes locally without credentials or network', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn();
+    const input = writeNotificationRule({
+      amountChange: { enabled: true, comparison: 'increase', baselinePence: 3184 },
+      renewalReminder: { enabled: true, renewalDate: '2027-07-30', leadDays: 30 },
+      delivery: { inApp: true, email: true },
+    });
+    expect(await runCli([
+      'rules', 'set', '--transaction-ref', 'sloth_txn_example', '--input', input,
+    ], { env: {}, fetch: fetchMock as typeof fetch, ...io })).toBe(0);
+    expect(JSON.parse(io.stdout.join(''))).toMatchObject({
+      dryRun: true,
+      method: 'PUT',
+      payload: { transactionRef: 'sloth_txn_example', delivery: { inApp: true, email: true } },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('prints help and version without requiring a token', async () => {
     const helpIo = createIo();
     expect(await runCli(['--help'], { env: {}, ...helpIo })).toBe(0);
@@ -219,6 +246,43 @@ describe('CLI execution', () => {
         'Assignments do not create a separate list.',
         '1 to 100',
         'write-enabled token',
+      ]],
+      [['rules', '--help'], [
+        'rules list',
+        'rules get',
+        'rules set',
+        'rules delete',
+        'rules scan-contract',
+        'do not create transactions or recurring predictions',
+      ]],
+      [['rules', 'get', '--help'], [
+        '--transaction-ref REF',
+        'exact transactionRef',
+        'read-only',
+      ]],
+      [['rules', 'set', '--help'], [
+        '--transaction-ref REF',
+        '--input FILE',
+        'baselinePence',
+        'renewalDate',
+        'delivery',
+        'Without --apply',
+        'write-enabled token',
+        'rule.json',
+      ]],
+      [['rules', 'delete', '--help'], [
+        '--transaction-ref REF',
+        'Without --apply',
+        'write-enabled token',
+      ]],
+      [['rules', 'scan-contract', '--help'], [
+        '--contract FILE.pdf',
+        '6 MB',
+        'Without --apply',
+        'not sent',
+        'not stored',
+        'renewalDate',
+        'confidence',
       ]],
       [['goals', '--help'], [
         'goals list',

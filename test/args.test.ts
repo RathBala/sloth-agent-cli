@@ -560,6 +560,30 @@ describe('CLI arguments', () => {
     });
   });
 
+  it('parses notification rule management without recurring prediction options', () => {
+    expect(parseArgs(['rules'])).toEqual({ command: 'rules-list' });
+    expect(parseArgs(['rules', 'get', '--transaction-ref', 'sloth_txn_123']))
+      .toEqual({ command: 'rules-get', transactionRef: 'sloth_txn_123' });
+    expect(parseArgs([
+      'rules', 'set', '--transaction-ref', 'sloth_txn_123',
+      '--input', 'rule.json', '--apply',
+    ])).toEqual({
+      command: 'rules-set',
+      transactionRef: 'sloth_txn_123',
+      input: 'rule.json',
+      apply: true,
+    });
+    expect(parseArgs(['rules', 'delete', '--transaction-ref=sloth_txn_123']))
+      .toEqual({ command: 'rules-delete', transactionRef: 'sloth_txn_123', apply: false });
+    expect(parseArgs(['rules', 'scan-contract', '--contract', 'contract.pdf', '--apply']))
+      .toEqual({ command: 'rules-scan-contract', contract: 'contract.pdf', apply: true });
+
+    expect(() => parseArgs(['rules', 'set', '--transaction-ref', 'sloth_txn_123']))
+      .toThrow(/requires --input/);
+    expect(() => parseArgs(['rules', 'predict', '--cadence', 'monthly']))
+      .toThrow(/Unknown rules command/);
+  });
+
   it('parses scoped budget reads and updates', () => {
     expect(parseArgs(['budget', '--scope', 'personal', '--period', '2026-08'])).toEqual({
       command: 'budget',

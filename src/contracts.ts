@@ -41,6 +41,20 @@ export interface BudgetUpdatePayload {
   allocations: BudgetAllocation[];
 }
 
+export interface NotificationRulePayload {
+  amountChange: {
+    enabled: boolean;
+    comparison: 'increase' | 'any';
+    baselinePence: number;
+  };
+  renewalReminder: {
+    enabled: boolean;
+    renewalDate: string | null;
+    leadDays: number;
+  };
+  delivery: { inApp: true; email: boolean };
+}
+
 type ApiCommand =
   | 'accounts'
   | 'accounts-update'
@@ -57,6 +71,11 @@ type ApiCommand =
   | 'line-items-rename'
   | 'transactions'
   | 'assign'
+  | 'rules-list'
+  | 'rules-get'
+  | 'rules-set'
+  | 'rules-delete'
+  | 'rules-scan-contract'
   | 'ask-partner'
   | 'goals-list'
   | 'goals-create'
@@ -95,6 +114,108 @@ function rejectUnknownFields(
 ): void {
   const unknown = Object.keys(value).find((key) => !allowed.has(key));
   if (unknown) throw new UsageError(`${label} contains unknown field: ${unknown}`);
+}
+
+export function validateNotificationRulePayload(value: unknown): NotificationRulePayload {
+  const payload = requireObject(value, 'notification rule payload');
+  rejectUnknownFields(
+    payload,
+    new Set(['amountChange', 'renewalReminder', 'delivery']),
+    'notification rule payload',
+  );
+  const amountChange = requireObject(payload.amountChange, 'amountChange');
+  const renewalReminder = requireObject(payload.renewalReminder, 'renewalReminder');
+  const delivery = requireObject(payload.delivery, 'delivery');
+  rejectUnknownFields(amountChange, new Set(['enabled', 'comparison', 'baselinePence']), 'amountChange');
+  rejectUnknownFields(renewalReminder, new Set(['enabled', 'renewalDate', 'leadDays']), 'renewalReminder');
+  rejectUnknownFields(delivery, new Set(['inApp', 'email']), 'delivery');
+  if (typeof amountChange.enabled !== 'boolean') throw new UsageError('amountChange.enabled must be true or false');
+  if (amountChange.comparison !== 'increase' && amountChange.comparison !== 'any') {
+    throw new UsageError('amountChange.comparison must be increase or any');
+  }
+  if (!Number.isSafeInteger(amountChange.baselinePence) || Number(amountChange.baselinePence) <= 0) {
+    throw new UsageError('amountChange.baselinePence must be a positive integer');
+  }
+  if (typeof renewalReminder.enabled !== 'boolean') throw new UsageError('renewalReminder.enabled must be true or false');
+  if (renewalReminder.renewalDate !== null && !isIsoDate(renewalReminder.renewalDate)) {
+    throw new UsageError('renewalReminder.renewalDate must be YYYY-MM-DD or null');
+  }
+  if (renewalReminder.enabled && renewalReminder.renewalDate === null) {
+    throw new UsageError('renewalReminder.renewalDate is required when enabled');
+  }
+  if (!Number.isSafeInteger(renewalReminder.leadDays) || Number(renewalReminder.leadDays) < 0 || Number(renewalReminder.leadDays) > 365) {
+    throw new UsageError('renewalReminder.leadDays must be an integer from 0 to 365');
+  }
+  if (delivery.inApp !== true || typeof delivery.email !== 'boolean') {
+    throw new UsageError('delivery must include inApp: true and an email boolean');
+  }
+  if (!amountChange.enabled && !renewalReminder.enabled) {
+    throw new UsageError('At least one notification rule must be enabled');
+  }
+  return {
+    amountChange: {
+      enabled: amountChange.enabled,
+      comparison: amountChange.comparison,
+      baselinePence: Number(amountChange.baselinePence),
+    },
+    renewalReminder: {
+      enabled: renewalReminder.enabled,
+      renewalDate: renewalReminder.renewalDate as string | null,
+      leadDays: Number(renewalReminder.leadDays),
+    },
+    delivery: { inApp: true, email: delivery.email },
+  };
+}
+
+function isNotificationRule(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  try {
+    validateNotificationRulePayload({
+      amountChange: value.amountChange,
+      renewalReminder: value.renewalReminder,
+      delivery: value.delivery,
+    });
+  } catch {
+    return false;
+  }
+  return hasOnlyFields(value, [
+    'id', 'transactionRef', 'merchantName', 'currency', 'sourceAmountPence', 'amountChange',
+    'renewalReminder', 'delivery', 'createdAt', 'updatedAt',
+  ])
+    && typeof value.id === 'string'
+    && typeof value.transactionRef === 'string'
+    && typeof value.merchantName === 'string'
+    && typeof value.currency === 'string'
+    && Number.isSafeInteger(value.sourceAmountPence)
+    && typeof value.createdAt === 'string'
+    && typeof value.updatedAt === 'string';
+}
+
+function isNotificationRuleResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['rule'])
+    && (value.rule === null || isNotificationRule(value.rule));
+}
+
+function isNotificationRuleListResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['rules'])
+    && Array.isArray(value.rules)
+    && value.rules.every(isNotificationRule);
+}
+
+function isNotificationRuleDeleteResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['deleted', 'transactionRef'])
+    && value.deleted === true
+    && typeof value.transactionRef === 'string';
+}
+
+function isRenewalExtractionResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['renewalDate', 'confidence'])
+    && isIsoDate(value.renewalDate)
+    && (value.confidence === 'high' || value.confidence === 'medium' || value.confidence === 'low');
 }
 
 function validateSplit(value: unknown, index: number, splitIndex: number): AgentCategorySplit {
@@ -1033,6 +1154,14 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
           ? isLineItemMutationResponse(value)
     : command === 'transactions'
       ? isTransactionsResponse(value)
+      : command === 'rules-list'
+        ? isNotificationRuleListResponse(value)
+        : command === 'rules-get' || command === 'rules-set'
+          ? isNotificationRuleResponse(value)
+          : command === 'rules-delete'
+            ? isNotificationRuleDeleteResponse(value)
+            : command === 'rules-scan-contract'
+              ? isRenewalExtractionResponse(value)
       : command === 'assign'
         ? isAssignmentResponse(value)
         : command === 'ask-partner'

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `rules` commands to list, read, preview, apply, and delete notification rules anchored to existing transaction references.
+- Add optional one-time PDF renewal-date extraction. Preview mode keeps the file local; apply mode sends it for extraction and the service discards it without storing the contract.
+- Keep recurring predictions and transaction creation outside the Rules contract.
+
 ## 0.14.1 - 2026-08-21
 
 - Make every parent help page list its nested commands, and give

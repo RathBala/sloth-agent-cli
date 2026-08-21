@@ -57,6 +57,11 @@ export type HelpTopic =
   | 'line-items-rename'
   | 'transactions'
   | 'assign'
+  | 'rules'
+  | 'rules-get'
+  | 'rules-set'
+  | 'rules-delete'
+  | 'rules-scan-contract'
   | 'goals'
   | 'goals-list'
   | 'goals-create'
@@ -167,6 +172,27 @@ export type ParsedCommand =
     filters: TransactionFilters;
   }
   | { command: 'assign'; baseUrl?: string; input: string; apply: boolean }
+  | { command: 'rules-list'; baseUrl?: string }
+  | { command: 'rules-get'; baseUrl?: string; transactionRef: string }
+  | {
+    command: 'rules-set';
+    baseUrl?: string;
+    transactionRef: string;
+    input: string;
+    apply: boolean;
+  }
+  | {
+    command: 'rules-delete';
+    baseUrl?: string;
+    transactionRef: string;
+    apply: boolean;
+  }
+  | {
+    command: 'rules-scan-contract';
+    baseUrl?: string;
+    contract: string;
+    apply: boolean;
+  }
   | { command: 'goals-list'; baseUrl?: string }
   | {
     command: 'goals-create';
@@ -1083,6 +1109,68 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
   throw new UsageError(`Unknown goals command: ${subcommand}`);
 }
 
+function parseRules(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand === undefined || subcommand === 'list') {
+    if (args.length > 0) {
+      throw new UsageError(`Unknown rules list option: ${args[0]}`);
+    }
+    return withBaseUrl({ command: 'rules-list' }, baseUrl);
+  }
+
+  if (subcommand === 'get' || subcommand === 'delete') {
+    const allowed = new Set(['--transaction-ref']);
+    const { values, apply } = parseNamedOptions(
+      args,
+      `rules ${subcommand}`,
+      allowed,
+    );
+    const transactionRef = requiredOption(
+      values,
+      '--transaction-ref',
+      `rules ${subcommand}`,
+    );
+    if (subcommand === 'get') {
+      if (apply) throw new UsageError('rules get does not accept --apply');
+      return withBaseUrl({ command: 'rules-get', transactionRef }, baseUrl);
+    }
+    return withBaseUrl({
+      command: 'rules-delete',
+      transactionRef,
+      apply,
+    }, baseUrl);
+  }
+
+  if (subcommand === 'set') {
+    const { values, apply } = parseNamedOptions(
+      args,
+      'rules set',
+      new Set(['--transaction-ref', '--input']),
+    );
+    return withBaseUrl({
+      command: 'rules-set',
+      transactionRef: requiredOption(values, '--transaction-ref', 'rules set'),
+      input: requiredOption(values, '--input', 'rules set'),
+      apply,
+    }, baseUrl);
+  }
+
+  if (subcommand === 'scan-contract') {
+    const { values, apply } = parseNamedOptions(
+      args,
+      'rules scan-contract',
+      new Set(['--contract']),
+    );
+    return withBaseUrl({
+      command: 'rules-scan-contract',
+      contract: requiredOption(values, '--contract', 'rules scan-contract'),
+      apply,
+    }, baseUrl);
+  }
+
+  throw new UsageError(`Unknown rules command: ${subcommand}`);
+}
+
 function helpTopic(argv: string[]): HelpTopic | undefined {
   const positionals: string[] = [];
 
@@ -1118,6 +1206,13 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'restore') return 'goals-restore';
     if (subcommand === 'delete') return 'goals-delete';
     return 'goals';
+  }
+  if (command === 'rules') {
+    if (subcommand === 'get') return 'rules-get';
+    if (subcommand === 'set') return 'rules-set';
+    if (subcommand === 'delete') return 'rules-delete';
+    if (subcommand === 'scan-contract') return 'rules-scan-contract';
+    return 'rules';
   }
   if (command === 'categories') {
     if (subcommand === 'create') return 'categories-create';
@@ -1166,6 +1261,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'goals') {
     return parseGoals(args, baseUrl);
+  }
+
+  if (command === 'rules') {
+    return parseRules(args, baseUrl);
   }
 
   if (command === 'categories') {
