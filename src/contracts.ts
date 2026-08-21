@@ -55,6 +55,16 @@ export interface NotificationRulePayload {
   delivery: { inApp: true; email: boolean };
 }
 
+export interface ReceiptConfirmation {
+  schemaVersion: 1;
+  currency: string;
+  receiptItems: Array<{
+    id: string;
+    label: string;
+    amountPence: number;
+  }>;
+}
+
 type ApiCommand =
   | 'accounts'
   | 'accounts-update'
@@ -82,7 +92,11 @@ type ApiCommand =
   | 'goals-update'
   | 'goals-mark-spent'
   | 'goals-restore'
-  | 'goals-delete';
+  | 'goals-delete'
+  | 'receipts-extract'
+  | 'receipts-get'
+  | 'receipts-attach'
+  | 'receipts-remove';
 type JsonObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is JsonObject {
@@ -422,6 +436,35 @@ export function validateBudgetUpdatePayload(value: unknown): BudgetUpdatePayload
   });
 
   return { allocations };
+}
+
+export function validateReceiptConfirmation(value: unknown): ReceiptConfirmation {
+  const receipt = requireObject(value, 'receipt');
+  rejectUnknownFields(receipt, new Set(['schemaVersion', 'currency', 'receiptItems']), 'receipt');
+  if (receipt.schemaVersion !== 1) throw new UsageError('receipt.schemaVersion must be 1');
+  if (typeof receipt.currency !== 'string' || !/^[A-Z]{3}$/.test(receipt.currency)) {
+    throw new UsageError('receipt.currency must be a three-letter uppercase code');
+  }
+  if (!Array.isArray(receipt.receiptItems) || receipt.receiptItems.length < 1 || receipt.receiptItems.length > 200) {
+    throw new UsageError('receipt.receiptItems must contain between 1 and 200 items');
+  }
+  const receiptItems = receipt.receiptItems.map((value, index) => {
+    const label = `receipt.receiptItems[${index}]`;
+    const item = requireObject(value, label);
+    rejectUnknownFields(item, new Set(['id', 'label', 'amountPence']), label);
+    const id = requireString(item.id, `${label}.id`);
+    const itemLabel = requireString(item.label, `${label}.label`);
+    if (id.length > 80 || itemLabel.length > 160) throw new UsageError(`${label} is too long`);
+    if (!Number.isSafeInteger(item.amountPence)) {
+      throw new UsageError(`${label}.amountPence must be a signed safe integer`);
+    }
+    return {
+      id,
+      label: itemLabel,
+      amountPence: Number(item.amountPence),
+    };
+  });
+  return { schemaVersion: 1, currency: receipt.currency, receiptItems };
 }
 
 function isLineItemMap(value: unknown): boolean {
@@ -1128,6 +1171,64 @@ function isGoalDeleteResponse(value: unknown): boolean {
   );
 }
 
+function isReceiptConfirmation(value: unknown): boolean {
+  try {
+    validateReceiptConfirmation(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isReceiptEvidence(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  const { revision, receiptTotalPence, confirmedAt, sourceSurface, ...confirmation } = value;
+  return (
+    hasOnlyFields(value, [
+      'schemaVersion',
+      'currency',
+      'receiptItems',
+      'revision',
+      'receiptTotalPence',
+      'confirmedAt',
+      'sourceSurface',
+    ])
+    && isReceiptConfirmation(confirmation)
+    && Number.isSafeInteger(revision)
+    && Number(revision) > 0
+    && Number.isSafeInteger(receiptTotalPence)
+    && isIsoDateTime(confirmedAt)
+    && (sourceSurface === 'web' || sourceSurface === 'agent_api')
+  );
+}
+
+function isReceiptExtractResponse(value: unknown): boolean {
+  if (!isObject(value) || !hasOnlyFields(value, ['draft']) || !isObject(value.draft)) return false;
+  const { warnings, ...confirmation } = value.draft;
+  return (
+    isReceiptConfirmation(confirmation)
+    && Array.isArray(warnings)
+    && warnings.length <= 20
+    && warnings.every((warning) => (
+      warning === 'currency_unclear' || warning === 'total_unclear' || warning === 'item_unclear'
+    ))
+  );
+}
+
+function isReceiptLookupResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['receipt'])
+    && (value.receipt === null || isReceiptEvidence(value.receipt));
+}
+
+function isReceiptMutationResponse(value: unknown): boolean {
+  return isObject(value) && hasOnlyFields(value, ['receipt']) && isReceiptEvidence(value.receipt);
+}
+
+function isReceiptDeleteResponse(value: unknown): boolean {
+  return isObject(value) && hasOnlyFields(value, ['deleted']) && value.deleted === true;
+}
+
 export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
   const valid = command === 'accounts'
     ? isAccountsResponse(value)
@@ -1159,6 +1260,14 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
             ? isNotificationRuleDeleteResponse(value)
             : command === 'rules-scan-contract'
               ? isRenewalExtractionResponse(value)
+      : command === 'receipts-extract'
+        ? isReceiptExtractResponse(value)
+        : command === 'receipts-get'
+          ? isReceiptLookupResponse(value)
+          : command === 'receipts-attach'
+            ? isReceiptMutationResponse(value)
+            : command === 'receipts-remove'
+              ? isReceiptDeleteResponse(value)
       : command === 'assign'
         ? isAssignmentResponse(value)
         : command === 'ask-partner'

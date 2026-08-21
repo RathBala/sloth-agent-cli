@@ -25,6 +25,11 @@ describe('CLI arguments', () => {
       parseArgs(['line-items', 'rename', '--help']),
       parseArgs(['transactions', '--help']),
       parseArgs(['assign', '--help']),
+      parseArgs(['receipts', '--help']),
+      parseArgs(['receipts', 'extract', '--help']),
+      parseArgs(['receipts', 'get', '--help']),
+      parseArgs(['receipts', 'attach', '--help']),
+      parseArgs(['receipts', 'remove', '--help']),
       parseArgs(['goals', '--help']),
       parseArgs(['goals', 'list', '--help']),
       parseArgs(['goals', 'create', '--help']),
@@ -50,6 +55,11 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'line-items-rename' },
       { command: 'help', topic: 'transactions' },
       { command: 'help', topic: 'assign' },
+      { command: 'help', topic: 'receipts' },
+      { command: 'help', topic: 'receipts-extract' },
+      { command: 'help', topic: 'receipts-get' },
+      { command: 'help', topic: 'receipts-attach' },
+      { command: 'help', topic: 'receipts-remove' },
       { command: 'help', topic: 'goals' },
       { command: 'help', topic: 'goals-list' },
       { command: 'help', topic: 'goals-create' },
@@ -581,6 +591,35 @@ describe('CLI arguments', () => {
       .toThrow(/requires --input/);
     expect(() => parseArgs(['rules', 'predict', '--cadence', 'monthly']))
       .toThrow(/Unknown rules command/);
+  });
+
+  it('parses receipt extraction, read, reviewed attach, and remove commands', () => {
+    expect(parseArgs(['receipts', 'extract', '--image', 'receipt.jpg'])).toEqual({
+      command: 'receipts-extract',
+      image: 'receipt.jpg',
+    });
+    expect(parseArgs(['receipts', 'get', '--transaction-ref', 'sloth_txn_1'])).toEqual({
+      command: 'receipts-get',
+      transactionRef: 'sloth_txn_1',
+    });
+    expect(parseArgs([
+      'receipts', 'attach', '--transaction-ref', 'sloth_txn_1', '--input', 'receipt.json',
+      '--expected-revision', '2', '--apply',
+    ])).toEqual({
+      command: 'receipts-attach',
+      transactionRef: 'sloth_txn_1',
+      input: 'receipt.json',
+      expectedRevision: 2,
+      apply: true,
+    });
+    expect(parseArgs([
+      'receipts', 'remove', '--transaction-ref', 'sloth_txn_1', '--revision', '2', '--apply',
+    ])).toEqual({
+      command: 'receipts-remove',
+      transactionRef: 'sloth_txn_1',
+      revision: 2,
+      apply: true,
+    });
   });
 
   it('parses scoped budget reads and updates', () => {

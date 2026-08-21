@@ -109,6 +109,7 @@ describe('CLI execution', () => {
     expect(helpIo.stdout.join('')).not.toContain('--account-id');
     expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
     expect(helpIo.stdout.join('')).toContain('Every nested subcommand has its own help');
+    expect(helpIo.stdout.join('')).toContain('sloth-agent receipts');
     expect(helpIo.stdout.join('')).toContain('view-only');
     expect(helpIo.stderr).toEqual([]);
 
@@ -285,6 +286,11 @@ describe('CLI execution', () => {
         'renewalDate',
         'confidence',
       ]],
+      [['receipts', '--help'], ['receipts extract', 'receipts get', 'receipts attach', 'receipts remove']],
+      [['receipts', 'extract', '--help'], ['--image FILE', 'does not save', 'JPEG, PNG, or WebP']],
+      [['receipts', 'get', '--help'], ['--transaction-ref REF', 'read-only', 'receipt or null']],
+      [['receipts', 'attach', '--help'], ['--input FILE', '--expected-revision', 'Without --apply', 'negative for discounts']],
+      [['receipts', 'remove', '--help'], ['--revision N', 'Without --apply', 'removes saved receipt items']],
       [['goals', '--help'], [
         'goals list',
         'goals create',
@@ -1422,6 +1428,89 @@ describe('CLI execution', () => {
       endpoint: 'https://budget.slothmoney.app/api/agent/v1/transaction-assignments',
       payload,
     });
+  });
+
+  it('extracts a transient receipt draft and previews reviewed receipt attachment before apply', async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-agent-receipt-'));
+    tempDirectories.push(directory);
+    const imagePath = path.join(directory, 'receipt.jpg');
+    fs.writeFileSync(imagePath, Buffer.from('receipt-image'));
+    const confirmation = {
+      schemaVersion: 1,
+      currency: 'GBP',
+      receiptItems: [
+        { id: 'meal', label: 'Dinner', amountPence: 8_900 },
+        { id: 'discount', label: 'Discount', amountPence: -500 },
+      ],
+    };
+    const extractIo = createIo();
+    const extractFetch = vi.fn().mockResolvedValue(jsonResponse({
+      draft: { ...confirmation, warnings: [] },
+    }));
+
+    expect(await runCli(['receipts', 'extract', '--image', imagePath], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: extractFetch, ...extractIo,
+    })).toBe(0);
+    expect(extractFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/receipts/extract',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Content-Type': 'image/jpeg' }),
+        body: expect.any(Buffer),
+      }),
+    );
+    expect(JSON.parse(extractIo.stdout.join(''))).toEqual({ draft: { ...confirmation, warnings: [] } });
+
+    const input = writeAssignments(confirmation);
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    expect(await runCli([
+      'receipts', 'attach', '--transaction-ref', 'sloth_txn_1', '--input', input,
+    ], { env: {}, fetch: previewFetch, ...previewIo })).toBe(0);
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: 'https://budget.slothmoney.app/api/agent/v1/receipts/confirmed',
+      method: 'PUT',
+      payload: { transactionRef: 'sloth_txn_1', expectedRevision: null, receipt: confirmation },
+    });
+  });
+
+  it('reads and removes confirmed receipt evidence with strict revision handling', async () => {
+    const confirmation = {
+      schemaVersion: 1,
+      currency: 'GBP',
+      receiptItems: [{ id: 'meal', label: 'Dinner', amountPence: 8_400 }],
+    };
+    const evidence = {
+      ...confirmation,
+      revision: 2,
+      receiptTotalPence: 8_400,
+      confirmedAt: '2026-08-20T10:00:00.000Z',
+      sourceSurface: 'agent_api',
+    };
+    const getIo = createIo();
+    const getFetch = vi.fn().mockResolvedValue(jsonResponse({ receipt: evidence }));
+    expect(await runCli(['receipts', 'get', '--transaction-ref', 'sloth_txn_1'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: getFetch, ...getIo,
+    })).toBe(0);
+    expect(getFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/receipts/confirmed?transactionRef=sloth_txn_1',
+      expect.objectContaining({ method: 'GET' }),
+    );
+
+    const removeIo = createIo();
+    const removeFetch = vi.fn().mockResolvedValue(jsonResponse({ deleted: true }));
+    expect(await runCli([
+      'receipts', 'remove', '--transaction-ref', 'sloth_txn_1', '--revision', '2', '--apply',
+    ], { env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: removeFetch, ...removeIo })).toBe(0);
+    expect(removeFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/receipts/confirmed',
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ transactionRef: 'sloth_txn_1', expectedRevision: 2 }),
+      }),
+    );
   });
 
   it('reads a scoped budget period with strict response validation', async () => {

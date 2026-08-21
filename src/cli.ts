@@ -14,6 +14,7 @@ import {
   validateBudgetMovementResponse,
   validateBudgetUpdatePayload,
   validateNotificationRulePayload,
+  validateReceiptConfirmation,
 } from './contracts.js';
 import {
   type CredentialStoreFactory,
@@ -27,7 +28,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.15.0';
+export const CLI_VERSION = '0.16.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const API_ORIGIN_HELP_LINES = [
   '',
@@ -85,6 +86,10 @@ export function usageText(): string {
     '  sloth-agent rules set --transaction-ref REF --input rule.json [--apply]',
     '  sloth-agent rules delete --transaction-ref REF [--apply]',
     '  sloth-agent rules scan-contract --contract FILE.pdf [--apply]',
+    '  sloth-agent receipts extract --image FILE [--base-url URL]',
+    '  sloth-agent receipts get --transaction-ref REF [--base-url URL]',
+    '  sloth-agent receipts attach --transaction-ref REF --input receipt.json [--expected-revision N] [--apply]',
+    '  sloth-agent receipts remove --transaction-ref REF --revision N [--apply]',
     '  sloth-agent goals [list] [--base-url URL]',
     '  sloth-agent goals create --name NAME --target-amount AMOUNT',
     '    --type keep|spend [--target-month YYYY-MM] [--apply] [--base-url URL]',
@@ -1047,6 +1052,56 @@ export function rulesGetHelpText(): string {
   ].join('\n');
 }
 
+export function receiptsHelpText(): string {
+  return [
+    'Sloth Agent CLI — receipts',
+    '',
+    'Extract, review, read, attach, or remove receipt items for a booked transaction.',
+    '',
+    'Commands:',
+    '  sloth-agent receipts extract   Extract a transient draft from an image',
+    '  sloth-agent receipts get       Read saved receipt items',
+    '  sloth-agent receipts attach    Preview or save reviewed JSON',
+    '  sloth-agent receipts remove    Preview or remove saved receipt items',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Receipt items are evidence only. They do not change categories, sharing, or budgets.',
+  ].join('\n');
+}
+
+export function receiptsExtractHelpText(): string {
+  return [
+    'Sloth Agent CLI — receipts extract',
+    '',
+    'Usage:',
+    '  sloth-agent receipts extract --image FILE [--base-url URL]',
+    '',
+    'Required input:',
+    '  --image FILE   JPEG, PNG, or WebP image up to 8 MB.',
+    '',
+    'This sends the image for one extraction request and does not save it or the draft.',
+    'Review the returned JSON before using receipts attach.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON containing draft.currency, draft.receiptItems, and draft.warnings.',
+  ].join('\n');
+}
+
+export function receiptsGetHelpText(): string {
+  return [
+    'Sloth Agent CLI — receipts get',
+    '',
+    'Usage:',
+    '  sloth-agent receipts get --transaction-ref REF [--base-url URL]',
+    '',
+    '  --transaction-ref REF   Exact transactionRef from transactions output.',
+    '',
+    'This command is read-only. Output contains receipt or null.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
 export function rulesSetHelpText(): string {
   return [
     'Sloth Agent CLI — rules set',
@@ -1087,6 +1142,26 @@ export function rulesSetHelpText(): string {
     'Example:',
     '  sloth-agent rules set --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE \\',
     '    --input rule.json --apply',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function receiptsAttachHelpText(): string {
+  return [
+    'Sloth Agent CLI — receipts attach',
+    '',
+    'Usage:',
+    '  sloth-agent receipts attach --transaction-ref REF --input FILE [--expected-revision N] [--apply]',
+    '',
+    'Required inputs:',
+    '  --transaction-ref REF   Exact transactionRef from transactions output.',
+    '  --input FILE            Reviewed JSON with schemaVersion, currency, and receiptItems.',
+    '                          Each item has id, label, and signed amountPence; use negative for discounts.',
+    '  --expected-revision N   Required when replacing saved evidence; omit for a new receipt.',
+    '',
+    'Write behavior:',
+    '  Without --apply, prints the exact request and makes no API call.',
+    '  With --apply, saves only the reviewed JSON. Images and extraction drafts are not saved.',
     ...API_ORIGIN_HELP_LINES,
   ].join('\n');
 }
@@ -1138,6 +1213,20 @@ export function rulesScanContractHelpText(): string {
   ].join('\n');
 }
 
+export function receiptsRemoveHelpText(): string {
+  return [
+    'Sloth Agent CLI — receipts remove',
+    '',
+    'Usage:',
+    '  sloth-agent receipts remove --transaction-ref REF --revision N [--apply]',
+    '',
+    '  --revision N   Current positive revision from receipts get.',
+    '',
+    'Without --apply, prints a preview. With --apply, removes saved receipt items.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
 export function commandHelpText(topic: HelpTopic): string {
   const helpByTopic: Record<HelpTopic, () => string> = {
     auth: authHelpText,
@@ -1165,6 +1254,11 @@ export function commandHelpText(topic: HelpTopic): string {
     'rules-set': rulesSetHelpText,
     'rules-delete': rulesDeleteHelpText,
     'rules-scan-contract': rulesScanContractHelpText,
+    receipts: receiptsHelpText,
+    'receipts-extract': receiptsExtractHelpText,
+    'receipts-get': receiptsGetHelpText,
+    'receipts-attach': receiptsAttachHelpText,
+    'receipts-remove': receiptsRemoveHelpText,
     goals: goalsHelpText,
     'goals-list': goalsListHelpText,
     'goals-create': goalsCreateHelpText,
@@ -1314,6 +1408,37 @@ function readContractPdf(filePath: string): Buffer {
     throw new UsageError('Contract must be a PDF no larger than 6 MB');
   }
   return file;
+}
+
+function readReceiptFile(filePath: string): unknown {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`Failed to read receipt JSON: ${message}`);
+  }
+}
+
+function readReceiptImage(filePath: string): { body: Buffer; mimeType: string } {
+  const extension = filePath.toLowerCase().split('.').pop();
+  const mimeType = extension === 'jpg' || extension === 'jpeg'
+    ? 'image/jpeg'
+    : extension === 'png'
+      ? 'image/png'
+      : extension === 'webp'
+        ? 'image/webp'
+        : null;
+  if (!mimeType) throw new UsageError('Receipt image must be JPEG, PNG, or WebP');
+  try {
+    const body = fs.readFileSync(filePath);
+    if (body.length === 0) throw new UsageError('Receipt image is empty');
+    if (body.length > 8 * 1024 * 1024) throw new UsageError('Receipt image must be 8 MB or smaller');
+    return { body, mimeType };
+  } catch (error) {
+    if (error instanceof UsageError) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new UsageError(`Failed to read receipt image: ${message}`);
+  }
 }
 
 function buildTransactionsQuery(
@@ -1569,6 +1694,34 @@ export async function runCli(
       });
       return 0;
     }
+    const receiptConfirmation = parsed.command === 'receipts-attach'
+      ? validateReceiptConfirmation(readReceiptFile(parsed.input))
+      : undefined;
+    if (parsed.command === 'receipts-attach' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: `${baseUrl}/api/agent/v1/receipts/confirmed`,
+        method: 'PUT',
+        payload: {
+          transactionRef: parsed.transactionRef,
+          expectedRevision: parsed.expectedRevision ?? null,
+          receipt: receiptConfirmation,
+        },
+      });
+      return 0;
+    }
+    if (parsed.command === 'receipts-remove' && !parsed.apply) {
+      writeJson(writeStdout, {
+        dryRun: true,
+        endpoint: `${baseUrl}/api/agent/v1/receipts/confirmed`,
+        method: 'DELETE',
+        payload: {
+          transactionRef: parsed.transactionRef,
+          expectedRevision: parsed.revision,
+        },
+      });
+      return 0;
+    }
 
     const notificationRulePayload = parsed.command === 'rules-set'
       ? validateNotificationRulePayload(readNotificationRuleFile(parsed.input))
@@ -1613,6 +1766,68 @@ export async function runCli(
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
+
+    if (parsed.command === 'receipts-extract') {
+      const image = readReceiptImage(parsed.image);
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/receipts/extract`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': image.mimeType },
+        body: image.body as unknown as BodyInit,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(
+        parsed.command,
+        await parseHttpResponse(response, token),
+      );
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'receipts-get') {
+      const query = new URLSearchParams({ transactionRef: parsed.transactionRef });
+      const response = await fetchImplementation(
+        `${baseUrl}/api/agent/v1/receipts/confirmed?${query.toString()}`,
+        {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+      const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'receipts-attach') {
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/receipts/confirmed`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionRef: parsed.transactionRef,
+          expectedRevision: parsed.expectedRevision ?? null,
+          receipt: receiptConfirmation!,
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'receipts-remove') {
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/receipts/confirmed`, {
+        method: 'DELETE',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionRef: parsed.transactionRef,
+          expectedRevision: parsed.revision,
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
+      writeJson(writeStdout, data);
+      return 0;
+    }
 
     if (parsed.command === 'accounts-update') {
       const endpoint = `${baseUrl}/api/agent/v1/accounts/${encodeURIComponent(parsed.accountRef)}`;

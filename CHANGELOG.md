@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.0 - 2026-08-21
+
+- Add receipt image extraction plus read, preview-by-default attach, and remove
+  commands for reviewed receipt items.
+- Keep receipt images and extraction drafts transient; only reviewed JSON is
+  sent to the confirmed evidence endpoint.
+- Keep reviewed receipt rows simple: `id`, `label`, and a signed amount, with
+  discounts represented as negative rows.
+
 ## 0.15.0 - 2026-08-21
 
 - Add `rules` commands to list, read, preview, apply, and delete notification

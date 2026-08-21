@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   parseApiResponse,
+  validateReceiptConfirmation,
   validateAssignmentPayload,
   validateBudgetUpdatePayload,
 } from '../src/contracts.js';
@@ -148,6 +149,43 @@ describe('assignment payload validation', () => {
         }],
       })).toThrow(/category options require/);
     }
+  });
+});
+
+describe('receipt contracts', () => {
+  const confirmation = {
+    schemaVersion: 1,
+    currency: 'GBP',
+    receiptItems: [
+      { id: 'meal', label: 'Dinner', amountPence: 7_400 },
+      { id: 'service', label: 'Service charge', amountPence: 1_000 },
+      { id: 'discount', label: 'Offer', amountPence: -500 },
+    ],
+  };
+
+  it('accepts signed receipt rows and rejects images or removed classification fields', () => {
+    expect(validateReceiptConfirmation(confirmation)).toEqual(confirmation);
+    expect(() => validateReceiptConfirmation({ ...confirmation, imageUrl: 'https://example.com' }))
+      .toThrow(/unknown field/i);
+    expect(() => validateReceiptConfirmation({
+      ...confirmation,
+      receiptItems: [{ id: 'bad', kind: 'discount', label: 'Offer', amountPence: -500 }],
+    })).toThrow(/unknown field.*kind/i);
+  });
+
+  it('validates extraction, lookup, save, and delete responses', () => {
+    const evidence = {
+      ...confirmation,
+      revision: 1,
+      receiptTotalPence: 7_900,
+      confirmedAt: '2026-08-20T10:00:00.000Z',
+      sourceSurface: 'agent_api',
+    };
+    expect(parseApiResponse('receipts-extract', { draft: { ...confirmation, warnings: [] } }))
+      .toEqual({ draft: { ...confirmation, warnings: [] } });
+    expect(parseApiResponse('receipts-get', { receipt: null })).toEqual({ receipt: null });
+    expect(parseApiResponse('receipts-attach', { receipt: evidence })).toEqual({ receipt: evidence });
+    expect(parseApiResponse('receipts-remove', { deleted: true })).toEqual({ deleted: true });
   });
 });
 

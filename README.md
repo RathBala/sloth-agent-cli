@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.15.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.16.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -114,6 +114,9 @@ sloth-agent line-items create --help
 sloth-agent transactions --help
 sloth-agent rules --help
 sloth-agent assign --help
+sloth-agent receipts --help
+sloth-agent receipts extract --help
+sloth-agent receipts attach --help
 sloth-agent goals create --help
 sloth-agent goals update --help
 sloth-agent goals mark-spent --help
@@ -170,6 +173,47 @@ sloth-agent rules scan-contract --contract contract.pdf --apply
 
 The PDF is discarded after extraction and is not stored. Scanning only returns
 the date and confidence; use `rules set` to save the resulting reminder.
+
+### Attach receipt items end to end
+
+Receipt items are evidence attached to a booked transaction. They do not
+change its category, sharing, partner balance, or budget treatment.
+
+1. Copy the exact `transactionRef` from `sloth-agent transactions`, then
+   extract a transient draft from a JPEG, PNG, or WebP image up to 8 MB:
+
+```bash
+sloth-agent receipts extract --image /path/to/receipt.jpg > receipt-draft.json
+```
+
+The image and draft are not saved by Sloth. Review the JSON, remove the outer
+`draft` key and `warnings`, and keep `schemaVersion`, `currency`, and the
+reviewed `receiptItems` in `receipt.json`. Each item contains only `id`, `label`,
+and a signed integer `amountPence`. Purchases and added charges are positive;
+discounts are negative. Do not add tax already included in other prices as a
+separate row because the signed rows should sum to the printed receipt total.
+
+2. Preview the exact write without contacting the API:
+
+```bash
+sloth-agent receipts attach \
+  --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE \
+  --input receipt.json
+```
+
+3. Apply the reviewed JSON with a write-enabled token:
+
+```bash
+sloth-agent receipts attach \
+  --transaction-ref PASTE_THE_EXACT_TRANSACTION_REF_HERE \
+  --input receipt.json \
+  --apply
+```
+
+Use `sloth-agent receipts get --transaction-ref REF` to read the saved
+revision. Pass `--expected-revision N` when replacing it, or use
+`sloth-agent receipts remove --transaction-ref REF --revision N --apply` to
+remove it.
 
 ### How transaction categorisation is represented
 

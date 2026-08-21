@@ -61,6 +61,11 @@ export type HelpTopic =
   | 'rules-set'
   | 'rules-delete'
   | 'rules-scan-contract'
+  | 'receipts'
+  | 'receipts-extract'
+  | 'receipts-get'
+  | 'receipts-attach'
+  | 'receipts-remove'
   | 'goals'
   | 'goals-list'
   | 'goals-create'
@@ -190,6 +195,23 @@ export type ParsedCommand =
     command: 'rules-scan-contract';
     baseUrl?: string;
     contract: string;
+    apply: boolean;
+  }
+  | { command: 'receipts-extract'; baseUrl?: string; image: string }
+  | { command: 'receipts-get'; baseUrl?: string; transactionRef: string }
+  | {
+    command: 'receipts-attach';
+    baseUrl?: string;
+    transactionRef: string;
+    input: string;
+    expectedRevision?: number;
+    apply: boolean;
+  }
+  | {
+    command: 'receipts-remove';
+    baseUrl?: string;
+    transactionRef: string;
+    revision: number;
     apply: boolean;
   }
   | { command: 'goals-list'; baseUrl?: string }
@@ -335,6 +357,92 @@ function parseGoalPriority(value: string): number {
     throw new UsageError('--priority must be a positive whole-number position');
   }
   return priority;
+}
+
+function parsePositiveRevision(value: string, name: string): number {
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new UsageError(`${name} must be a positive whole number`);
+  }
+  const revision = Number(value);
+  if (!Number.isSafeInteger(revision)) {
+    throw new UsageError(`${name} must be a positive whole number`);
+  }
+  return revision;
+}
+
+function parseReceipts(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (!subcommand || !['extract', 'get', 'attach', 'remove'].includes(subcommand)) {
+    throw new UsageError('receipts requires extract, get, attach, or remove');
+  }
+  let transactionRef: string | undefined;
+  let image: string | undefined;
+  let input: string | undefined;
+  let expectedRevision: number | undefined;
+  let revision: number | undefined;
+  let apply = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!;
+    const read = (name: string) => {
+      const value = readOptionValue(args, index, name);
+      index += 1;
+      return value;
+    };
+    if (argument === '--apply') {
+      if (apply) throw new UsageError('--apply may only be provided once');
+      apply = true;
+    } else if (argument === '--transaction-ref') {
+      transactionRef = setOnce(transactionRef, read('--transaction-ref'), '--transaction-ref');
+    } else if (argument === '--image') {
+      image = setOnce(image, read('--image'), '--image');
+    } else if (argument === '--input') {
+      input = setOnce(input, read('--input'), '--input');
+    } else if (argument === '--expected-revision') {
+      expectedRevision = setOnce(
+        expectedRevision,
+        parsePositiveRevision(read('--expected-revision'), '--expected-revision'),
+        '--expected-revision',
+      );
+    } else if (argument === '--revision') {
+      revision = setOnce(
+        revision,
+        parsePositiveRevision(read('--revision'), '--revision'),
+        '--revision',
+      );
+    } else {
+      throw new UsageError(`Unknown receipts ${subcommand} option: ${argument}`);
+    }
+  }
+
+  if (subcommand === 'extract') {
+    if (!image) throw new UsageError('receipts extract requires --image <file>');
+    if (transactionRef || input || expectedRevision || revision || apply) {
+      throw new UsageError('receipts extract accepts only --image');
+    }
+    return withBaseUrl({ command: 'receipts-extract', image }, baseUrl);
+  }
+  if (!transactionRef) throw new UsageError(`receipts ${subcommand} requires --transaction-ref <ref>`);
+  if (subcommand === 'get') {
+    if (image || input || expectedRevision || revision || apply) {
+      throw new UsageError('receipts get accepts only --transaction-ref');
+    }
+    return withBaseUrl({ command: 'receipts-get', transactionRef }, baseUrl);
+  }
+  if (subcommand === 'attach') {
+    if (!input) throw new UsageError('receipts attach requires --input <file>');
+    if (image || revision) throw new UsageError('receipts attach received an unsupported option');
+    return withBaseUrl({
+      command: 'receipts-attach',
+      transactionRef,
+      input,
+      ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      apply,
+    }, baseUrl);
+  }
+  if (revision === undefined) throw new UsageError('receipts remove requires --revision <number>');
+  if (image || input || expectedRevision) throw new UsageError('receipts remove received an unsupported option');
+  return withBaseUrl({ command: 'receipts-remove', transactionRef, revision, apply }, baseUrl);
 }
 
 function parseGoalType(value: string): GoalType {
@@ -1222,6 +1330,13 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'move') return 'budget-move';
     return 'budget';
   }
+  if (command === 'receipts') {
+    if (subcommand === 'extract') return 'receipts-extract';
+    if (subcommand === 'get') return 'receipts-get';
+    if (subcommand === 'attach') return 'receipts-attach';
+    if (subcommand === 'remove') return 'receipts-remove';
+    return 'receipts';
+  }
   if (
     command === 'accounts'
     || command === 'transactions'
@@ -1277,6 +1392,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'budget') {
     return parseBudget(args, baseUrl);
+  }
+
+  if (command === 'receipts') {
+    return parseReceipts(args, baseUrl);
   }
 
   if (command === 'transactions') {
