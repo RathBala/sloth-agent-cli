@@ -302,6 +302,10 @@ assignment, set `"assignmentScope": "joint"` in the assignment payload and use
 
 These are placeholders. Do not submit the example values.
 
+Each `transactionRef` may appear only once in an assignment file. Split one
+transaction across categories with `categorySplits` instead of adding the same
+transaction twice.
+
 4. Preview the assignment without writing:
 
 ```bash
@@ -321,7 +325,17 @@ sloth-agent assign --input assignments.json --apply
 
 This step requires a token created with **Allow changes**.
 
-Inspect every item in the returned `succeeded` and `failed` arrays.
+The CLI submits a durable server operation and polls its authenticated status
+until every item has finished. It then prints the same `succeeded` and `failed`
+arrays as before, so existing agent workflows do not need to change. Inspect
+every item in both arrays.
+
+If the command is interrupted or a request times out, re-run the same command
+with the same assignment input. The CLI derives the same request key
+from the validated assignments, so the server resumes the existing operation
+instead of applying the batch again. The server retains operation status and
+item receipts for seven days. Changing the assignments creates a different
+operation.
 
 6. Check the result in the same assignment scope that you changed. Successful
    assignments update the category and optional budget line item on the
@@ -765,8 +779,10 @@ Command results are JSON on stdout. Diagnostics are written to stderr.
 | `2` | Invalid command, option, URL, date, auth input, goal input, or assignment input |
 | `3` | No credential or native secure storage is unavailable |
 
-Assignment writes are best-effort. A response containing any failed assignment
-returns exit code `1` while preserving the complete API response on stdout.
+Assignment writes run as durable, best-effort operations. The CLI waits for the
+terminal result and returns exit code `1` when any item failed, while preserving
+the complete `succeeded` and `failed` arrays on stdout. Re-running an interrupted
+command with the same input resumes the same server operation.
 
 ## Development
 

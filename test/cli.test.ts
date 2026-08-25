@@ -13,6 +13,8 @@ import {
   agentApiV1AccountMutationResponse,
   agentApiV1AccountRemovalResponse,
   agentApiV1AssignmentResponse,
+  agentApiV1AssignmentOperationReceipt,
+  agentApiV1AssignmentOperationStatus,
   agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
   agentApiV1BudgetStatusResponse,
@@ -307,7 +309,12 @@ describe('CLI execution', () => {
         'Without --apply',
         'does not contact Sloth Money',
         'A successful preview does not guarantee that applying it will succeed.',
+        'durable server operation',
+        'polls authenticated status',
+        'Re-run the same command with the same assignment input',
+        'seven days',
         'categorySplits',
+        'Each transactionRef may appear only once',
         'non-empty array or null',
         'lineItemId is optional',
         'native scope is used when assignmentScope is omitted',
@@ -1774,21 +1781,125 @@ describe('CLI execution', () => {
     expect(io.stderr.join('')).toContain('Invalid budget-move response');
   });
 
-  it('applies assignments and returns failure for mixed results', async () => {
+  it('submits, resumes, and polls assignments while preserving the stable result output', async () => {
     const input = writeAssignments({
-      assignments: [{ transactionRef: 'sloth_txn_1', categoryId: 'groceries' }],
+      assignments: [
+        { transactionRef: 'ok-ref', categoryId: 'groceries' },
+        { transactionRef: 'bad-ref', categoryId: 'groceries', lineItemId: 'invalid' },
+      ],
     });
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
-      agentApiV1AssignmentResponse,
-    ));
+    const sleep = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(agentApiV1AssignmentOperationReceipt, 202))
+      .mockRejectedValueOnce(new TypeError('socket disconnected'))
+      .mockResolvedValueOnce(jsonResponse({
+        ...agentApiV1AssignmentOperationReceipt,
+        status: 'processing',
+      }))
+      .mockResolvedValueOnce(jsonResponse(agentApiV1AssignmentOperationStatus));
 
     expect(await runCli(['assign', '--input', input, '--apply'], {
       env: { SLOTH_AGENT_TOKEN: 'token' },
       fetch: fetchMock,
+      sleep,
       ...io,
     })).toBe(1);
-    expect(JSON.parse(io.stdout.join('')).failed).toHaveLength(1);
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1AssignmentResponse);
+    expect(io.stderr).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://budget.slothmoney.app/api/agent/v1/transaction-assignments',
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
+    const submissionHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>;
+    expect(submissionHeaders['Idempotency-Key']).toMatch(/^[a-f0-9]{64}$/);
+    expect(fetchMock.mock.calls.slice(1).map(([url]) => url)).toEqual([
+      `https://budget.slothmoney.app/api/agent/v1/transaction-assignments/${'a'.repeat(64)}`,
+      `https://budget.slothmoney.app/api/agent/v1/transaction-assignments/${'a'.repeat(64)}`,
+      `https://budget.slothmoney.app/api/agent/v1/transaction-assignments/${'a'.repeat(64)}`,
+    ]);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'GET' });
+    expect(sleep).toHaveBeenCalled();
+  });
+
+  it('uses the same idempotency key when the unchanged command is rerun after interruption', async () => {
+    const input = writeAssignments({
+      assignments: [
+        { transactionRef: 'ok-ref', categoryId: 'groceries' },
+        { transactionRef: 'bad-ref', categoryId: 'groceries', lineItemId: 'invalid' },
+      ],
+    });
+    const keys: string[] = [];
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const io = createIo();
+      const fetchMock = vi.fn().mockImplementation((_url, init) => {
+        keys.push((init.headers as Record<string, string>)['Idempotency-Key']!);
+        return Promise.resolve(jsonResponse(agentApiV1AssignmentOperationStatus, 202));
+      });
+
+      expect(await runCli(['assign', '--input', input, '--apply'], {
+        env: { SLOTH_AGENT_TOKEN: 'token' },
+        fetch: fetchMock,
+        sleep: vi.fn().mockResolvedValue(undefined),
+        ...io,
+      })).toBe(1);
+      expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1AssignmentResponse);
+    }
+
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+  });
+
+  it('explains how to resume when status recovery exhausts its retries', async () => {
+    const input = writeAssignments({
+      assignments: [
+        { transactionRef: 'ok-ref', categoryId: 'groceries' },
+        { transactionRef: 'bad-ref', categoryId: 'groceries', lineItemId: 'invalid' },
+      ],
+    });
+    const io = createIo();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(agentApiV1AssignmentOperationReceipt, 202))
+      .mockRejectedValue(new DOMException('request timed out', 'AbortError'));
+
+    expect(await runCli(['assign', '--input', input, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      sleep: vi.fn().mockResolvedValue(undefined),
+      ...io,
+    })).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toContain(
+      'Re-run the same command with the same assignment input to resume it',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('rejects terminal assignment receipts that do not match the submitted input order', async () => {
+    const input = writeAssignments({
+      assignments: [
+        { transactionRef: 'ok-ref', categoryId: 'groceries' },
+        { transactionRef: 'bad-ref', categoryId: 'groceries', lineItemId: 'invalid' },
+      ],
+    });
+    const io = createIo();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(agentApiV1AssignmentOperationReceipt, 202))
+      .mockResolvedValueOnce(jsonResponse({
+        ...agentApiV1AssignmentOperationStatus,
+        results: [...agentApiV1AssignmentOperationStatus.results].reverse(),
+      }));
+
+    expect(await runCli(['assign', '--input', input, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      sleep: vi.fn().mockResolvedValue(undefined),
+      ...io,
+    })).toBe(1);
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toContain('did not match the submitted assignment order');
   });
 
   it('creates a partner explanation request', async () => {

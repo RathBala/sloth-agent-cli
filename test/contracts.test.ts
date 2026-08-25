@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   parseApiResponse,
+  parseAssignmentOperationResponse,
+  toLegacyAssignmentResponse,
   validateReceiptConfirmation,
   validateAssignmentPayload,
   validateBudgetUpdatePayload,
@@ -12,6 +14,8 @@ import {
   agentApiV1AccountMutationResponse,
   agentApiV1AccountRemovalResponse,
   agentApiV1AssignmentResponse,
+  agentApiV1AssignmentOperationReceipt,
+  agentApiV1AssignmentOperationStatus,
   agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
   agentApiV1BudgetStatusResponse,
@@ -157,6 +161,12 @@ describe('assignment payload validation', () => {
     expect(() => validateAssignmentPayload({
       assignments: [{ transactionRef: 'sloth_txn_1', categoryId: null, unexpected: true }],
     })).toThrow(/unknown field/);
+    expect(() => validateAssignmentPayload({
+      assignments: [
+        { transactionRef: 'sloth_txn_1', categoryId: 'groceries' },
+        { transactionRef: 'sloth_txn_1', categoryId: 'activities' },
+      ],
+    })).toThrow(/transactionRef must be unique/);
     for (const sharing of [
       {},
       { isShared: true, shareRatio: -0.1 },
@@ -183,6 +193,86 @@ describe('assignment payload validation', () => {
         }],
       })).toThrow(/category options require/);
     }
+  });
+});
+
+describe('assignment operation response validation', () => {
+  it('accepts pending receipts and completed ordered item results', () => {
+    expect(parseAssignmentOperationResponse(agentApiV1AssignmentOperationReceipt))
+      .toBe(agentApiV1AssignmentOperationReceipt);
+    expect(parseAssignmentOperationResponse(agentApiV1AssignmentOperationStatus))
+      .toBe(agentApiV1AssignmentOperationStatus);
+  });
+
+  it('converts terminal items back to the stable CLI result shape', () => {
+    expect(toLegacyAssignmentResponse(agentApiV1AssignmentOperationStatus)).toEqual(
+      agentApiV1AssignmentResponse,
+    );
+  });
+
+  it.each([
+    {
+      label: 'missing progress counts',
+      response: {
+        operationId: 'assignment_operation_01',
+        status: 'pending',
+        itemCount: 2,
+        expiresAt: '2026-08-08T12:00:00.000Z',
+        pollAfterMs: 250,
+      },
+    },
+    {
+      label: 'results before completion',
+      response: {
+        ...agentApiV1AssignmentOperationReceipt,
+        results: [],
+      },
+    },
+    {
+      label: 'completion without all items',
+      response: {
+        ...agentApiV1AssignmentOperationStatus,
+        completedCount: 1,
+      },
+    },
+    {
+      label: 'counts that disagree with results',
+      response: {
+        ...agentApiV1AssignmentOperationStatus,
+        failedCount: 0,
+      },
+    },
+    {
+      label: 'a malformed terminal item',
+      response: {
+        ...agentApiV1AssignmentOperationStatus,
+        results: [{ status: 'failed', transactionRef: 'ref' }],
+      },
+    },
+    {
+      label: 'a noncanonical operation ID',
+      response: {
+        ...agentApiV1AssignmentOperationReceipt,
+        operationId: 'assignment_operation_01',
+      },
+    },
+    {
+      label: 'a polling delay below the server contract',
+      response: {
+        ...agentApiV1AssignmentOperationReceipt,
+        pollAfterMs: 0,
+      },
+    },
+    {
+      label: 'a polling delay above the server contract',
+      response: {
+        ...agentApiV1AssignmentOperationReceipt,
+        pollAfterMs: 10_001,
+      },
+    },
+  ])('rejects $label', ({ response }) => {
+    expect(() => parseAssignmentOperationResponse(response))
+      .toThrow(/invalid assignment operation response/i);
   });
 });
 

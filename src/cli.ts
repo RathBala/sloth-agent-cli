@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import nodePath from 'node:path';
 
@@ -10,7 +11,11 @@ import {
 } from './args.js';
 import { ICON_KEYS } from './category-metadata.js';
 import {
+  type AssignmentPayload,
+  type AssignmentOperationResponse,
   parseApiResponse,
+  parseAssignmentOperationResponse,
+  toLegacyAssignmentResponse,
   validateAssignmentPayload,
   validateBudgetMovementResponse,
   validateBudgetUpdatePayload,
@@ -48,9 +53,13 @@ interface CliOptions {
   isInteractive?: boolean;
   readSecret?: () => Promise<string>;
   readStdin?: () => Promise<string>;
+  sleep?: (milliseconds: number) => Promise<void>;
   writeStdout?: (value: string) => void;
   writeStderr?: (value: string) => void;
 }
+
+const ASSIGNMENT_REQUEST_ATTEMPTS = 3;
+const ASSIGNMENT_RETRY_DELAY_MS = 500;
 
 export function usageText(): string {
   return [
@@ -711,13 +720,19 @@ export function assignHelpText(): string {
     '  the payload it would send. It does not contact Sloth Money, verify the',
     '  transactionRef or category values, or write anything.',
     '  A successful preview does not guarantee that applying it will succeed.',
-    '  With --apply, assignments are best-effort; any failed item makes the command',
-    '  exit with code 1 while the complete result remains available on stdout.',
+    '  With --apply, the CLI submits one durable server operation, then polls authenticated status',
+    '  until every item finishes. Transient submission and status failures are retried.',
+    '  Re-run the same command with the same assignment input after an interruption;',
+    '  the CLI resumes the same operation instead of duplicating its work.',
+    '  Operation status and item receipts remain available on the server for seven days.',
+    '  Assignments are best-effort; any failed item makes the command exit with code 1',
+    '  while the complete terminal result remains available on stdout.',
     '  Applying requires a write-enabled token created with Allow changes.',
     '',
     'Input:',
     '  The top-level object must contain an assignments array.',
     '  Each assignment requires transactionRef and at least one category operation or sharing object.',
+    '  Each transactionRef may appear only once in the assignments array.',
     '  sharing.isShared is required. shareRatio is optional from 0 to 1 and is your share.',
     '  userExclusiveAmountPence and partnerExclusiveAmountPence are optional nonnegative integers.',
     '  Omitted split values use saved defaults for a first share and preserve an existing split.',
@@ -759,7 +774,7 @@ export function assignHelpText(): string {
     '',
     'Output:',
     '  Preview mode returns dryRun, endpoint, and the validated payload.',
-    '  Apply mode returns succeeded and failed assignment arrays.',
+    '  Apply mode waits for the durable operation and returns succeeded and failed arrays.',
     '  Successful assignments update the original transaction. See the result in',
     '  Sloth Money → Transactions or read the transaction again through the CLI.',
     '  Assignments do not create a separate list.',
@@ -1501,6 +1516,134 @@ function requestHeaders(token: string): Record<string, string> {
   };
 }
 
+function assignmentIdempotencyKey(payload: unknown): string {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function isRetryableAssignmentRequestError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status !== undefined
+      && [408, 425, 429, 499, 500, 502, 503, 504].includes(error.status);
+  }
+  return error instanceof TypeError
+    || (error instanceof Error && error.name === 'AbortError');
+}
+
+async function withAssignmentRequestRecovery<T>(
+  request: () => Promise<T>,
+  sleep: (milliseconds: number) => Promise<void>,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= ASSIGNMENT_REQUEST_ATTEMPTS; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableAssignmentRequestError(error) || attempt === ASSIGNMENT_REQUEST_ATTEMPTS) {
+        throw error;
+      }
+      await sleep(ASSIGNMENT_RETRY_DELAY_MS * attempt);
+    }
+  }
+  throw lastError;
+}
+
+async function parseAssignmentOperationHttpResponse(
+  response: Response,
+  token: string,
+  expectedStatus: number,
+): Promise<AssignmentOperationResponse> {
+  const data = await parseHttpResponse(response, token);
+  if (response.status !== expectedStatus) {
+    throw new ApiError(
+      `Agent API returned status ${response.status}; expected ${expectedStatus}`,
+      response.status,
+    );
+  }
+  return parseAssignmentOperationResponse(data);
+}
+
+function assertAssignmentOperationMatchesPayload(
+  operation: AssignmentOperationResponse,
+  payload: AssignmentPayload,
+  expectedOperationId?: string,
+): void {
+  if (
+    operation.itemCount !== payload.assignments.length
+    || (expectedOperationId !== undefined && operation.operationId !== expectedOperationId)
+    || (
+      operation.status === 'completed'
+      && operation.results?.some((result, index) => (
+        result.transactionRef !== payload.assignments[index]?.transactionRef
+      ))
+    )
+  ) {
+    throw new ApiError(
+      'Assignment operation response did not match the submitted assignment order',
+    );
+  }
+}
+
+async function applyAssignments(
+  fetchImplementation: typeof globalThis.fetch,
+  sleep: (milliseconds: number) => Promise<void>,
+  baseUrl: string,
+  token: string,
+  payload: AssignmentPayload,
+): Promise<unknown> {
+  const endpoint = `${baseUrl}/api/agent/v1/transaction-assignments`;
+  const idempotencyKey = assignmentIdempotencyKey(payload);
+  let operation: AssignmentOperationResponse;
+  try {
+    operation = await withAssignmentRequestRecovery(async () => {
+      const response = await fetchImplementation(endpoint, {
+        method: 'POST',
+        headers: {
+          ...requestHeaders(token),
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      return parseAssignmentOperationHttpResponse(response, token, 202);
+    }, sleep);
+  } catch (error) {
+    if (!isRetryableAssignmentRequestError(error)) throw error;
+    throw new ApiError(
+      'Assignment submission could not be confirmed. '
+      + 'Re-run the same command with the same assignment input to resume it.',
+    );
+  }
+  assertAssignmentOperationMatchesPayload(operation, payload);
+  const operationId = operation.operationId;
+
+  while (operation.status !== 'completed') {
+    await sleep(operation.pollAfterMs);
+    const statusEndpoint = `${endpoint}/${encodeURIComponent(operationId)}`;
+    try {
+      const nextOperation = await withAssignmentRequestRecovery(async () => {
+        const response = await fetchImplementation(statusEndpoint, {
+          method: 'GET',
+          headers: requestHeaders(token),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        return parseAssignmentOperationHttpResponse(response, token, 200);
+      }, sleep);
+      assertAssignmentOperationMatchesPayload(nextOperation, payload, operationId);
+      operation = nextOperation;
+    } catch (error) {
+      if (!isRetryableAssignmentRequestError(error)) throw error;
+      throw new ApiError(
+        'Assignment status could not be recovered. '
+        + 'Re-run the same command with the same assignment input to resume it.',
+      );
+    }
+  }
+
+  return toLegacyAssignmentResponse(operation);
+}
+
 async function validateCredentialRemotely(
   fetchImplementation: typeof globalThis.fetch,
   origin: string,
@@ -1548,6 +1691,9 @@ export async function runCli(
     ?? Boolean(process.stdin.isTTY && process.stderr.isTTY);
   const readSecret = options.readSecret ?? defaultReadSecret;
   const readStdin = options.readStdin ?? defaultReadStdin;
+  const sleep = options.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => {
+    setTimeout(resolve, milliseconds);
+  }));
   const writeStdout = options.writeStdout ?? ((value: string) => process.stdout.write(value));
   const writeStderr = options.writeStderr ?? ((value: string) => process.stderr.write(value));
   let token: string | undefined;
@@ -2054,17 +2200,7 @@ export async function runCli(
 
     if (parsed.command === 'assign') {
       const payload = assignmentPayload!;
-      const endpoint = `${baseUrl}/api/agent/v1/transaction-assignments`;
-      const response = await fetchImplementation(endpoint, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-      const data = parseApiResponse('assign', await parseHttpResponse(response, token));
+      const data = await applyAssignments(fetchImplementation, sleep, baseUrl, token, payload);
       writeJson(writeStdout, data);
       return hasFailures(data) ? 1 : 0;
     }

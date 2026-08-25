@@ -31,6 +31,22 @@ export interface AssignmentPayload {
   assignments: AgentAssignment[];
 }
 
+export type AssignmentOperationResult = (
+  | { status: 'succeeded'; transactionRef: string }
+  | { status: 'failed'; transactionRef: string; error: string }
+) & Record<string, unknown>;
+
+export interface AssignmentOperationResponse {
+  operationId: string;
+  status: 'pending' | 'processing' | 'completed';
+  itemCount: number;
+  completedCount: number;
+  failedCount: number;
+  expiresAt: string;
+  pollAfterMs: number;
+  results?: AssignmentOperationResult[];
+}
+
 export interface BudgetAllocation {
   categoryId: string;
   lineItemId: string;
@@ -407,7 +423,15 @@ export function validateAssignmentPayload(value: unknown): AssignmentPayload {
   if (payload.assignments.length < 1 || payload.assignments.length > 100) {
     throw new UsageError('assignments must contain between 1 and 100 items');
   }
-  return { assignments: payload.assignments.map(validateAssignment) };
+  const assignments = payload.assignments.map(validateAssignment);
+  const transactionRefs = new Set<string>();
+  for (const assignment of assignments) {
+    if (transactionRefs.has(assignment.transactionRef)) {
+      throw new UsageError('Each assignments[].transactionRef must be unique');
+    }
+    transactionRefs.add(assignment.transactionRef);
+  }
+  return { assignments };
 }
 
 export function validateBudgetUpdatePayload(value: unknown): BudgetUpdatePayload {
@@ -709,6 +733,85 @@ function isAssignmentResponse(value: unknown): boolean {
       && (item.transactionRef === undefined || typeof item.transactionRef === 'string')
     ))
   );
+}
+
+function isAssignmentOperationResult(value: unknown): value is AssignmentOperationResult {
+  if (!isObject(value) || typeof value.transactionRef !== 'string') return false;
+  const { status, ...legacyResult } = value;
+  if (status === 'succeeded') {
+    return isAssignmentResponse({ succeeded: [legacyResult], failed: [] });
+  }
+  if (status === 'failed') {
+    return isAssignmentResponse({ succeeded: [], failed: [legacyResult] });
+  }
+  return false;
+}
+
+export function parseAssignmentOperationResponse(
+  value: unknown,
+): AssignmentOperationResponse {
+  const validBase = isObject(value)
+    && hasOnlyFields(value, [
+      'operationId', 'status', 'itemCount', 'completedCount', 'failedCount',
+      'expiresAt', 'pollAfterMs', 'results',
+    ])
+    && typeof value.operationId === 'string'
+    && /^[a-f0-9]{64}$/.test(value.operationId)
+    && (
+      value.status === 'pending'
+      || value.status === 'processing'
+      || value.status === 'completed'
+    )
+    && Number.isSafeInteger(value.itemCount)
+    && Number(value.itemCount) >= 1
+    && Number(value.itemCount) <= 100
+    && isNonnegativeSafeInteger(value.completedCount)
+    && Number(value.completedCount) <= Number(value.itemCount)
+    && isNonnegativeSafeInteger(value.failedCount)
+    && Number(value.failedCount) <= Number(value.completedCount)
+    && isIsoDateTime(value.expiresAt)
+    && isNonnegativeSafeInteger(value.pollAfterMs)
+    && Number(value.pollAfterMs) >= 100
+    && Number(value.pollAfterMs) <= 10_000;
+
+  if (!validBase) {
+    throw new ApiError('Invalid assignment operation response from the Agent API');
+  }
+
+  const isComplete = value.status === 'completed';
+  const resultsAreValid = isComplete
+    ? (
+      Number(value.completedCount) === Number(value.itemCount)
+      && Array.isArray(value.results)
+      && value.results.length === Number(value.itemCount)
+      && value.results.every(isAssignmentOperationResult)
+      && value.results.filter((result) => result.status === 'failed').length
+        === Number(value.failedCount)
+    )
+    : value.results === undefined;
+
+  if (!resultsAreValid) {
+    throw new ApiError('Invalid assignment operation response from the Agent API');
+  }
+  return value as unknown as AssignmentOperationResponse;
+}
+
+export function toLegacyAssignmentResponse(
+  value: unknown,
+): { succeeded: JsonObject[]; failed: JsonObject[] } {
+  const operation = parseAssignmentOperationResponse(value);
+  if (operation.status !== 'completed' || !operation.results) {
+    throw new ApiError('Assignment operation is not complete');
+  }
+
+  const succeeded: JsonObject[] = [];
+  const failed: JsonObject[] = [];
+  for (const result of operation.results) {
+    const { status, ...legacyResult } = result;
+    if (status === 'succeeded') succeeded.push(legacyResult);
+    else failed.push(legacyResult);
+  }
+  return { succeeded, failed };
 }
 
 function isHttpUrl(value: unknown): boolean {

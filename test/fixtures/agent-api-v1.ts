@@ -125,6 +125,33 @@ export const agentApiV1AssignmentResponse = {
   }],
 } as const;
 
+export const agentApiV1AssignmentOperationReceipt = {
+  operationId: 'a'.repeat(64),
+  status: 'pending',
+  itemCount: 2,
+  completedCount: 0,
+  failedCount: 0,
+  expiresAt: '2026-08-08T12:00:00.000Z',
+  pollAfterMs: 250,
+} as const;
+
+export const agentApiV1AssignmentOperationStatus = {
+  ...agentApiV1AssignmentOperationReceipt,
+  status: 'completed',
+  completedCount: 2,
+  failedCount: 1,
+  results: [
+    {
+      status: 'succeeded',
+      ...agentApiV1AssignmentResponse.succeeded[0],
+    },
+    {
+      status: 'failed',
+      ...agentApiV1AssignmentResponse.failed[0],
+    },
+  ],
+} as const;
+
 export const agentApiV1ExplanationResponse = {
   requestId: 'ter_1',
   publicUrl: 'https://budget.slothmoney.app/transaction-explanations/token-1',

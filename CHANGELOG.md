@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Run applied transaction-assignment batches through resumable server
+  operations while keeping the existing `assign --input ... --apply` command
+  and terminal `succeeded`/`failed` JSON output unchanged.
+- Retry transient submission and status requests with a deterministic
+  request key, so re-running an interrupted command resumes the same operation.
+- Strictly validate operation progress, expiry, counts, and ordered terminal
+  item receipts before printing an assignment result.
+
 ## 0.16.0 - 2026-08-21
 
 - Add receipt image extraction plus read, preview-by-default attach, and remove
