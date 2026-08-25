@@ -18,6 +18,7 @@ import {
   agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
   agentApiV1BudgetStatusResponse,
+  agentApiV1BudgetActivityStatusResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
@@ -223,8 +224,8 @@ describe('CLI execution', () => {
         'periodStatus', 'funding', 'categories[].lineItems',
       ]],
       [['budget', 'status', '--help'], [
-        '--scope personal|joint', 'current Sloth budget period', 'read-only',
-        'spentPence', 'availablePence', 'uncategorizedSpentPence', 'refresh',
+        '--scope personal|joint', '--period YYYY-MM', 'historical', 'read-only',
+        'moneyInPence', 'moneyOutPence', 'uncategorized', 'refresh', 'budget is null',
       ]],
       [['budget', 'update', '--help'], [
         '--input FILE', 'plannedPence', 'Without --apply',
@@ -1633,6 +1634,23 @@ describe('CLI execution', () => {
       }),
     );
     expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetStatusResponse);
+  });
+
+  it('reads historical budget activity for an explicit period', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1BudgetActivityStatusResponse));
+
+    expect(await runCli(['budget', 'status', '--scope', 'personal', '--period', '2026-07'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/budget-status?scope=personal&periodKey=2026-07',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetActivityStatusResponse);
   });
 
   it('previews a budget update without loading credentials or contacting the API', async () => {

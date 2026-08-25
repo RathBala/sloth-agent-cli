@@ -244,6 +244,47 @@ export const agentApiV1BudgetStatusResponse = {
   }],
 } as const;
 
+export const agentApiV1BudgetActivityStatusResponse = {
+  scope: 'personal',
+  periodKey: '2026-07',
+  periodStatus: 'historical',
+  currency: 'GBP',
+  period: {
+    startDate: '2026-06-30',
+    endDate: '2026-07-29',
+    dateRangeSource: 'stored',
+  },
+  refresh: null,
+  activity: {
+    transactionCount: 4,
+    categories: [{
+      id: 'income',
+      name: 'Income',
+      moneyInPence: 300_000,
+      moneyOutPence: 0,
+      netPence: 300_000,
+    }, {
+      id: 'transfer',
+      name: 'Transfer',
+      moneyInPence: 5_000,
+      moneyOutPence: 5_000,
+      netPence: 0,
+    }, {
+      id: 'none',
+      name: 'None',
+      moneyInPence: 0,
+      moneyOutPence: 0,
+      netPence: 0,
+    }],
+    uncategorized: {
+      moneyInPence: 0,
+      moneyOutPence: 2_500,
+      netPence: -2_500,
+    },
+  },
+  budget: null,
+} as const;
+
 export const agentApiV1BudgetMovementResponse = {
   moved: true,
   scope: 'personal',

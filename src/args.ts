@@ -118,6 +118,7 @@ export type ParsedCommand =
     command: 'budget-status';
     baseUrl?: string;
     scope: 'personal' | 'joint';
+    periodKey?: string;
   }
   | {
     command: 'budget-move';
@@ -789,7 +790,7 @@ function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
     commandLabel,
     new Set(
       status
-        ? ['--scope']
+        ? ['--scope', '--period']
         : update
           ? ['--scope', '--period', '--input']
         : move
@@ -803,17 +804,12 @@ function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
   if (scope !== 'personal' && scope !== 'joint') {
     throw new UsageError('--scope must be personal or joint');
   }
-  if (status) {
-    return withBaseUrl({
-      command: 'budget-status',
-      scope: scope as 'personal' | 'joint',
-    }, baseUrl);
-  }
   const period = values.get('--period');
   const common = {
     scope: scope as 'personal' | 'joint',
     ...(period === undefined ? {} : { periodKey: parseGoalMonthKey(period, '--period') }),
   };
+  if (status) return withBaseUrl({ command: 'budget-status', ...common }, baseUrl);
   if (!update && !move) return withBaseUrl({ command: 'budget', ...common }, baseUrl);
 
   if (move) {

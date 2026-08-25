@@ -19,6 +19,7 @@ import {
   agentApiV1BudgetMovementResponse,
   agentApiV1BudgetResponse,
   agentApiV1BudgetStatusResponse,
+  agentApiV1BudgetActivityStatusResponse,
   agentApiV1CategoriesResponse,
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
@@ -345,6 +346,21 @@ describe('API response validation', () => {
       .toBe(agentApiV1BudgetResponse);
     expect(parseApiResponse('budget-status', agentApiV1BudgetStatusResponse))
       .toBe(agentApiV1BudgetStatusResponse);
+    expect(parseApiResponse('budget-status', agentApiV1BudgetActivityStatusResponse))
+      .toBe(agentApiV1BudgetActivityStatusResponse);
+    expect(parseApiResponse('budget-status', {
+      ...agentApiV1BudgetActivityStatusResponse,
+      periodStatus: 'current',
+      refresh: agentApiV1BudgetStatusResponse.refresh,
+      budget: {
+        effectiveFromPeriodKey: '2026-08',
+        funding: null,
+        categories: [],
+      },
+    })).toMatchObject({
+      periodStatus: 'current',
+      budget: { funding: null },
+    });
     expect(parseApiResponse('budget-update', agentApiV1BudgetResponse))
       .toBe(agentApiV1BudgetResponse);
     expect(parseApiResponse('budget-move', agentApiV1BudgetMovementResponse))
@@ -478,10 +494,12 @@ describe('API response validation', () => {
       categories: [{ ...agentApiV1BudgetResponse.categories[0], assignedPence: '44000' }],
     })).toThrow(/invalid budget response/i);
     expect(() => parseApiResponse('budget-status', {
-      ...agentApiV1BudgetStatusResponse,
+      ...agentApiV1BudgetActivityStatusResponse,
       activity: {
-        ...agentApiV1BudgetStatusResponse.activity,
-        rawTransactions: [],
+        ...agentApiV1BudgetActivityStatusResponse.activity,
+        categories: agentApiV1BudgetActivityStatusResponse.activity.categories.map((category) => (
+          category.id === 'income' ? { ...category, netPence: 1 } : category
+        )),
       },
     })).toThrow(/invalid budget-status response/i);
     expect(() => parseApiResponse('budget-update', {

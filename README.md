@@ -428,20 +428,24 @@ The result includes the budget period and status, currency, the effective plan,
 stored funding amounts when available, categories, line items, and planned
 amounts in pence.
 
-Read current assigned, spent, and available money without aggregating
-transactions yourself:
+Read booked activity for the current or a historical Sloth period:
 
 ```bash
 sloth-agent budget status --scope personal
+sloth-agent budget status --scope personal --period 2026-07
 ```
 
-The server applies its normal once-per-UTC-day automatic transaction refresh
-policy before returning the current Sloth period dates and signed booked
-activity. For each category, `availablePence` is
-`assignedPence - spentPence`; a negative value is over budget, and refunds
-reduce `spentPence`. Check `refresh`,
-`activity.uncategorizedSpentPence`, and `activity.unmappedSpentPence` before
-using the result to suggest a reallocation. This command is read-only.
+The current period uses Sloth's normal once-per-UTC-day transaction refresh;
+historical periods are cache-only and return `refresh: null`. Activity contains
+nonnegative `moneyInPence` and `moneyOutPence` plus their difference as
+`netPence`. Income, Transfer, explicit None, budget categories, and observed
+custom categories are normal rows. A transaction with no category at all is
+reported separately under `activity.uncategorized`.
+
+`budget` contains assigned, spent, and available category amounts when a
+trustworthy period plan exists. It is `null` when it does not; activity still
+returns. The response includes only the period budget currency and silently
+ignores rows in other currencies. This command is read-only.
 
 Update selected line-item amounts by creating `budget.json`:
 
@@ -638,9 +642,12 @@ sloth-agent investments --account-ref sloth_account_v1_...
 Investment reads are cache-only and do not refresh a brokerage. Holding
 quantities, unit prices, market values, currencies, and freshness are returned
 in provider-native terms. They are not converted or guaranteed to reconcile
-to an account total reported in another currency. Caller-owned personal and
-joint linked investment accounts are included; partner-owned accounts, manual
-holdings, and investment activities are not.
+to an account total reported in another currency. An investment account total
+and its nested holdings describe the same portfolio, so do not add them
+together. Do not add values in different currencies without an explicit
+conversion. Caller-owned personal and joint linked investment accounts are
+included; partner-owned accounts, manual holdings, and investment activities
+are not.
 
 List your goals:
 
@@ -789,10 +796,15 @@ command with the same input resumes the same server operation.
 ```bash
 npm ci
 npm run verify
+npm run release:preflight
 ```
 
 `npm run test:package` packs the exact npm artifact, installs it into a clean
 temporary project, and runs the installed binary.
+
+`npm run release:preflight` reports the local, packed, globally installed, and
+npm-registry versions, then exercises every parser command's nested help. It
+fails when a parent help page stops advertising one of its child commands.
 
 ## Releasing
 

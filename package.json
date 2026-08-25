@@ -1,6 +1,6 @@
 {
   "name": "@slothmoney/agent-cli",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Command-line access to the Sloth Money Agent API.",
   "type": "module",
   "bin": {
@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:package": "node scripts/test-package.mjs",
     "test:registry": "node scripts/test-registry-package.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs",
     "typecheck": "tsc --noEmit",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:package"
   },

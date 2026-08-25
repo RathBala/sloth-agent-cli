@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.0 - 2026-08-25
+
+- Add optional `--period YYYY-MM` to `budget status` for current and historical
+  Sloth budget periods.
+- Replace signed spending-only status with clear money-in, money-out, and net
+  activity for Income, Transfer, None, ordinary, custom, and uncategorized
+  transactions.
+- Accept the old current-status response temporarily during the coordinated
+  backend rollout; historical responses use the new strict contract.
+- Add a release preflight that compares local, packed, globally installed, and
+  npm-registry versions and checks every nested help route.
+
 ## 0.17.0 - 2026-08-25
 
 - Run applied transaction-assignment batches through resumable server

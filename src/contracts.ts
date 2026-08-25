@@ -925,6 +925,15 @@ function isBudgetCategory(value: unknown): boolean {
   );
 }
 
+function isBudgetFunding(value: unknown): boolean {
+  return value === null || (
+    isObject(value)
+    && hasOnlyFields(value, ['toAssignPence', 'nextPeriodReservePence'])
+    && isSafeInteger(value.toAssignPence)
+    && isSafeInteger(value.nextPeriodReservePence)
+  );
+}
+
 function isBudgetResponse(value: unknown): boolean {
   return (
     isObject(value)
@@ -948,21 +957,13 @@ function isBudgetResponse(value: unknown): boolean {
     && isCurrency(value.currency)
     && typeof value.effectiveFromPeriodKey === 'string'
     && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.effectiveFromPeriodKey)
-    && (
-      value.funding === null
-      || (
-        isObject(value.funding)
-        && hasOnlyFields(value.funding, ['toAssignPence', 'nextPeriodReservePence'])
-        && isSafeInteger(value.funding.toAssignPence)
-        && isSafeInteger(value.funding.nextPeriodReservePence)
-      )
-    )
+    && isBudgetFunding(value.funding)
     && Array.isArray(value.categories)
     && value.categories.every(isBudgetCategory)
   );
 }
 
-function isBudgetStatusResponse(value: unknown): boolean {
+function isLegacyBudgetStatusResponse(value: unknown): boolean {
   if (
     !isObject(value)
     || !hasOnlyFields(value, [
@@ -986,15 +987,7 @@ function isBudgetStatusResponse(value: unknown): boolean {
     && isCurrency(value.currency)
     && typeof value.effectiveFromPeriodKey === 'string'
     && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.effectiveFromPeriodKey)
-    && (
-      value.funding === null
-      || (
-        isObject(value.funding)
-        && hasOnlyFields(value.funding, ['toAssignPence', 'nextPeriodReservePence'])
-        && isSafeInteger(value.funding.toAssignPence)
-        && isSafeInteger(value.funding.nextPeriodReservePence)
-      )
-    )
+    && isBudgetFunding(value.funding)
     && isObject(value.activity)
     && hasOnlyFields(value.activity, [
       'startDate',
@@ -1033,6 +1026,85 @@ function isBudgetStatusResponse(value: unknown): boolean {
       && category.availablePence === category.assignedPence - category.spentPence
     ))
   );
+}
+
+function isActivityAmounts(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['moneyInPence', 'moneyOutPence', 'netPence'])
+    && isNonnegativeSafeInteger(value.moneyInPence)
+    && isNonnegativeSafeInteger(value.moneyOutPence)
+    && isSafeInteger(value.netPence)
+    && Number.isSafeInteger(value.moneyInPence - value.moneyOutPence)
+    && value.netPence === value.moneyInPence - value.moneyOutPence;
+}
+
+function isBudgetActivityStatusResponse(value: unknown): boolean {
+  if (!isObject(value) || !hasOnlyFields(value, [
+    'scope', 'periodKey', 'periodStatus', 'currency', 'period', 'refresh', 'activity', 'budget',
+  ])) return false;
+  if (!isObject(value.period) || !hasOnlyFields(value.period, [
+    'startDate', 'endDate', 'dateRangeSource',
+  ])) return false;
+  if (!isObject(value.activity) || !hasOnlyFields(value.activity, [
+    'transactionCount', 'categories', 'uncategorized',
+  ])) return false;
+  const activityCategories = value.activity.categories;
+  if (!Array.isArray(activityCategories) || !activityCategories.every((category) => (
+    isObject(category)
+    && hasOnlyFields(category, ['id', 'name', 'moneyInPence', 'moneyOutPence', 'netPence'])
+    && typeof category.id === 'string'
+    && category.id.trim().length > 0
+    && typeof category.name === 'string'
+    && category.name.trim().length > 0
+    && isActivityAmounts({
+      moneyInPence: category.moneyInPence,
+      moneyOutPence: category.moneyOutPence,
+      netPence: category.netPence,
+    })
+  ))) return false;
+  const budget = value.budget;
+  if (budget !== null && (!isObject(budget)
+    || !hasOnlyFields(budget, ['effectiveFromPeriodKey', 'funding', 'categories'])
+    || typeof budget.effectiveFromPeriodKey !== 'string'
+    || !/^\d{4}-(0[1-9]|1[0-2])$/.test(budget.effectiveFromPeriodKey)
+    || !isBudgetFunding(budget.funding)
+    || !Array.isArray(budget.categories)
+    || !budget.categories.every((category) => (
+      isObject(category)
+      && hasOnlyFields(category, [
+        'id', 'name', 'plannedPence', 'assignedPence', 'spentPence', 'availablePence',
+      ])
+      && typeof category.id === 'string'
+      && category.id.trim().length > 0
+      && typeof category.name === 'string'
+      && category.name.trim().length > 0
+      && isNonnegativeSafeInteger(category.plannedPence)
+      && isSafeInteger(category.assignedPence)
+      && isSafeInteger(category.spentPence)
+      && isSafeInteger(category.availablePence)
+      && Number.isSafeInteger(category.assignedPence - category.spentPence)
+      && category.availablePence === category.assignedPence - category.spentPence
+    ))
+  )) return false;
+  return (value.scope === 'personal' || value.scope === 'joint')
+    && typeof value.periodKey === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.periodKey)
+    && (value.periodStatus === 'current' || value.periodStatus === 'historical')
+    && isCurrency(value.currency)
+    && isIsoDate(value.period.startDate)
+    && isIsoDate(value.period.endDate)
+    && value.period.startDate <= value.period.endDate
+    && (value.period.dateRangeSource === 'stored'
+      || value.period.dateRangeSource === 'legacy_settings_fallback')
+    && isNonnegativeSafeInteger(value.activity.transactionCount)
+    && isActivityAmounts(value.activity.uncategorized)
+    && (value.periodStatus === 'historical'
+      ? value.refresh === null
+      : isRefreshStatus(value.refresh));
+}
+
+function isBudgetStatusResponse(value: unknown): boolean {
+  return isLegacyBudgetStatusResponse(value) || isBudgetActivityStatusResponse(value);
 }
 
 interface BudgetMovementResponse {

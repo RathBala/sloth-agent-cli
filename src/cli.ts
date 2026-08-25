@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.17.0';
+export const CLI_VERSION = '0.18.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -77,7 +77,7 @@ export function usageText(): string {
     '  sloth-agent accounts remove --account-ref REF [--apply]',
     '  sloth-agent investments [--account-ref REF] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
-    '  sloth-agent budget status --scope personal|joint [--base-url URL]',
+    '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
     '  sloth-agent budget move --scope personal|joint [--period YYYY-MM]',
@@ -539,29 +539,28 @@ export function budgetStatusHelpText(): string {
   return [
     'Sloth Agent CLI — budget status',
     '',
-    'Read assigned, spent, and available money for the current Sloth budget period.',
+    'Read booked activity and any trustworthy budget for one Sloth budget period.',
     '',
     'Usage:',
-    '  sloth-agent budget status --scope personal|joint [--base-url URL]',
+    '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '',
     'Options:',
     '  --scope personal|joint  Required. Budget ownership scope.',
+    '  --period YYYY-MM        Optional. Defaults to the current Sloth budget period.',
     '  --base-url URL          Optional. Override the API origin.',
     '  -h, --help              Show this help.',
     ...API_ORIGIN_HELP_LINES,
     '',
     'Access and freshness:',
     '  This command is read-only, requires agent:read, and never changes the budget.',
-    '  The server applies its normal once-per-UTC-day automatic transaction refresh policy.',
-    '  Inspect refresh.status and refresh.reason before relying on the result.',
+    '  Current periods use the normal transaction refresh policy; historical periods are cache-only.',
+    '  A historical response returns refresh as null.',
     '',
     'Output:',
-    '  categories[].assignedPence is the money assigned to the category.',
-    '  categories[].spentPence is signed booked activity; refunds reduce it.',
-    '  categories[].availablePence equals assignedPence minus spentPence.',
-    '  Negative availablePence means the category is over budget.',
-    '  activity contains the period dates, transaction count, uncategorizedSpentPence,',
-    '  and unmappedSpentPence. Review either nonzero value before moving money.',
+    '  activity.categories includes Income, Transfer, None, and ordinary categories.',
+    '  moneyInPence and moneyOutPence are nonnegative; netPence is money in minus money out.',
+    '  A transaction with no category appears under activity.uncategorized.',
+    '  budget contains the period plan and balances, or budget is null when no trustworthy plan exists.',
   ].join('\n');
 }
 
@@ -1034,11 +1033,11 @@ export function rulesHelpText(): string {
     'Rules do not create transactions or recurring predictions.',
     '',
     'Commands:',
-    '  rules list           List every saved notification rule.',
-    '  rules get            Read the rule for one transaction.',
-    '  rules set            Preview or save a rule for one transaction.',
-    '  rules delete         Preview or remove a rule.',
-    '  rules scan-contract  Validate or scan a PDF for its renewal date.',
+    '  sloth-agent rules list           List every saved notification rule.',
+    '  sloth-agent rules get            Read the rule for one transaction.',
+    '  sloth-agent rules set            Preview or save a rule for one transaction.',
+    '  sloth-agent rules delete         Preview or remove a rule.',
+    '  sloth-agent rules scan-contract  Validate or scan a PDF for its renewal date.',
     '',
     'Use the exact transactionRef returned by sloth-agent transactions.',
     ...API_ORIGIN_HELP_LINES,
@@ -2296,7 +2295,7 @@ export async function runCli(
 
     if (parsed.command === 'budget' || parsed.command === 'budget-status') {
       const query = new URLSearchParams({ scope: parsed.scope });
-      if (parsed.command === 'budget' && parsed.periodKey !== undefined) {
+      if (parsed.periodKey !== undefined) {
         query.set('periodKey', parsed.periodKey);
       }
       const response = await fetchImplementation(
