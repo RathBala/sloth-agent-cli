@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.16.0';
+export const CLI_VERSION = '0.17.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [

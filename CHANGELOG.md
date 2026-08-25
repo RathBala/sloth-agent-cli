@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 - 2026-08-25
 
 - Run applied transaction-assignment batches through resumable server
   operations while keeping the existing `assign --input ... --apply` command

@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.16.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.17.0 -- sloth-agent --help
 ```
 
 ## Authenticate
