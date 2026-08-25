@@ -344,8 +344,8 @@ describe('API response validation', () => {
     )).toBe(agentApiV1CategoriesResponse);
     expect(parseApiResponse('budget', agentApiV1BudgetResponse))
       .toBe(agentApiV1BudgetResponse);
-    expect(parseApiResponse('budget-status', agentApiV1BudgetStatusResponse))
-      .toBe(agentApiV1BudgetStatusResponse);
+    expect(() => parseApiResponse('budget-status', agentApiV1BudgetStatusResponse))
+      .toThrow(/invalid budget-status response/i);
     expect(parseApiResponse('budget-status', agentApiV1BudgetActivityStatusResponse))
       .toBe(agentApiV1BudgetActivityStatusResponse);
     expect(parseApiResponse('budget-status', {

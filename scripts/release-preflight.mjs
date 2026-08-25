@@ -78,10 +78,29 @@ for (const [parent, children] of nestedCommands) {
   }
 }
 
-const globalVersionResult = spawnSync('sloth-agent', ['--version'], { encoding: 'utf8' });
-const globalVersion = globalVersionResult.status === 0
-  ? globalVersionResult.stdout.trim()
-  : 'not installed';
+const executableNames = process.platform === 'win32'
+  ? ['sloth-agent.cmd', 'sloth-agent.exe', 'sloth-agent']
+  : ['sloth-agent'];
+const globallyInstalled = [];
+const seenExecutables = new Set();
+for (const directory of (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)) {
+  for (const executableName of executableNames) {
+    const executablePath = path.resolve(directory, executableName);
+    try {
+      fs.accessSync(executablePath, fs.constants.X_OK);
+      const canonicalPath = fs.realpathSync(executablePath);
+      if (seenExecutables.has(canonicalPath)) continue;
+      seenExecutables.add(canonicalPath);
+      const result = spawnSync(executablePath, ['--version'], { encoding: 'utf8' });
+      globallyInstalled.push({
+        path: executablePath,
+        version: result.status === 0 ? result.stdout.trim() : 'unavailable',
+      });
+    } catch {
+      continue;
+    }
+  }
+}
 const registryVersion = run(
   process.platform === 'win32' ? 'npm.cmd' : 'npm',
   ['view', packageJson.name, 'version'],
@@ -92,7 +111,7 @@ const commit = run('git', ['rev-parse', '--short', 'HEAD']);
 process.stdout.write(`${JSON.stringify({
   localCheckout: { version: packageJson.version, branch, commit },
   packedPackage: { version: packedVersion },
-  globallyInstalled: { version: globalVersion },
+  globallyInstalled,
   npmRegistry: { version: registryVersion },
   helpRoutesChecked: helpRoutes.length,
 }, null, 2)}\n`);

@@ -805,9 +805,10 @@ npm run release:preflight
 `npm run test:package` packs the exact npm artifact, installs it into a clean
 temporary project, and runs the installed binary.
 
-`npm run release:preflight` reports the local, packed, globally installed, and
-npm-registry versions, then exercises every parser command's nested help. It
-fails when a parent help page stops advertising one of its child commands.
+`npm run release:preflight` reports the local, packed, npm-registry, and every
+PATH-resolved globally installed version, then exercises every parser command's
+nested help. It fails when a parent help page stops advertising one of its
+child commands.
 
 ## Releasing
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.1 - 2026-08-25
+
+- Require the deployed historical-activity response for `budget status` and
+  remove the temporary validator for the retired current-only response.
+- Report every PATH-resolved `sloth-agent` installation during release
+  preflight, so Homebrew and Node-version-manager copies cannot silently drift.
+
 ## 0.18.0 - 2026-08-25
 
 - Add optional `--period YYYY-MM` to `budget status` for current and historical

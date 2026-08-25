@@ -963,71 +963,6 @@ function isBudgetResponse(value: unknown): boolean {
   );
 }
 
-function isLegacyBudgetStatusResponse(value: unknown): boolean {
-  if (
-    !isObject(value)
-    || !hasOnlyFields(value, [
-      'scope',
-      'periodKey',
-      'periodStatus',
-      'currency',
-      'effectiveFromPeriodKey',
-      'funding',
-      'activity',
-      'refresh',
-      'categories',
-    ])
-  ) return false;
-
-  return (
-    (value.scope === 'personal' || value.scope === 'joint')
-    && typeof value.periodKey === 'string'
-    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.periodKey)
-    && value.periodStatus === 'current'
-    && isCurrency(value.currency)
-    && typeof value.effectiveFromPeriodKey === 'string'
-    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.effectiveFromPeriodKey)
-    && isBudgetFunding(value.funding)
-    && isObject(value.activity)
-    && hasOnlyFields(value.activity, [
-      'startDate',
-      'endDate',
-      'transactionCount',
-      'uncategorizedSpentPence',
-      'unmappedSpentPence',
-    ])
-    && isIsoDate(value.activity.startDate)
-    && isIsoDate(value.activity.endDate)
-    && value.activity.startDate <= value.activity.endDate
-    && isNonnegativeSafeInteger(value.activity.transactionCount)
-    && isSafeInteger(value.activity.uncategorizedSpentPence)
-    && isSafeInteger(value.activity.unmappedSpentPence)
-    && isRefreshStatus(value.refresh)
-    && Array.isArray(value.categories)
-    && value.categories.every((category) => (
-      isObject(category)
-      && hasOnlyFields(category, [
-        'id',
-        'name',
-        'plannedPence',
-        'assignedPence',
-        'spentPence',
-        'availablePence',
-      ])
-      && typeof category.id === 'string'
-      && category.id.trim().length > 0
-      && typeof category.name === 'string'
-      && category.name.trim().length > 0
-      && isNonnegativeSafeInteger(category.plannedPence)
-      && isSafeInteger(category.assignedPence)
-      && isSafeInteger(category.spentPence)
-      && isSafeInteger(category.availablePence)
-      && Number.isSafeInteger(category.assignedPence - category.spentPence)
-      && category.availablePence === category.assignedPence - category.spentPence
-    ))
-  );
-}
-
 function isActivityAmounts(value: unknown): boolean {
   return isObject(value)
     && hasOnlyFields(value, ['moneyInPence', 'moneyOutPence', 'netPence'])
@@ -1101,10 +1036,6 @@ function isBudgetActivityStatusResponse(value: unknown): boolean {
     && (value.periodStatus === 'historical'
       ? value.refresh === null
       : isRefreshStatus(value.refresh));
-}
-
-function isBudgetStatusResponse(value: unknown): boolean {
-  return isLegacyBudgetStatusResponse(value) || isBudgetActivityStatusResponse(value);
 }
 
 interface BudgetMovementResponse {
@@ -1427,7 +1358,7 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
     : command === 'budget' || command === 'budget-update'
       ? isBudgetResponse(value)
     : command === 'budget-status'
-      ? isBudgetStatusResponse(value)
+      ? isBudgetActivityStatusResponse(value)
     : command === 'budget-move'
       ? isBudgetMovementResponse(value)
     : command === 'categories'

@@ -1618,7 +1618,18 @@ describe('CLI execution', () => {
 
   it('reads current budget status and asks the API to wait for refresh', async () => {
     const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1BudgetStatusResponse));
+    const currentStatusResponse = {
+      ...agentApiV1BudgetActivityStatusResponse,
+      periodKey: '2026-08',
+      periodStatus: 'current',
+      period: {
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        dateRangeSource: 'stored',
+      },
+      refresh: agentApiV1BudgetStatusResponse.refresh,
+    } as const;
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(currentStatusResponse));
 
     expect(await runCli(['budget', 'status', '--scope', 'personal'], {
       env: { SLOTH_AGENT_TOKEN: 'token' },
@@ -1633,7 +1644,7 @@ describe('CLI execution', () => {
         headers: expect.objectContaining({ Prefer: 'wait=45' }),
       }),
     );
-    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1BudgetStatusResponse);
+    expect(JSON.parse(io.stdout.join(''))).toEqual(currentStatusResponse);
   });
 
   it('reads historical budget activity for an explicit period', async () => {
