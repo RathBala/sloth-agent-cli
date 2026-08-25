@@ -435,6 +435,9 @@ sloth-agent budget status --scope personal
 sloth-agent budget status --scope personal --period 2026-07
 ```
 
+The period key names the calendar month containing that Sloth period's start
+boundary. Its end date can fall in the following month.
+
 The current period uses Sloth's normal once-per-UTC-day transaction refresh;
 historical periods are cache-only and return `refresh: null`. Activity contains
 nonnegative `moneyInPence` and `moneyOutPence` plus their difference as

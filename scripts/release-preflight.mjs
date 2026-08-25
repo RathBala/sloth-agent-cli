@@ -25,13 +25,13 @@ assert.equal(packedVersion, packageJson.version, 'packed package version differs
 const helpRoutes = [
   [],
   ['auth'], ['auth', 'login'], ['auth', 'status'], ['auth', 'logout'],
-  ['accounts'], ['accounts', 'update'], ['accounts', 'remove'],
+  ['accounts'], ['accounts', 'list'], ['accounts', 'update'], ['accounts', 'remove'],
   ['investments'],
   ['budget'], ['budget', 'status'], ['budget', 'update'], ['budget', 'move'],
-  ['categories'], ['categories', 'create'], ['categories', 'rename'],
+  ['categories'], ['categories', 'list'], ['categories', 'create'], ['categories', 'rename'],
   ['line-items'], ['line-items', 'create'], ['line-items', 'rename'],
   ['transactions'], ['assign'],
-  ['rules'], ['rules', 'get'], ['rules', 'set'], ['rules', 'delete'], ['rules', 'scan-contract'],
+  ['rules'], ['rules', 'list'], ['rules', 'get'], ['rules', 'set'], ['rules', 'delete'], ['rules', 'scan-contract'],
   ['receipts'], ['receipts', 'extract'], ['receipts', 'get'], ['receipts', 'attach'], ['receipts', 'remove'],
   ['goals'], ['goals', 'list'], ['goals', 'create'], ['goals', 'update'],
   ['goals', 'mark-spent'], ['goals', 'restore'], ['goals', 'delete'],
@@ -52,11 +52,11 @@ for (const route of helpRoutes) {
 
 const nestedCommands = new Map([
   ['auth', ['login', 'status', 'logout']],
-  ['accounts', ['update', 'remove']],
+  ['accounts', ['list', 'update', 'remove']],
   ['budget', ['status', 'update', 'move']],
-  ['categories', ['create', 'rename']],
+  ['categories', ['list', 'create', 'rename']],
   ['line-items', ['create', 'rename']],
-  ['rules', ['get', 'set', 'delete', 'scan-contract']],
+  ['rules', ['list', 'get', 'set', 'delete', 'scan-contract']],
   ['receipts', ['extract', 'get', 'attach', 'remove']],
   ['goals', ['list', 'create', 'update', 'mark-spent', 'restore', 'delete']],
 ]);
