@@ -168,11 +168,11 @@ describe('CLI arguments', () => {
     expect(parseArgs(['accounts', 'list'])).toEqual({ command: 'accounts' });
     expect(parseArgs([
       'accounts', 'update', '--account-ref', accountRef,
-      '--goal-savings-source', 'false', '--apply',
+      '--goal-funding-account', 'false', '--apply',
     ])).toEqual({
       command: 'accounts-update',
       accountRef,
-      update: { isGoalSavingsSource: false },
+      update: { isGoalFundingAccount: false },
       apply: true,
     });
     expect(parseArgs([
@@ -183,7 +183,7 @@ describe('CLI arguments', () => {
       '--ownership', 'joint',
       '--balance-amount', '12500.75',
       '--account-type', 'investments',
-      '--goal-savings-source', 'false', '--apply',
+      '--goal-funding-account', 'false', '--apply',
     ])).toEqual({
       command: 'accounts-update',
       accountRef,
@@ -194,7 +194,7 @@ describe('CLI arguments', () => {
         ownership: 'joint',
         balanceAmount: 12500.75,
         accountType: 'investments',
-        isGoalSavingsSource: false,
+        isGoalFundingAccount: false,
       },
       apply: true,
     });
@@ -216,11 +216,11 @@ describe('CLI arguments', () => {
     });
     expect(() => parseArgs([
       'accounts', 'update', '--account-ref', 'account-1',
-      '--goal-savings-source', 'true',
+      '--goal-funding-account', 'true',
     ])).toThrow(/valid accountRef/);
     expect(() => parseArgs([
       'accounts', 'update', '--account-ref', accountRef,
-      '--goal-savings-source', 'yes',
+      '--goal-funding-account', 'yes',
     ])).toThrow(/true or false/);
     expect(() => parseArgs(['accounts', 'update', '--account-ref', accountRef]))
       .toThrow(/at least one field/);
@@ -247,6 +247,7 @@ describe('CLI arguments', () => {
   });
 
   it('parses goal creation options with preview as the default', () => {
+    const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
     expect(parseArgs([
       'goals',
       'create',
@@ -257,12 +258,18 @@ describe('CLI arguments', () => {
       '2027-06',
       '--type',
       'keep',
+      '--account-ref',
+      accountRef,
+      '--priority',
+      '2',
     ])).toEqual({
       command: 'goals-create',
       name: 'Emergency fund',
       targetAmount: 12_000.5,
       targetMonthKey: '2027-06',
       goalType: 'keep',
+      fundingAccountRef: accountRef,
+      priority: 2,
       apply: false,
     });
 
@@ -272,17 +279,24 @@ describe('CLI arguments', () => {
       '--name=Emergency fund',
       '--target-amount=12000',
       '--type=spend',
+      `--account-ref=${accountRef}`,
       '--apply',
     ])).toEqual({
       command: 'goals-create',
       name: 'Emergency fund',
       targetAmount: 12_000,
       goalType: 'spend',
+      fundingAccountRef: accountRef,
       apply: true,
     });
+
+    expect(() => parseArgs([
+      'goals', 'create', '--name', 'Robot', '--target-amount', '100', '--type', 'spend',
+    ])).toThrow(/requires --account-ref/);
   });
 
   it('parses goal updates with explicit set and clear operations', () => {
+    const accountRef = `sloth_account_v1_${'B'.repeat(43)}`;
     expect(parseArgs([
       'goals',
       'update',
@@ -293,6 +307,8 @@ describe('CLI arguments', () => {
       '--target-month',
       '2027-12',
       '--type=spend',
+      '--account-ref',
+      accountRef,
       '--apply',
     ])).toEqual({
       command: 'goals-update',
@@ -301,6 +317,7 @@ describe('CLI arguments', () => {
       targetAmount: 15_000.25,
       targetMonthKey: '2027-12',
       goalType: 'spend',
+      fundingAccountRef: accountRef,
       apply: true,
     });
 
@@ -471,15 +488,6 @@ describe('CLI arguments', () => {
       'goal-1',
       '--priority=1.5',
     ])).toThrow(/positive whole-number position/);
-    expect(() => parseArgs([
-      'goals',
-      'update',
-      '--goal-id',
-      'goal-1',
-      '--name',
-      'Emergency pot',
-      '--priority=2',
-    ])).toThrow(/priority.*on its own/i);
     expect(() => parseArgs(['goals', 'get', '--goal-id', 'goal-1']))
       .toThrow(/Unknown goals command/);
     expect(() => parseArgs(['goals', 'delete']))

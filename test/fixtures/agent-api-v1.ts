@@ -35,7 +35,7 @@ export const agentApiV1AccountsResponse = {
     source: 'connected',
     lastBalanceUpdatedAt: '2026-08-01T09:30:00.000Z',
     connectionState: 'active',
-    isGoalSavingsSource: true,
+    isGoalFundingAccount: true,
   }, {
     accountRef: 'sloth_account_v1_5VeuB4MpR7W5L4uPdHRYSsfNWGqoQYqrKx3GZQiLoFM',
     accountName: null,
@@ -47,7 +47,7 @@ export const agentApiV1AccountsResponse = {
     source: 'connected',
     lastBalanceUpdatedAt: null,
     connectionState: 'expired',
-    isGoalSavingsSource: false,
+    isGoalFundingAccount: false,
   }],
 } as const;
 
@@ -165,19 +165,46 @@ export const agentApiV1Goal = {
   name: 'Emergency fund',
   targetAmount: 12_000,
   targetMonthKey: '2027-06',
+  forecastMonthKey: '2027-08',
   goalType: 'keep',
   spentAt: null,
   sharedWithPartner: false,
+  effectivePriority: 1,
+  fundingAccountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
+  fundingAccountLabel: 'Monzo · Everyday account',
+} as const;
+
+export const agentApiV1ForecastBasis = {
+  calculatedAt: '2026-08-21T10:00:00.000Z',
+  activeScenarioRevision: 7,
+  projectionThroughMonthKey: '2126-07',
 } as const;
 
 export const agentApiV1GoalsResponse = {
   currency: 'GBP',
+  forecastBasis: agentApiV1ForecastBasis,
   goals: [agentApiV1Goal],
 } as const;
 
 export const agentApiV1GoalMutationResponse = {
   currency: 'GBP',
+  forecastBasis: agentApiV1ForecastBasis,
   goal: agentApiV1Goal,
+} as const;
+
+export const agentApiV1GoalPreviewResponse = {
+  currency: 'GBP',
+  forecastBasis: agentApiV1ForecastBasis,
+  goal: {
+    name: 'Emergency fund',
+    targetAmount: 12_000,
+    targetMonthKey: '2027-06',
+    forecastMonthKey: '2027-08',
+    goalType: 'spend',
+    effectivePriority: 2,
+    fundingAccountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
+    fundingAccountLabel: 'Monzo · Everyday account',
+  },
 } as const;
 
 export const agentApiV1GoalDeleteResponse = {

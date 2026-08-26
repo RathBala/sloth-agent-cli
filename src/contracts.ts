@@ -104,6 +104,7 @@ type ApiCommand =
   | 'rules-scan-contract'
   | 'ask-partner'
   | 'goals-list'
+  | 'goals-preview'
   | 'goals-create'
   | 'goals-update'
   | 'goals-mark-spent'
@@ -849,6 +850,31 @@ function hasOnlyFields(value: JsonObject, fields: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.has(key));
 }
 
+function isMonthKeyOrNull(value: unknown): boolean {
+  return value === null || (
+    typeof value === 'string'
+    && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
+  );
+}
+
+function isPlannedGoalFields(value: JsonObject): boolean {
+  return (
+    typeof value.name === 'string'
+    && value.name.trim().length > 0
+    && typeof value.targetAmount === 'number'
+    && Number.isFinite(value.targetAmount)
+    && value.targetAmount > 0
+    && isMonthKeyOrNull(value.targetMonthKey)
+    && isMonthKeyOrNull(value.forecastMonthKey)
+    && isGoalType(value.goalType)
+    && Number.isSafeInteger(value.effectivePriority)
+    && Number(value.effectivePriority) > 0
+    && isAccountRef(value.fundingAccountRef)
+    && typeof value.fundingAccountLabel === 'string'
+    && value.fundingAccountLabel.trim().length > 0
+  );
+}
+
 function isGoal(value: unknown): boolean {
   return (
     isObject(value)
@@ -857,26 +883,17 @@ function isGoal(value: unknown): boolean {
       'name',
       'targetAmount',
       'targetMonthKey',
+      'forecastMonthKey',
       'goalType',
       'spentAt',
       'sharedWithPartner',
+      'effectivePriority',
+      'fundingAccountRef',
+      'fundingAccountLabel',
     ])
     && typeof value.id === 'string'
     && value.id.trim().length > 0
-    && typeof value.name === 'string'
-    && value.name.trim().length > 0
-    && (
-      value.targetAmount === null
-      || (typeof value.targetAmount === 'number' && Number.isFinite(value.targetAmount))
-    )
-    && (
-      value.targetMonthKey === null
-      || (
-        typeof value.targetMonthKey === 'string'
-        && /^\d{4}-(0[1-9]|1[0-2])$/.test(value.targetMonthKey)
-      )
-    )
-    && isGoalType(value.goalType)
+    && isPlannedGoalFields(value)
     && (
       value.goalType === 'spend'
         ? value.spentAt === null || isIsoDateTime(value.spentAt)
@@ -1148,7 +1165,7 @@ function isAccount(value: unknown): boolean {
       'source',
       'lastBalanceUpdatedAt',
       'connectionState',
-      'isGoalSavingsSource',
+      'isGoalFundingAccount',
     ])
     && isAccountRef(value.accountRef)
     && isNullableNonEmptyString(value.accountName)
@@ -1175,7 +1192,7 @@ function isAccount(value: unknown): boolean {
       || value.connectionState === 'manual'
       || value.connectionState === 'unknown'
     )
-    && typeof value.isGoalSavingsSource === 'boolean'
+    && typeof value.isGoalFundingAccount === 'boolean'
   );
 }
 
@@ -1259,11 +1276,41 @@ function isInvestmentsResponse(value: unknown): boolean {
   );
 }
 
+function isForecastBasis(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, [
+      'calculatedAt',
+      'activeScenarioRevision',
+      'projectionThroughMonthKey',
+    ])
+    && isIsoDateTime(value.calculatedAt)
+    && Number.isSafeInteger(value.activeScenarioRevision)
+    && Number(value.activeScenarioRevision) >= 0
+    && isMonthKeyOrNull(value.projectionThroughMonthKey) === true
+    && value.projectionThroughMonthKey !== null;
+}
+
+function isGoalPreview(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, [
+      'name',
+      'targetAmount',
+      'targetMonthKey',
+      'forecastMonthKey',
+      'goalType',
+      'effectivePriority',
+      'fundingAccountRef',
+      'fundingAccountLabel',
+    ])
+    && isPlannedGoalFields(value);
+}
+
 function isGoalsResponse(value: unknown): boolean {
   return (
     isObject(value)
-    && hasOnlyFields(value, ['currency', 'goals'])
+    && hasOnlyFields(value, ['currency', 'forecastBasis', 'goals'])
     && isCurrency(value.currency)
+    && isForecastBasis(value.forecastBasis)
     && Array.isArray(value.goals)
     && value.goals.every(isGoal)
   );
@@ -1272,10 +1319,19 @@ function isGoalsResponse(value: unknown): boolean {
 function isGoalMutationResponse(value: unknown): boolean {
   return (
     isObject(value)
-    && hasOnlyFields(value, ['currency', 'goal'])
+    && hasOnlyFields(value, ['currency', 'forecastBasis', 'goal'])
     && isCurrency(value.currency)
+    && isForecastBasis(value.forecastBasis)
     && isGoal(value.goal)
   );
+}
+
+function isGoalPreviewResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['currency', 'forecastBasis', 'goal'])
+    && isCurrency(value.currency)
+    && isForecastBasis(value.forecastBasis)
+    && isGoalPreview(value.goal);
 }
 
 function isGoalDeleteResponse(value: unknown): boolean {
@@ -1391,6 +1447,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
           ? isPartnerResponse(value)
           : command === 'goals-list'
             ? isGoalsResponse(value)
+            : command === 'goals-preview'
+              ? isGoalPreviewResponse(value)
             : command === 'goals-delete'
               ? isGoalDeleteResponse(value)
               : isGoalMutationResponse(value);

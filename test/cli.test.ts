@@ -23,6 +23,7 @@ import {
   agentApiV1CategoryMutationResponse,
   agentApiV1ExplanationResponse,
   agentApiV1GoalDeleteResponse,
+  agentApiV1GoalPreviewResponse,
   agentApiV1GoalMutationResponse,
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
@@ -187,6 +188,7 @@ describe('CLI execution', () => {
     expect(helpIo.stdout.join('')).toContain('[--account-ref REF]');
     expect(helpIo.stdout.join('')).not.toContain('--account-id');
     expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
+    expect(helpIo.stdout.join('')).toContain('--account-ref REF');
     expect(helpIo.stdout.join('')).toContain('Every nested subcommand has its own help');
     expect(helpIo.stdout.join('')).toContain('sloth-agent receipts');
     expect(helpIo.stdout.join('')).toContain('view-only');
@@ -262,11 +264,11 @@ describe('CLI execution', () => {
         'native currency',
         'connectionState',
         'accountRef',
-        'isGoalSavingsSource',
+        'isGoalFundingAccount',
       ]],
       [['accounts', 'update', '--help'], [
         '--account-ref REF', '--institution-name NAME', '--ownership individual|joint',
-        '--balance-amount AMOUNT', '--goal-savings-source true|false',
+        '--balance-amount AMOUNT', '--goal-funding-account true|false',
         'Without --apply', 'write-enabled token', 'Partner-owned', 'Manual accounts',
         'agent:write', 'Account not found',
       ]],
@@ -378,6 +380,7 @@ describe('CLI execution', () => {
       [['receipts', 'attach', '--help'], ['--input FILE', '--expected-revision', 'Without --apply', 'negative for discounts']],
       [['receipts', 'remove', '--help'], ['--revision N', 'Without --apply', 'removes saved receipt items']],
       [['goals', '--help'], [
+        'account-funded Goals',
         'goals list',
         'goals create',
         'goals update',
@@ -396,26 +399,29 @@ describe('CLI execution', () => {
         'Required',
         '--target-amount AMOUNT',
         '--type keep|spend',
+        '--account-ref REF',
         '--target-month YYYY-MM',
         'Without --apply',
+        'authenticates and asks Sloth',
         'write-enabled token',
         'Allow changes',
-        '201',
+        'forecastMonthKey',
       ]],
       [['goals', 'update', '--help'], [
         '--goal-id ID',
         'Required',
         '--type keep|spend',
+        '--account-ref REF',
         '--clear-target-month',
         '--priority POSITION',
         'Priority 1 is highest',
         'shifts the intervening goals',
-        'Forecast screen',
+        'recalculates the Goal roadmap',
         'at least one field',
         'Without --apply',
         'write-enabled token',
         'Allow changes',
-        'Change active shared pot target amounts',
+        'assigned account remains private',
       ]],
       [['goals', 'mark-spent', '--help'], [
         '--goal-id ID',
@@ -733,7 +739,7 @@ describe('CLI execution', () => {
       '--ownership', 'individual',
       '--balance-amount', '12500.75',
       '--account-type', 'investments',
-      '--goal-savings-source', 'false',
+      '--goal-funding-account', 'false',
     ], {
       env: {},
       fetch: previewFetch,
@@ -753,7 +759,7 @@ describe('CLI execution', () => {
         ownership: 'personal',
         balanceAmount: 12500.75,
         accountType: 'investments',
-        isGoalSavingsSource: false,
+        isGoalFundingAccount: false,
       },
     });
 
@@ -763,7 +769,7 @@ describe('CLI execution', () => {
     ));
     expect(await runCli([
       'accounts', 'update', '--account-ref', accountRef,
-      '--goal-savings-source', 'true', '--apply',
+      '--goal-funding-account', 'true', '--apply',
     ], {
       env: { SLOTH_AGENT_TOKEN: 'token' },
       fetch: applyFetch,
@@ -773,7 +779,7 @@ describe('CLI execution', () => {
       `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
       expect.objectContaining({
         method: 'PATCH',
-        body: JSON.stringify({ isGoalSavingsSource: true }),
+        body: JSON.stringify({ isGoalFundingAccount: true }),
       }),
     );
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
@@ -857,16 +863,16 @@ describe('CLI execution', () => {
       'https://budget.slothmoney.app/api/agent/v1/goals',
       expect.objectContaining({ method: 'GET' }),
     );
-    expect(JSON.parse(io.stdout.join(''))).toEqual({
-      ...agentApiV1GoalsResponse,
-      goals: [{ ...agentApiV1GoalsResponse.goals[0], priority: 1 }],
-    });
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1GoalsResponse);
     expect(io.stderr).toEqual([]);
   });
 
   it('previews and applies goal creation', async () => {
     const previewIo = createIo();
-    const previewFetch = vi.fn();
+    const previewFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1GoalPreviewResponse,
+    ));
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
     const argv = [
       'goals',
       'create',
@@ -878,6 +884,10 @@ describe('CLI execution', () => {
       '2027-06',
       '--type',
       'spend',
+      '--account-ref',
+      accountRef,
+      '--priority',
+      '2',
     ];
 
     expect(await runCli(argv, {
@@ -886,18 +896,22 @@ describe('CLI execution', () => {
       ...previewIo,
     })).toBe(0);
 
-    expect(previewFetch).not.toHaveBeenCalled();
-    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
-      dryRun: true,
-      endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals',
-      method: 'POST',
-      payload: {
+    expect(previewFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/goals/preview',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer token' }),
+        body: JSON.stringify({
         name: 'Emergency fund',
         targetAmount: 12_000,
         targetMonthKey: '2027-06',
         goalType: 'spend',
-      },
-    });
+          fundingAccountRef: accountRef,
+          priority: 2,
+        }),
+      }),
+    );
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual(agentApiV1GoalPreviewResponse);
 
     const applyIo = createIo();
     const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
@@ -919,6 +933,8 @@ describe('CLI execution', () => {
           targetAmount: 12_000,
           targetMonthKey: '2027-06',
           goalType: 'spend',
+          fundingAccountRef: accountRef,
+          priority: 2,
         }),
       }),
     );
@@ -927,7 +943,31 @@ describe('CLI execution', () => {
     );
   });
 
+  it('prints Goal preview corrective codes on stderr', async () => {
+    const io = createIo();
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      error: 'Goal funding has not been migrated for this account',
+      code: 'GOAL_FUNDING_MODEL_INCOMPLETE',
+    }, 409));
+
+    expect(await runCli([
+      'goals', 'create', '--name', 'Robot', '--target-amount', '100',
+      '--type', 'spend', '--account-ref', accountRef,
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(1);
+
+    expect(io.stdout).toEqual([]);
+    expect(io.stderr.join('')).toBe(
+      'GOAL_FUNDING_MODEL_INCOMPLETE: Goal funding has not been migrated for this account\n',
+    );
+  });
+
   it('previews and applies a partial goal update', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
     const argv = [
       'goals',
       'update',
@@ -938,6 +978,8 @@ describe('CLI execution', () => {
       '--target-month',
       '2027-12',
       '--type=spend',
+      '--account-ref',
+      accountRef,
     ];
     const previewIo = createIo();
     const previewFetch = vi.fn();
@@ -957,6 +999,7 @@ describe('CLI execution', () => {
         targetAmount: 15_000,
         targetMonthKey: '2027-12',
         goalType: 'spend',
+        fundingAccountRef: accountRef,
       },
     });
 
@@ -978,6 +1021,7 @@ describe('CLI execution', () => {
           targetAmount: 15_000,
           targetMonthKey: '2027-12',
           goalType: 'spend',
+          fundingAccountRef: accountRef,
         }),
       }),
     );
@@ -1105,10 +1149,7 @@ describe('CLI execution', () => {
         body: JSON.stringify({ priority: 2 }),
       }),
     );
-    expect(JSON.parse(applyIo.stdout.join(''))).toEqual({
-      ...agentApiV1GoalMutationResponse,
-      goal: { ...agentApiV1GoalMutationResponse.goal, priority: 2 },
-    });
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(agentApiV1GoalMutationResponse);
   });
 
   it('previews and applies goal deletion', async () => {

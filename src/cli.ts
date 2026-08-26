@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.18.1';
+export const CLI_VERSION = '0.19.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -103,7 +103,8 @@ export function usageText(): string {
     '  sloth-agent receipts remove --transaction-ref REF --revision N [--apply]',
     '  sloth-agent goals [list] [--base-url URL]',
     '  sloth-agent goals create --name NAME --target-amount AMOUNT',
-    '    --type keep|spend [--target-month YYYY-MM] [--apply] [--base-url URL]',
+    '    --type keep|spend --account-ref REF [--target-month YYYY-MM]',
+    '    [--priority POSITION] [--apply] [--base-url URL]',
     '  sloth-agent goals update --goal-id ID [fields] [--apply] [--base-url URL]',
     '  sloth-agent goals mark-spent --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent goals restore --goal-id ID [--apply] [--base-url URL]',
@@ -408,7 +409,7 @@ export function accountsHelpText(): string {
     '  accounts[].ownership   personal or joint',
     '  accounts[].balanceAmount and currency in the native currency when known',
     '  accounts[].connectionState and lastBalanceUpdatedAt for freshness',
-    '  accounts[].isGoalSavingsSource whether the owner uses it for goal savings',
+    '  accounts[].isGoalFundingAccount whether Goals may use the account',
   ].join('\n');
 }
 
@@ -431,13 +432,13 @@ export function accountsUpdateHelpText(): string {
     '  --ownership individual|joint       Manual account ownership.',
     '  --balance-amount AMOUNT             Balance-only account balance.',
     '  --account-type savings|investments Balance-only account type.',
-    '  --goal-savings-source true|false   Goal-savings membership.',
+    '  --goal-funding-account true|false   Whether Goals may use this account.',
     '',
     'Write behavior:',
     '  Without --apply, returns a JSON preview without credentials or a network request.',
     '  With --apply, requires agent:write on a write-enabled token and updates saved Sloth metadata.',
-    '  Connected accounts support only --goal-savings-source.',
-    '  Manual current accounts cannot change type, balance, or goal-savings membership.',
+    '  Connected accounts support only --goal-funding-account.',
+    '  Manual current accounts cannot change type, balance, or Goal-funding membership.',
     '  Partner-owned shared accounts cannot be changed.',
     '  Unknown, disconnected, or inaccessible references return Account not found.',
     ...API_ORIGIN_HELP_LINES,
@@ -784,7 +785,7 @@ export function goalsHelpText(): string {
   return [
     'Sloth Agent CLI — goals',
     '',
-    'List, create, update, mark spent, restore, or delete your savings goals.',
+    'List, preview, create, update, mark spent, restore, or delete account-funded Goals.',
     '',
     'Commands:',
     '  sloth-agent goals list      List goals; "sloth-agent goals" is equivalent.',
@@ -819,9 +820,9 @@ export function goalsListHelpText(): string {
     '  This command is read-only.',
     '',
     'Output:',
-    '  JSON containing currency and goals. Each goal contains id, name, priority,',
-    '  targetAmount, targetMonthKey, goalType, nullable spentAt, and',
-    '  sharedWithPartner.',
+    '  JSON containing currency, forecastBasis, and goals. Each goal includes its',
+    '  effectivePriority, funding account, desired targetMonthKey, and calculated',
+    '  forecastMonthKey.',
   ].join('\n');
 }
 
@@ -832,30 +833,33 @@ export function goalsCreateHelpText(): string {
     'Preview or create a goal.',
     '',
     'Usage:',
-    '  sloth-agent goals create --name NAME --target-amount AMOUNT --type keep|spend [options]',
+    '  sloth-agent goals create --name NAME --target-amount AMOUNT --type keep|spend --account-ref REF [options]',
     '',
     'Options:',
     '  --name NAME                 Required. Goal name, 1 to 200 characters.',
     '  --target-amount AMOUNT      Required. Positive major-unit amount with up to 2 decimals.',
     '  --type keep|spend           Required. Keep reserves funded money; Spend is spent later.',
-    '  --target-month YYYY-MM      Optional. Target calendar month.',
+    '  --account-ref REF           Required. Personal Goal-funding account from accounts list.',
+    '  --target-month YYYY-MM      Optional. Desired calendar month; it does not change the forecast.',
+    '  --priority POSITION         Optional. One-based priority; defaults to append.',
     '  --apply                     Optional. Create the goal in Sloth Money.',
     '  --base-url URL              Optional. Override the API origin.',
     '  -h, --help                  Show this help.',
     ...API_ORIGIN_HELP_LINES,
     '',
     'Safety:',
-    '  Without --apply, the command returns a dry-run preview and does not write.',
+    '  Without --apply, the command authenticates and asks Sloth to calculate the Goal.',
+    '  The server performs no writes for a preview.',
     '  Applying requires a write-enabled token created with Allow changes.',
-    '  New goals are private to the owner and appended to the existing goal order.',
+    '  New goals are private to the owner and append unless --priority is supplied.',
     '',
     'Example:',
-    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000 --type keep',
-    '  sloth-agent goals create --name "Wedding" --target-amount 22000 --type spend --target-month 2027-06 --apply',
+    '  sloth-agent goals create --name "Emergency fund" --target-amount 12000 --type keep --account-ref REF',
+    '  sloth-agent goals create --name "Wedding" --target-amount 22000 --type spend --account-ref REF --target-month 2027-06 --apply',
     '',
     'Output:',
-    '  Preview mode returns dryRun, method, endpoint, and payload.',
-    '  Apply mode returns the persisted goal and currency from the 201 response.',
+    '  Preview and apply return the Goal, currency, calculated forecastMonthKey,',
+    '  effective priority, funding-account details, and forecastBasis.',
   ].join('\n');
 }
 
@@ -875,6 +879,7 @@ export function goalsUpdateHelpText(): string {
     '  --target-month YYYY-MM       Optional. Replace the target month.',
     '  --clear-target-month         Optional. Remove the target month.',
     '  --type keep|spend            Optional. Change how funded money is treated.',
+    '  --account-ref REF            Optional. Reassign to another personal Goal-funding account.',
     '  --priority POSITION          Optional. Positive whole-number position; 1 is highest.',
     '  --apply                      Optional. Write the partial update.',
     '  --base-url URL               Optional. Override the API origin.',
@@ -883,17 +888,13 @@ export function goalsUpdateHelpText(): string {
     '',
     'Constraints:',
     '  Provide at least one field to update.',
-    '  Priority must be updated on its own.',
     '  Priority 1 is highest. The position cannot exceed the current goal count.',
     '  Moving a goal shifts the intervening goals automatically.',
-    '  Forecast assignments and shared progress refresh when the owner next opens',
-    '  the Forecast screen.',
+    '  Sloth recalculates the Goal roadmap before saving the update.',
     '  Set and clear target-month options are mutually exclusive.',
     '  Restore a spent goal before changing its type.',
-    '  Change active shared pot target amounts in the Sloth Budget app, where',
-    '  account balances can be reconciled across goals in priority order.',
-    '  Sharing remains app-managed. Updates to an already shared goal remain visible',
-    '  to the connected partner.',
+    '  Sharing remains app-managed. Updates to a shared Goal remain visible to the',
+    '  connected partner, but its assigned account remains private to the owner.',
     '',
     'Safety:',
     '  Without --apply, the command returns a dry-run preview and does not write.',
@@ -905,7 +906,8 @@ export function goalsUpdateHelpText(): string {
     '',
     'Output:',
     '  Preview mode returns dryRun, method, endpoint, and payload.',
-    '  Apply mode returns the complete persisted goal and currency.',
+    '  Apply mode returns the complete persisted Goal, calculated forecastMonthKey,',
+    '  effective priority, funding-account details, currency, and forecastBasis.',
   ].join('\n');
 }
 
@@ -1291,29 +1293,6 @@ function writeJson(write: (value: string) => void, data: unknown): void {
   write(`${JSON.stringify(data, null, 2)}\n`);
 }
 
-function withListedGoalPriorities(value: unknown): unknown {
-  const response = value as Record<string, unknown> & {
-    goals: Array<Record<string, unknown>>;
-  };
-  return {
-    ...response,
-    goals: response.goals.map((goal, index) => ({
-      ...goal,
-      priority: index + 1,
-    })),
-  };
-}
-
-function withUpdatedGoalPriority(value: unknown, priority: number): unknown {
-  const response = value as Record<string, unknown> & {
-    goal: Record<string, unknown>;
-  };
-  return {
-    ...response,
-    goal: { ...response.goal, priority },
-  };
-}
-
 function redact(value: string, token: string | undefined): string {
   return token ? value.split(token).join('[REDACTED]') : value;
 }
@@ -1502,7 +1481,13 @@ async function parseHttpResponse(
     )
       ? data.error
       : `Agent API request failed with status ${response.status}`;
-    throw new ApiError(redact(message, token), response.status);
+    const code = (
+      data
+      && typeof data === 'object'
+      && 'code' in data
+      && typeof data.code === 'string'
+    ) ? data.code : undefined;
+    throw new ApiError(redact(message, token), response.status, code);
   }
   return data;
 }
@@ -2082,7 +2067,7 @@ export async function runCli(
     }
 
     if (parsed.command === 'goals-create') {
-      const endpoint = `${baseUrl}/api/agent/v1/goals`;
+      const endpoint = `${baseUrl}/api/agent/v1/goals${parsed.apply ? '' : '/preview'}`;
       const payload = {
         name: parsed.name,
         targetAmount: parsed.targetAmount,
@@ -2090,16 +2075,9 @@ export async function runCli(
           ? {}
           : { targetMonthKey: parsed.targetMonthKey }),
         goalType: parsed.goalType,
+        fundingAccountRef: parsed.fundingAccountRef,
+        ...(parsed.priority === undefined ? {} : { priority: parsed.priority }),
       };
-      if (!parsed.apply) {
-        writeJson(writeStdout, {
-          dryRun: true,
-          endpoint,
-          method: 'POST',
-          payload,
-        });
-        return 0;
-      }
 
       const response = await fetchImplementation(endpoint, {
         method: 'POST',
@@ -2111,7 +2089,7 @@ export async function runCli(
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       const data = parseApiResponse(
-        'goals-create',
+        parsed.apply ? 'goals-create' : 'goals-preview',
         await parseHttpResponse(response, token),
       );
       writeJson(writeStdout, data);
@@ -2136,6 +2114,9 @@ export async function runCli(
           ...(parsed.goalType === undefined
             ? {}
             : { goalType: parsed.goalType }),
+          ...(parsed.fundingAccountRef === undefined
+            ? {}
+            : { fundingAccountRef: parsed.fundingAccountRef }),
           ...(parsed.priority === undefined
             ? {}
             : { priority: parsed.priority }),
@@ -2164,12 +2145,7 @@ export async function runCli(
         parsed.command,
         await parseHttpResponse(response, token),
       );
-      writeJson(
-        writeStdout,
-        parsed.command !== 'goals-update' || parsed.priority === undefined
-          ? data
-          : withUpdatedGoalPriority(data, parsed.priority),
-      );
+      writeJson(writeStdout, data);
       return 0;
     }
 
@@ -2289,7 +2265,7 @@ export async function runCli(
         'goals-list',
         await parseHttpResponse(response, token),
       );
-      writeJson(writeStdout, withListedGoalPriorities(data));
+      writeJson(writeStdout, data);
       return 0;
     }
 
@@ -2338,7 +2314,8 @@ export async function runCli(
   } catch (error) {
     const exitCode = error instanceof CliError ? error.exitCode : 1;
     const message = error instanceof Error ? error.message : String(error);
-    writeStderr(`${redact(message, token)}\n`);
+    const prefix = error instanceof ApiError && error.code ? `${error.code}: ` : '';
+    writeStderr(`${prefix}${redact(message, token)}\n`);
     return exitCode;
   }
 }

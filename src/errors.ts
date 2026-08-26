@@ -23,6 +23,7 @@ export class ApiError extends CliError {
   constructor(
     message: string,
     readonly status?: number,
+    readonly code?: string,
   ) {
     super(message, 1);
   }

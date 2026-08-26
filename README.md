@@ -584,7 +584,7 @@ sloth-agent accounts
 The command is read-only and cache-only: it does not refresh linked banks or
 change account data. Each result contains an opaque `accountRef`, personal or
 joint ownership, connected or manual source, native balance/currency when
-known, `lastBalanceUpdatedAt`, `connectionState`, and `isGoalSavingsSource`.
+known, `lastBalanceUpdatedAt`, `connectionState`, and `isGoalFundingAccount`.
 Missing values are JSON
 `null`; currencies are never converted or combined. Partner personal accounts
 are excluded, while enabled shared joint accounts follow Sloth's existing
@@ -604,9 +604,9 @@ Copy the value from `sloth-agent accounts`. Account references are the public
 account identifier for transaction filtering.
 
 Account changes are previews unless `--apply` is present. Connected accounts
-support only goal-savings membership. Manual current accounts support their
+support only Goal-funding eligibility. Manual current accounts support their
 institution, name, currency, and ownership. Manual balance accounts also
-support balance, Savings/Investments type, and goal-savings membership.
+support balance, Savings/Investments type, and Goal-funding eligibility.
 Partner-owned shared accounts return an explanatory error.
 
 ```bash
@@ -618,11 +618,11 @@ sloth-agent accounts update \
   --ownership individual \
   --balance-amount 12500.75 \
   --account-type investments \
-  --goal-savings-source false
+  --goal-funding-account false
 
 sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
-  --goal-savings-source false \
+  --goal-funding-account false \
   --apply
 ```
 
@@ -664,15 +664,23 @@ Goal writes are previews unless `--apply` is present:
 sloth-agent goals create \
   --name "Emergency fund" \
   --target-amount 12000 \
-  --type keep
+  --type keep \
+  --account-ref sloth_account_v1_...
 
 sloth-agent goals create \
   --name "Wedding" \
   --target-amount 22000 \
   --target-month 2027-06 \
   --type spend \
+  --account-ref sloth_account_v1_... \
   --apply
 ```
+
+Without `--apply`, Goal creation authenticates and asks Sloth to calculate the
+Goal without writing it. Preview and apply use the same active-scenario planner
+and return `forecastMonthKey`, the effective priority, the funding account, and
+`forecastBasis`. A null forecast includes the final projected month. The CLI
+does not compare the desired and forecast dates or return affordability advice.
 
 Every goal is either Keep or Spend. A Keep goal continues reserving its funded
 money. A Spend goal reserves money until you explicitly mark it spent. Goal
@@ -687,6 +695,7 @@ move it in the priority order:
 sloth-agent goals update \
   --goal-id goal-id \
   --target-month 2027-12 \
+  --account-ref sloth_account_v1_... \
   --type spend \
   --apply
 
@@ -715,13 +724,10 @@ required recovery action. Restoring clears `spentAt` and returns the goal to
 allocation at its saved priority. Deleting a goal also removes its forecast
 assignments and drift history.
 
-Goal sharing remains app-managed. Change an active shared goal's pot-tracked
-target amount in the Sloth Budget app, where account balances can be
-reallocated across goals in priority order. Goal list output includes a
+Goal sharing remains app-managed. Goal list output includes a
 one-based `priority`; `1` is highest. Moving one goal automatically shifts the
-goals between its old and new positions. The priority option must be used on
-its own. Forecast assignments and shared pot progress are browser-owned
-derived state and refresh when the owner next opens the Forecast screen.
+goals between its old and new positions. Sloth recalculates the active-scenario
+roadmap before every applied Goal mutation and returns the updated forecast.
 
 Read uncategorised contributions to the joint budget:
 

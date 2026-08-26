@@ -97,7 +97,7 @@ export type ParsedCommand =
       ownership?: 'personal' | 'joint';
       balanceAmount?: number;
       accountType?: 'savings' | 'investments';
-      isGoalSavingsSource?: boolean;
+      isGoalFundingAccount?: boolean;
     };
     apply: boolean;
   }
@@ -223,6 +223,8 @@ export type ParsedCommand =
     targetAmount: number;
     targetMonthKey?: string;
     goalType: GoalType;
+    fundingAccountRef: string;
+    priority?: number;
     apply: boolean;
   }
   | {
@@ -233,6 +235,7 @@ export type ParsedCommand =
     targetAmount?: number;
     targetMonthKey?: string | null;
     goalType?: GoalType;
+    fundingAccountRef?: string;
     priority?: number;
     apply: boolean;
   }
@@ -672,7 +675,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
         '--ownership',
         '--balance-amount',
         '--account-type',
-        '--goal-savings-source',
+        '--goal-funding-account',
       ]),
     );
     const institutionName = values.get('--institution-name');
@@ -681,7 +684,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     const ownershipValue = values.get('--ownership');
     const balanceValue = values.get('--balance-amount');
     const accountTypeValue = values.get('--account-type');
-    const sourceValue = values.get('--goal-savings-source');
+    const sourceValue = values.get('--goal-funding-account');
     if (currencyValue !== undefined && !/^[A-Za-z]{3}$/.test(currencyValue)) {
       throw new UsageError('--currency must be a three-letter currency code');
     }
@@ -700,7 +703,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
       throw new UsageError('--account-type must be savings or investments');
     }
     if (sourceValue !== undefined && sourceValue !== 'true' && sourceValue !== 'false') {
-      throw new UsageError('--goal-savings-source must be true or false');
+      throw new UsageError('--goal-funding-account must be true or false');
     }
     const update = {
       ...(institutionName === undefined
@@ -717,7 +720,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
       ...(accountTypeValue === undefined
         ? {}
         : { accountType: accountTypeValue as 'savings' | 'investments' }),
-      ...(sourceValue === undefined ? {} : { isGoalSavingsSource: sourceValue === 'true' }),
+      ...(sourceValue === undefined ? {} : { isGoalFundingAccount: sourceValue === 'true' }),
     };
     if (Object.keys(update).length === 0) {
       throw new UsageError('accounts update requires at least one field to update');
@@ -989,6 +992,8 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
     let targetAmount: number | undefined;
     let targetMonthKey: string | undefined;
     let goalType: GoalType | undefined;
+    let fundingAccountRef: string | undefined;
+    let priority: number | undefined;
     let apply = false;
 
     for (let index = 0; index < args.length; index += 1) {
@@ -1007,6 +1012,8 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         && option !== '--target-amount'
         && option !== '--target-month'
         && option !== '--type'
+        && option !== '--account-ref'
+        && option !== '--priority'
       ) {
         throw new UsageError(`Unknown goals create option: ${argument}`);
       }
@@ -1031,8 +1038,12 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
           parseGoalMonthKey(value, option),
           option,
         );
-      } else {
+      } else if (option === '--type') {
         goalType = setOnce(goalType, parseGoalType(value), option);
+      } else if (option === '--account-ref') {
+        fundingAccountRef = setOnce(fundingAccountRef, parseAccountRef(value), option);
+      } else {
+        priority = setOnce(priority, parseGoalPriority(value), option);
       }
     }
 
@@ -1043,12 +1054,17 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
     if (goalType === undefined) {
       throw new UsageError('goals create requires --type <keep|spend>');
     }
+    if (fundingAccountRef === undefined) {
+      throw new UsageError('goals create requires --account-ref <accountRef>');
+    }
     return withBaseUrl({
       command: 'goals-create',
       name,
       targetAmount,
       ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
       goalType,
+      fundingAccountRef,
+      ...(priority === undefined ? {} : { priority }),
       apply,
     }, baseUrl);
   }
@@ -1059,6 +1075,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
     let targetAmount: number | undefined;
     let targetMonthKey: string | null | undefined;
     let goalType: GoalType | undefined;
+    let fundingAccountRef: string | undefined;
     let priority: number | undefined;
     let apply = false;
 
@@ -1088,6 +1105,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         && option !== '--target-amount'
         && option !== '--target-month'
         && option !== '--type'
+        && option !== '--account-ref'
         && option !== '--priority'
       ) {
         throw new UsageError(`Unknown goals update option: ${argument}`);
@@ -1118,6 +1136,8 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
         targetMonthKey = parseGoalMonthKey(value, option);
       } else if (option === '--priority') {
         priority = setOnce(priority, parseGoalPriority(value), option);
+      } else if (option === '--account-ref') {
+        fundingAccountRef = setOnce(fundingAccountRef, parseAccountRef(value), option);
       } else {
         goalType = setOnce(goalType, parseGoalType(value), option);
       }
@@ -1129,22 +1149,11 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       && targetAmount === undefined
       && targetMonthKey === undefined
       && goalType === undefined
+      && fundingAccountRef === undefined
       && priority === undefined
     ) {
       throw new UsageError('goals update requires at least one field to update');
     }
-    if (
-      priority !== undefined
-      && (
-        name !== undefined
-        || targetAmount !== undefined
-        || targetMonthKey !== undefined
-        || goalType !== undefined
-      )
-    ) {
-      throw new UsageError('--priority must be used on its own');
-    }
-
     return withBaseUrl({
       command: 'goals-update',
       goalId,
@@ -1152,6 +1161,7 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
       ...(targetAmount === undefined ? {} : { targetAmount }),
       ...(targetMonthKey === undefined ? {} : { targetMonthKey }),
       ...(goalType === undefined ? {} : { goalType }),
+      ...(fundingAccountRef === undefined ? {} : { fundingAccountRef }),
       ...(priority === undefined ? {} : { priority }),
       apply,
     }, baseUrl);

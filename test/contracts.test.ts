@@ -25,6 +25,7 @@ import {
   agentApiV1ExplanationResponse,
   agentApiV1GoalDeleteResponse,
   agentApiV1GoalMutationResponse,
+  agentApiV1GoalPreviewResponse,
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
   agentApiV1InvestmentsResponse,
@@ -425,11 +426,16 @@ describe('API response validation', () => {
       agentApiV1GoalMutationResponse,
     )).toBe(agentApiV1GoalMutationResponse);
     expect(parseApiResponse(
+      'goals-preview',
+      agentApiV1GoalPreviewResponse,
+    )).toBe(agentApiV1GoalPreviewResponse);
+    expect(parseApiResponse(
       'goals-update',
       agentApiV1GoalMutationResponse,
     )).toBe(agentApiV1GoalMutationResponse);
     const spentGoalResponse = {
       currency: 'GBP',
+      forecastBasis: agentApiV1GoalMutationResponse.forecastBasis,
       goal: {
         ...agentApiV1GoalMutationResponse.goal,
         goalType: 'spend',

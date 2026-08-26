@@ -108,6 +108,7 @@ try {
   assert.match(help, /sloth-agent transactions/);
   assert.doesNotMatch(help, /--account-id/);
   assert.match(help, /sloth-agent goals create/);
+  assert.match(help, /--account-ref REF/);
   assert.match(help, /sloth-agent goals update/);
   assert.match(help, /sloth-agent goals mark-spent/);
   assert.match(help, /sloth-agent goals restore/);
@@ -116,8 +117,8 @@ try {
 
   const commandHelpCases = [
     [['auth', 'login', '--help'], [/hidden prompt/]],
-    [['accounts', '--help'], [/accounts list/, /accounts update/, /accounts remove/, /existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalSavingsSource/]],
-    [['accounts', 'update', '--help'], [/--institution-name NAME/, /--ownership individual\|joint/, /--goal-savings-source true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
+    [['accounts', '--help'], [/accounts list/, /accounts update/, /accounts remove/, /existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalFundingAccount/]],
+    [['accounts', 'update', '--help'], [/--institution-name NAME/, /--ownership individual\|joint/, /--goal-funding-account true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
     [['accounts', 'remove', '--help'], [/archive/, /retaining its underlying records/, /Without --apply/, /changed false/]],
     [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
     [['budget', '--help'], [/sloth-agent budget\s+Read one budget period\./, /budget status/, /budget update/, /budget move/, /--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
@@ -174,8 +175,8 @@ try {
       /Assignments do not create a separate list\./,
     ]],
     [['goals', 'list', '--help'], [/No filters or singular get/]],
-    [['goals', 'create', '--help'], [/--name NAME\s+Required/, /--target-amount AMOUNT\s+Required/, /--type keep\|spend\s+Required/]],
-    [['goals', 'update', '--help'], [/--type keep\|spend/, /--priority POSITION/, /Priority must be updated on its own/, /Restore a spent goal before changing its type/]],
+    [['goals', 'create', '--help'], [/--name NAME\s+Required/, /--target-amount AMOUNT\s+Required/, /--type keep\|spend\s+Required/, /--account-ref REF\s+Required/, /authenticates and asks Sloth to calculate/]],
+    [['goals', 'update', '--help'], [/--type keep\|spend/, /--account-ref REF/, /--priority POSITION/, /recalculates the Goal roadmap/, /Restore a spent goal before changing its type/]],
     [['goals', 'mark-spent', '--help'], [/\{"isSpent":true\}/, /Keep goals cannot be marked spent/, /Without --apply/]],
     [['goals', 'restore', '--help'], [/\{"isSpent":false\}/, /clears spentAt/, /Without --apply/]],
     [['goals', 'delete', '--help'], [/removes its goal drift history/]],
@@ -202,24 +203,15 @@ try {
   assert.equal(removedAccountId.status, 2);
   assert.match(removedAccountId.stderr, /Unknown transactions option: --account-id/);
 
-  const goalCreatePreview = JSON.parse(runCliSync([
+  const missingGoalAccount = spawnCliSync([
     'goals', 'create', '--name', 'Wedding', '--target-amount', '22000',
     '--target-month', '2027-06', '--type', 'spend',
   ], {
     encoding: 'utf8',
     env: { ...process.env, SLOTH_AGENT_TOKEN: 'package-smoke-token' },
-  }));
-  assert.deepEqual(goalCreatePreview, {
-    dryRun: true,
-    endpoint: 'https://budget.slothmoney.app/api/agent/v1/goals',
-    method: 'POST',
-    payload: {
-      name: 'Wedding',
-      targetAmount: 22000,
-      targetMonthKey: '2027-06',
-      goalType: 'spend',
-    },
   });
+  assert.equal(missingGoalAccount.status, 2);
+  assert.match(missingGoalAccount.stderr, /goals create requires --account-ref/);
 
   const goalTypePreview = JSON.parse(runCliSync([
     'goals', 'update', '--goal-id', 'wedding', '--type', 'keep',
@@ -275,7 +267,7 @@ try {
     'accounts', 'update', '--account-ref', accountRef,
     '--institution-name', 'Hargreaves Lansdown',
     '--ownership', 'individual',
-    '--goal-savings-source', 'false',
+    '--goal-funding-account', 'false',
   ], {
     encoding: 'utf8',
     env: { ...process.env, SLOTH_AGENT_TOKEN: '' },
@@ -287,7 +279,7 @@ try {
     payload: {
       institutionName: 'Hargreaves Lansdown',
       ownership: 'personal',
-      isGoalSavingsSource: false,
+      isGoalFundingAccount: false,
     },
   });
   const removePreview = JSON.parse(runCliSync([

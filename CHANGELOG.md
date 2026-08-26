@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.19.0 - 2026-08-26
+
+- Make every Goal use one explicit personal Goal-funding account and expose
+  the calculated `forecastMonthKey`, effective priority, account details, and
+  `forecastBasis` in Goal results.
+- Make `goals create` preview against Sloth's active scenario on the server;
+  preview performs no writes and `--apply` remains the write boundary.
+- Add `--account-ref` and `--priority` to Goal creation, allow account
+  reassignment during Goal updates, and rename account eligibility to
+  `isGoalFundingAccount` / `--goal-funding-account`.
+- Surface corrective API error codes without adding affordability judgments or
+  desired-date comparisons to the CLI.
+
 ## 0.18.1 - 2026-08-25
 
 - Require the deployed historical-activity response for `budget status` and
