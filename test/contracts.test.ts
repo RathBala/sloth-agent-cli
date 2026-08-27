@@ -30,9 +30,24 @@ import {
   agentApiV1LineItemMutationResponse,
   agentApiV1InvestmentsResponse,
   agentApiV1NotificationRule,
+  agentApiV1PortfolioResponse,
   agentApiV1RenewalExtractionResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
+
+describe('household portfolio contract', () => {
+  it('accepts the trusted household portfolio response and rejects leaked partner details', () => {
+    expect(parseApiResponse('portfolio', agentApiV1PortfolioResponse))
+      .toBe(agentApiV1PortfolioResponse);
+    expect(() => parseApiResponse('portfolio', {
+      ...agentApiV1PortfolioResponse,
+      accounts: [{
+        ...agentApiV1PortfolioResponse.accounts[0],
+        providerAccountId: 'must-not-leak',
+      }],
+    })).toThrow(/invalid portfolio response/i);
+  });
+});
 
 describe('notification rule contracts', () => {
   it('accepts the Agent API write shape and rejects computed response fields in input', () => {

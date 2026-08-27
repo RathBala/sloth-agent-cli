@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.20.0 - 2026-08-27
+
+- Add `portfolio` views for personal, partner-shared, and combined household
+  savings and investments.
+- Add account-level partner visibility updates for private, balance-only, and
+  balance-and-holdings sharing.
+- Keep portfolio results strict, machine-readable, and explicit about refresh
+  status and excluded currencies.
+
 ## 0.19.0 - 2026-08-26
 
 - Make every Goal use one explicit personal Goal-funding account and expose

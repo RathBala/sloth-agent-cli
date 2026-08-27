@@ -17,6 +17,7 @@ describe('CLI arguments', () => {
       parseArgs(['accounts', 'update', '--help']),
       parseArgs(['accounts', 'remove', '--help']),
       parseArgs(['investments', '--help']),
+      parseArgs(['portfolio', '--help']),
       parseArgs(['categories', '--help']),
       parseArgs(['categories', 'create', '--help']),
       parseArgs(['categories', 'rename', '--help']),
@@ -47,6 +48,7 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'accounts-update' },
       { command: 'help', topic: 'accounts-remove' },
       { command: 'help', topic: 'investments' },
+      { command: 'help', topic: 'portfolio' },
       { command: 'help', topic: 'categories' },
       { command: 'help', topic: 'categories-create' },
       { command: 'help', topic: 'categories-rename' },
@@ -244,6 +246,29 @@ describe('CLI arguments', () => {
     });
     expect(() => parseArgs(['investments', '--refresh']))
       .toThrow(/Unknown investments option/);
+  });
+
+  it('parses household portfolio views and partner visibility updates', () => {
+    const accountRef = `sloth_account_v1_${'C'.repeat(43)}`;
+    expect(parseArgs(['portfolio'])).toEqual({ command: 'portfolio', view: 'mine' });
+    expect(parseArgs(['portfolio', '--view', 'partner'])).toEqual({
+      command: 'portfolio',
+      view: 'partner',
+    });
+    expect(parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--partner-visibility', 'balance',
+    ])).toEqual({
+      command: 'accounts-update',
+      accountRef,
+      update: { partnerVisibility: 'balance' },
+      apply: false,
+    });
+    expect(() => parseArgs(['portfolio', '--view', 'family'])).toThrow(/mine, partner, or household/);
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--partner-visibility', 'full',
+    ])).toThrow(/private, balance, or holdings/);
   });
 
   it('parses goal creation options with preview as the default', () => {

@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect accounts, investments, and budgets, manage goals, move assigned budget money, update planned amounts, categorise transactions, and configure payment notifications through the
+Use your own agent to inspect personal and household accounts, investments, and budgets, manage goals, move assigned budget money, update planned amounts, categorise transactions, and configure payment notifications through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -24,7 +24,7 @@ Create a personal access token in Sloth Money under
 **Settings > Developer access**, then choose the authentication method for
 where the CLI runs.
 
-New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`,
+New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`, `portfolio`,
 `budget`, `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
 or line items, move assigned budget money, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals. Token
@@ -103,6 +103,7 @@ options, output, and examples. For example:
 ```bash
 sloth-agent auth login --help
 sloth-agent accounts --help
+sloth-agent portfolio --help
 sloth-agent budget --help
 sloth-agent budget status --help
 sloth-agent budget update --help
@@ -584,7 +585,8 @@ sloth-agent accounts
 The command is read-only and cache-only: it does not refresh linked banks or
 change account data. Each result contains an opaque `accountRef`, personal or
 joint ownership, connected or manual source, native balance/currency when
-known, `lastBalanceUpdatedAt`, `connectionState`, and `isGoalFundingAccount`.
+known, `lastBalanceUpdatedAt`, `connectionState`, `isGoalFundingAccount`, and
+`partnerVisibility`.
 Missing values are JSON
 `null`; currencies are never converted or combined. Partner personal accounts
 are excluded, while enabled shared joint accounts follow Sloth's existing
@@ -604,7 +606,7 @@ Copy the value from `sloth-agent accounts`. Account references are the public
 account identifier for transaction filtering.
 
 Account changes are previews unless `--apply` is present. Connected accounts
-support only Goal-funding eligibility. Manual current accounts support their
+support Goal-funding eligibility and partner visibility. Manual current accounts support their
 institution, name, currency, and ownership. Manual balance accounts also
 support balance, Savings/Investments type, and Goal-funding eligibility.
 Partner-owned shared accounts return an explanatory error.
@@ -618,13 +620,30 @@ sloth-agent accounts update \
   --ownership individual \
   --balance-amount 12500.75 \
   --account-type investments \
-  --goal-funding-account false
+  --goal-funding-account false \
+  --partner-visibility holdings
 
 sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
-  --goal-funding-account false \
+  --partner-visibility balance \
   --apply
 ```
+
+Read the same current position from your, your partner's, or the combined
+household perspective:
+
+```bash
+sloth-agent portfolio
+sloth-agent portfolio --view partner
+sloth-agent portfolio --view household
+```
+
+The command waits up to 45 seconds for eligible linked balances to refresh,
+then returns cached data if work continues. Partner accounts appear only when
+their owner has shared the balance or linked holdings. Sharing is for household
+planning only. It does not change account ownership, transaction access, Goal
+funding, or who can move money. Totals use the viewer's budget currency and
+exclude other native currencies without converting them.
 
 Archive an owned manual account. The account disappears from active Sloth
 surfaces, but its underlying records are retained. Repeating an applied removal

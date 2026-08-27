@@ -76,6 +76,7 @@ export function usageText(): string {
     '  sloth-agent accounts update --account-ref REF [fields] [--apply]',
     '  sloth-agent accounts remove --account-ref REF [--apply]',
     '  sloth-agent investments [--account-ref REF] [--base-url URL]',
+    '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
@@ -433,11 +434,14 @@ export function accountsUpdateHelpText(): string {
     '  --balance-amount AMOUNT             Balance-only account balance.',
     '  --account-type savings|investments Balance-only account type.',
     '  --goal-funding-account true|false   Whether Goals may use this account.',
+    '  --partner-visibility private|balance|holdings',
+    '                                      What this account shares with your partner.',
     '',
     'Write behavior:',
     '  Without --apply, returns a JSON preview without credentials or a network request.',
     '  With --apply, requires agent:write on a write-enabled token and updates saved Sloth metadata.',
-    '  Connected accounts support only --goal-funding-account.',
+    '  Connected accounts support --goal-funding-account and --partner-visibility.',
+    '  Sharing exposes planning data only. It does not change ownership or assign the account to Goals.',
     '  Manual current accounts cannot change type, balance, or Goal-funding membership.',
     '  Partner-owned shared accounts cannot be changed.',
     '  Unknown, disconnected, or inaccessible references return Account not found.',
@@ -497,6 +501,34 @@ export function investmentsHelpText(): string {
     '  investmentAccounts contains account totals and nested holdings.',
     '  Holding quantities, prices, market values, currencies, and freshness are',
     '  provider-native and are not converted or guaranteed to reconcile to totals.',
+  ].join('\n');
+}
+
+export function portfolioHelpText(): string {
+  return [
+    'Sloth Agent CLI — portfolio',
+    '',
+    'Read your savings and investments from one household planning perspective.',
+    '',
+    'Usage:',
+    '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
+    '',
+    'Options:',
+    '  --view mine|partner|household  Optional. Defaults to mine.',
+    '  --base-url URL                 Optional. Override the API origin.',
+    '  -h, --help                     Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access:',
+    '  This read-only command waits up to 45 seconds for eligible linked balances to refresh.',
+    '  Partner shows only balances or holdings your partner explicitly shared.',
+    '  Household combines your accounts with those shared balances and deduplicates joint accounts.',
+    '  Shared data supports planning only. It does not assign partner accounts to Goals or change ownership.',
+    '',
+    'Output:',
+    '  totals gives savings, investments, and tracked amounts in the viewer currency.',
+    '  accounts includes ownerRole, freshness, sharing level, and permitted holdings.',
+    '  refresh reports whether eligible linked balances refreshed or cached data was returned.',
   ].join('\n');
 }
 
@@ -1255,6 +1287,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'accounts-update': accountsUpdateHelpText,
     'accounts-remove': accountsRemoveHelpText,
     investments: investmentsHelpText,
+    portfolio: portfolioHelpText,
     budget: budgetHelpText,
     'budget-status': budgetStatusHelpText,
     'budget-move': budgetMoveHelpText,
@@ -2291,6 +2324,8 @@ export async function runCli(
 
     const path = parsed.command === 'accounts'
       ? '/api/agent/v1/accounts'
+      : parsed.command === 'portfolio'
+        ? `/api/agent/v1/portfolio?${new URLSearchParams({ view: parsed.view }).toString()}`
       : parsed.command === 'investments'
         ? `/api/agent/v1/investments${parsed.accountRef
           ? `?${new URLSearchParams({ accountRef: parsed.accountRef }).toString()}`
@@ -2303,7 +2338,7 @@ export async function runCli(
       })()}`;
     const response = await fetchImplementation(`${baseUrl}${path}`, {
       method: 'GET',
-      headers: parsed.command === 'transactions'
+      headers: parsed.command === 'transactions' || parsed.command === 'portfolio'
         ? { ...headers, Prefer: 'wait=45' }
         : headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

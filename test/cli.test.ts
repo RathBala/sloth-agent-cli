@@ -29,6 +29,7 @@ import {
   agentApiV1LineItemMutationResponse,
   agentApiV1InvestmentsResponse,
   agentApiV1NotificationRule,
+  agentApiV1PortfolioResponse,
   agentApiV1RenewalExtractionResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
@@ -270,7 +271,12 @@ describe('CLI execution', () => {
         '--account-ref REF', '--institution-name NAME', '--ownership individual|joint',
         '--balance-amount AMOUNT', '--goal-funding-account true|false',
         'Without --apply', 'write-enabled token', 'Partner-owned', 'Manual accounts',
+        '--partner-visibility private|balance|holdings', 'does not change ownership',
         'agent:write', 'Account not found',
+      ]],
+      [['portfolio', '--help'], [
+        '--view mine|partner|household', 'Defaults to mine', 'waits up to 45 seconds',
+        'shared balances', 'does not assign partner accounts to Goals',
       ]],
       [['accounts', 'remove', '--help'], [
         '--account-ref REF', 'archive', 'retaining its underlying records',
@@ -740,6 +746,7 @@ describe('CLI execution', () => {
       '--balance-amount', '12500.75',
       '--account-type', 'investments',
       '--goal-funding-account', 'false',
+      '--partner-visibility', 'holdings',
     ], {
       env: {},
       fetch: previewFetch,
@@ -760,6 +767,7 @@ describe('CLI execution', () => {
         balanceAmount: 12500.75,
         accountType: 'investments',
         isGoalFundingAccount: false,
+        partnerVisibility: 'holdings',
       },
     });
 
@@ -785,6 +793,26 @@ describe('CLI execution', () => {
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
       agentApiV1AccountMutationResponse,
     );
+  });
+
+  it('reads the selected household portfolio and asks the API to wait for refresh', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1PortfolioResponse));
+
+    expect(await runCli(['portfolio', '--view', 'household'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/portfolio?view=household',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Prefer: 'wait=45' }),
+      }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1PortfolioResponse);
   });
 
   it('previews and applies idempotent manual account removal', async () => {

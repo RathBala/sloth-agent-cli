@@ -44,6 +44,7 @@ export type HelpTopic =
   | 'accounts-update'
   | 'accounts-remove'
   | 'investments'
+  | 'portfolio'
   | 'budget'
   | 'budget-status'
   | 'budget-move'
@@ -98,6 +99,7 @@ export type ParsedCommand =
       balanceAmount?: number;
       accountType?: 'savings' | 'investments';
       isGoalFundingAccount?: boolean;
+      partnerVisibility?: 'private' | 'balance' | 'holdings';
     };
     apply: boolean;
   }
@@ -108,6 +110,7 @@ export type ParsedCommand =
     apply: boolean;
   }
   | { command: 'investments'; baseUrl?: string; accountRef?: string }
+  | { command: 'portfolio'; baseUrl?: string; view: 'mine' | 'partner' | 'household' }
   | {
     command: 'budget';
     baseUrl?: string;
@@ -676,6 +679,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
         '--balance-amount',
         '--account-type',
         '--goal-funding-account',
+        '--partner-visibility',
       ]),
     );
     const institutionName = values.get('--institution-name');
@@ -685,6 +689,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     const balanceValue = values.get('--balance-amount');
     const accountTypeValue = values.get('--account-type');
     const sourceValue = values.get('--goal-funding-account');
+    const partnerVisibility = values.get('--partner-visibility');
     if (currencyValue !== undefined && !/^[A-Za-z]{3}$/.test(currencyValue)) {
       throw new UsageError('--currency must be a three-letter currency code');
     }
@@ -705,6 +710,14 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     if (sourceValue !== undefined && sourceValue !== 'true' && sourceValue !== 'false') {
       throw new UsageError('--goal-funding-account must be true or false');
     }
+    if (
+      partnerVisibility !== undefined
+      && partnerVisibility !== 'private'
+      && partnerVisibility !== 'balance'
+      && partnerVisibility !== 'holdings'
+    ) {
+      throw new UsageError('--partner-visibility must be private, balance, or holdings');
+    }
     const update = {
       ...(institutionName === undefined
         ? {}
@@ -721,6 +734,9 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
         ? {}
         : { accountType: accountTypeValue as 'savings' | 'investments' }),
       ...(sourceValue === undefined ? {} : { isGoalFundingAccount: sourceValue === 'true' }),
+      ...(partnerVisibility === undefined ? {} : {
+        partnerVisibility: partnerVisibility as 'private' | 'balance' | 'holdings',
+      }),
     };
     if (Object.keys(update).length === 0) {
       throw new UsageError('accounts update requires at least one field to update');
@@ -772,6 +788,16 @@ function parseInvestments(args: string[], baseUrl?: string): ParsedCommand {
     }
   }
   return withBaseUrl({ command: 'investments', ...(accountRef ? { accountRef } : {}) }, baseUrl);
+}
+
+function parsePortfolio(args: string[], baseUrl?: string): ParsedCommand {
+  const { values, apply } = parseNamedOptions(args, 'portfolio', new Set(['--view']));
+  if (apply) throw new UsageError('portfolio does not accept --apply');
+  const view = values.get('--view') ?? 'mine';
+  if (view !== 'mine' && view !== 'partner' && view !== 'household') {
+    throw new UsageError('--view must be mine, partner, or household');
+  }
+  return withBaseUrl({ command: 'portfolio', view }, baseUrl);
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
@@ -1353,7 +1379,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (command === 'accounts' && subcommand === 'remove') return 'accounts-remove';
     return command;
   }
-  if (command === 'investments') return 'investments';
+  if (command === 'investments' || command === 'portfolio') return command;
   return undefined;
 }
 
@@ -1394,6 +1420,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'investments') {
     return parseInvestments(args, baseUrl);
+  }
+
+  if (command === 'portfolio') {
+    return parsePortfolio(args, baseUrl);
   }
 
   if (command === 'budget') {

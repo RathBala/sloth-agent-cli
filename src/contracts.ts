@@ -86,6 +86,7 @@ type ApiCommand =
   | 'accounts-update'
   | 'accounts-remove'
   | 'investments'
+  | 'portfolio'
   | 'budget'
   | 'budget-status'
   | 'budget-move'
@@ -1166,6 +1167,7 @@ function isAccount(value: unknown): boolean {
       'lastBalanceUpdatedAt',
       'connectionState',
       'isGoalFundingAccount',
+      'partnerVisibility',
     ])
     && isAccountRef(value.accountRef)
     && isNullableNonEmptyString(value.accountName)
@@ -1193,6 +1195,11 @@ function isAccount(value: unknown): boolean {
       || value.connectionState === 'unknown'
     )
     && typeof value.isGoalFundingAccount === 'boolean'
+    && (
+      value.partnerVisibility === 'private'
+      || value.partnerVisibility === 'balance'
+      || value.partnerVisibility === 'holdings'
+    )
   );
 }
 
@@ -1274,6 +1281,58 @@ function isInvestmentsResponse(value: unknown): boolean {
       );
     })
   );
+}
+
+function isPortfolioAccount(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, [
+      'accountRef', 'ownerRole', 'accountName', 'institutionName', 'accountType',
+      'ownership', 'balanceAmount', 'currency', 'source', 'lastBalanceUpdatedAt',
+      'connectionState', 'partnerVisibility', 'isGoalFundingAccount', 'holdings',
+    ])
+    && isAccountRef(value.accountRef)
+    && (value.ownerRole === 'you' || value.ownerRole === 'partner')
+    && isNullableNonEmptyString(value.accountName)
+    && isNullableNonEmptyString(value.institutionName)
+    && (value.accountType === 'savings' || value.accountType === 'investments')
+    && (value.ownership === 'personal' || value.ownership === 'joint')
+    && (value.balanceAmount === null || (typeof value.balanceAmount === 'number' && Number.isFinite(value.balanceAmount)))
+    && isCurrency(value.currency)
+    && (value.source === 'connected' || value.source === 'manual')
+    && (value.lastBalanceUpdatedAt === null || isIsoDateTime(value.lastBalanceUpdatedAt))
+    && ['active', 'expired', 'manual', 'unknown'].includes(String(value.connectionState))
+    && ['private', 'balance', 'holdings'].includes(String(value.partnerVisibility))
+    && (value.isGoalFundingAccount === null || typeof value.isGoalFundingAccount === 'boolean')
+    && Array.isArray(value.holdings)
+    && value.holdings.every(isInvestmentHolding);
+}
+
+function isPortfolioResponse(value: unknown): boolean {
+  if (!isObject(value) || !hasOnlyFields(value, [
+    'asOf', 'currency', 'view', 'hasPartner', 'totals',
+    'excludedCurrencyAccountCount', 'accounts', 'refresh',
+  ])) return false;
+  const totals = value.totals;
+  const refresh = value.refresh;
+  return isIsoDateTime(value.asOf)
+    && isCurrency(value.currency)
+    && ['mine', 'partner', 'household'].includes(String(value.view))
+    && typeof value.hasPartner === 'boolean'
+    && isObject(totals)
+    && hasOnlyFields(totals, ['savingsAmount', 'investmentsAmount', 'trackedAmount'])
+    && ['savingsAmount', 'investmentsAmount', 'trackedAmount'].every(field => (
+      typeof totals[field] === 'number' && Number.isFinite(totals[field])
+    ))
+    && Number.isSafeInteger(value.excludedCurrencyAccountCount)
+    && Number(value.excludedCurrencyAccountCount) >= 0
+    && Array.isArray(value.accounts)
+    && value.accounts.every(isPortfolioAccount)
+    && isObject(refresh)
+    && hasOnlyFields(refresh, ['status', 'reason', 'utcDate'])
+    && ['skipped', 'completed', 'in_progress', 'partial', 'failed'].includes(String(refresh.status))
+    && typeof refresh.reason === 'string'
+    && refresh.reason.length > 0
+    && isIsoDate(refresh.utcDate);
 }
 
 function isForecastBasis(value: unknown): boolean {
@@ -1411,6 +1470,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
       ? isAccountRemovalResponse(value)
     : command === 'investments'
         ? isInvestmentsResponse(value)
+    : command === 'portfolio'
+      ? isPortfolioResponse(value)
     : command === 'budget' || command === 'budget-update'
       ? isBudgetResponse(value)
     : command === 'budget-status'
