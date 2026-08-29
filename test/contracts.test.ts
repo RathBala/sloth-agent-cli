@@ -35,6 +35,8 @@ import {
   agentApiV1ScenarioMutationResponse,
   agentApiV1ScenariosResponse,
   agentApiV1TransactionsResponse,
+  agentApiV1TransactionsWithPendingResponse,
+  agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
 
 describe('household portfolio contract', () => {
@@ -107,6 +109,25 @@ describe('scenario contracts', () => {
         })),
       }],
     })).toThrow(/invalid scenarios-list response/i);
+  });
+});
+
+describe('partner and pending read contracts', () => {
+  it('accepts the exact public responses and rejects writable pending rows', () => {
+    expect(parseApiResponse('partner-status', agentApiV1PartnerStatusResponse))
+      .toEqual(agentApiV1PartnerStatusResponse);
+    expect(parseApiResponse('transactions', agentApiV1TransactionsWithPendingResponse))
+      .toEqual(agentApiV1TransactionsWithPendingResponse);
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsWithPendingResponse,
+      pending: {
+        ...agentApiV1TransactionsWithPendingResponse.pending,
+        transactions: [{
+          ...agentApiV1TransactionsWithPendingResponse.pending.transactions[0],
+          writable: true,
+        }],
+      },
+    })).toThrow(/invalid transactions response/i);
   });
 });
 
@@ -618,6 +639,32 @@ describe('API response validation', () => {
         utcDate: '2026-02-30',
       },
     })).toThrow(/invalid transactions response/i);
+    expect(() => parseApiResponse('partner-status', {
+      ...agentApiV1PartnerStatusResponse,
+      settlement: {
+        currency: 'GBP',
+        balance: { direction: 'settled', amountPence: 9709 },
+      },
+    })).toThrow(/invalid partner-status response/i);
+    expect(() => parseApiResponse('partner-status', {
+      ...agentApiV1PartnerStatusResponse,
+      settlement: {
+        currency: 'GBP',
+        balance: { direction: 'you_owe', amountPence: 0 },
+      },
+    })).toThrow(/invalid partner-status response/i);
+    expect(() => parseApiResponse('partner-status', {
+      ...agentApiV1PartnerStatusResponse,
+      partnerStatus: 'not_connected',
+      settlement: null,
+    })).toThrow(/invalid partner-status response/i);
+    expect(() => parseApiResponse('partner-status', {
+      asOf: '2026-08-25T12:00:00.000Z',
+      partnerStatus: 'not_connected',
+      settlement: null,
+      payments: [],
+      nextCursor: 'private-cursor',
+    })).toThrow(/invalid partner-status response/i);
     expect(() => parseApiResponse('assign', { succeeded: [], failed: 'nope' })).toThrow(/invalid assignment response/i);
     expect(() => parseApiResponse('assign', {
       succeeded: [{

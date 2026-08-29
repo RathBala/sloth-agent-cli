@@ -31,6 +31,7 @@ const helpRoutes = [
   ['categories'], ['categories', 'list'], ['categories', 'create'], ['categories', 'rename'],
   ['line-items'], ['line-items', 'create'], ['line-items', 'rename'],
   ['transactions'], ['assign'],
+  ['partner'], ['partner', 'status'],
   ['rules'], ['rules', 'list'], ['rules', 'get'], ['rules', 'set'], ['rules', 'delete'], ['rules', 'scan-contract'],
   ['receipts'], ['receipts', 'extract'], ['receipts', 'get'], ['receipts', 'attach'], ['receipts', 'remove'],
   ['goals'], ['goals', 'list'], ['goals', 'create'], ['goals', 'update'],
@@ -62,6 +63,7 @@ const nestedCommands = new Map([
   ['receipts', ['extract', 'get', 'attach', 'remove']],
   ['goals', ['list', 'create', 'update', 'mark-spent', 'restore', 'delete']],
   ['scenarios', ['list', 'create', 'update', 'activate', 'delete']],
+  ['partner', ['status']],
 ]);
 const normalizedTopLevelHelp = helpByRoute.get('').replace(/\s+/g, ' ');
 for (const route of helpRoutes.filter(route => route.length > 0)) {

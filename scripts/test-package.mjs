@@ -106,6 +106,7 @@ try {
   assert.match(help, /sloth-agent categories create/);
   assert.match(help, /sloth-agent line-items create/);
   assert.match(help, /sloth-agent transactions/);
+  assert.match(help, /sloth-agent partner status/);
   assert.doesNotMatch(help, /--account-id/);
   assert.match(help, /sloth-agent goals create/);
   assert.match(help, /--account-ref REF/);
@@ -155,6 +156,14 @@ try {
       /top-level categoryId, lineItemId, and categorySplits/,
       /jointBudgetContribution/,
       /uncategorised personally while its joint-budget contribution/,
+      /--include-pending/,
+      /does not force an extra refresh/,
+      /writable: false/,
+    ]],
+    [['partner', '--help'], [/partner status/, /settlement context/]],
+    [['partner', 'status', '--help'], [
+      /--limit N/, /--cursor CURSOR/, /agent:read/, /does not refresh bank accounts/,
+      /partner_owes_you/, /amountPence/, /nextCursor/,
     ]],
     [['assign', '--help'], [
       /transaction sharing and category assignments/,

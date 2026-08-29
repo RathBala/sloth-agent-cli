@@ -22,6 +22,7 @@ interface GlobalOptions {
 }
 
 export interface TransactionFilters {
+  includePending?: boolean;
   uncategorized?: boolean;
   shared?: boolean;
   limit?: number;
@@ -56,6 +57,8 @@ export type HelpTopic =
   | 'line-items-create'
   | 'line-items-rename'
   | 'transactions'
+  | 'partner'
+  | 'partner-status'
   | 'assign'
   | 'rules'
   | 'rules-get'
@@ -185,6 +188,7 @@ export type ParsedCommand =
     baseUrl?: string;
     filters: TransactionFilters;
   }
+  | { command: 'partner-status'; baseUrl?: string; limit?: number; cursor?: string }
   | { command: 'assign'; baseUrl?: string; input: string; apply: boolean }
   | { command: 'rules-list'; baseUrl?: string }
   | { command: 'rules-get'; baseUrl?: string; transactionRef: string }
@@ -567,6 +571,10 @@ function parseTransactions(args: string[]): TransactionFilters {
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
+    if (argument === '--include-pending') {
+      filters.includePending = setOnce(filters.includePending, true, '--include-pending');
+      continue;
+    }
     if (argument === '--uncategorized') {
       filters.uncategorized = setOnce(filters.uncategorized, true, '--uncategorized');
       continue;
@@ -656,6 +664,45 @@ function parseTransactions(args: string[]): TransactionFilters {
     throw new UsageError('--end-date must not be before --start-date');
   }
   return filters;
+}
+
+function parsePartner(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand !== 'status') {
+    throw new UsageError('partner requires the status subcommand');
+  }
+
+  let limit: number | undefined;
+  let cursor: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!;
+    const [name, inlineValue] = argument.includes('=')
+      ? argument.split(/=(.*)/s, 2)
+      : [argument, undefined];
+    if (name !== '--limit' && name !== '--cursor') {
+      throw new UsageError(`Unknown partner status option: ${argument}`);
+    }
+    const value = requireNonEmpty(
+      inlineValue ?? readOptionValue(args, index, name),
+      name,
+    );
+    if (inlineValue === undefined) index += 1;
+    if (name === '--limit') {
+      const parsedLimit = Number(value);
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200) {
+        throw new UsageError('--limit must be an integer between 1 and 200');
+      }
+      limit = setOnce(limit, parsedLimit, '--limit');
+    } else {
+      cursor = setOnce(cursor, value, '--cursor');
+    }
+  }
+
+  return withBaseUrl({
+    command: 'partner-status',
+    ...(limit === undefined ? {} : { limit }),
+    ...(cursor === undefined ? {} : { cursor }),
+  }, baseUrl);
 }
 
 function parseNamedOptions(
@@ -1668,6 +1715,10 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'remove') return 'receipts-remove';
     return 'receipts';
   }
+  if (command === 'partner') {
+    if (subcommand === 'status') return 'partner-status';
+    return 'partner';
+  }
   if (
     command === 'accounts'
     || command === 'transactions'
@@ -1739,6 +1790,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'transactions') {
     return withBaseUrl({ command, filters: parseTransactions(args) }, baseUrl);
+  }
+
+  if (command === 'partner') {
+    return parsePartner(args, baseUrl);
   }
 
   if (command === 'assign') {

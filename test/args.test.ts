@@ -25,6 +25,8 @@ describe('CLI arguments', () => {
       parseArgs(['line-items', 'create', '--help']),
       parseArgs(['line-items', 'rename', '--help']),
       parseArgs(['transactions', '--help']),
+      parseArgs(['partner', '--help']),
+      parseArgs(['partner', 'status', '--help']),
       parseArgs(['assign', '--help']),
       parseArgs(['receipts', '--help']),
       parseArgs(['receipts', 'extract', '--help']),
@@ -62,6 +64,8 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'line-items-create' },
       { command: 'help', topic: 'line-items-rename' },
       { command: 'help', topic: 'transactions' },
+      { command: 'help', topic: 'partner' },
+      { command: 'help', topic: 'partner-status' },
       { command: 'help', topic: 'assign' },
       { command: 'help', topic: 'receipts' },
       { command: 'help', topic: 'receipts-extract' },
@@ -199,6 +203,19 @@ describe('CLI arguments', () => {
       .toThrow(/requires --option-id/);
     expect(() => parseArgs(['scenarios', 'delete']))
       .toThrow(/requires --month/);
+  });
+
+  it('parses partner status and opt-in pending reads', () => {
+    expect(parseArgs(['partner', '--help'])).toEqual({ command: 'help', topic: 'partner' });
+    expect(parseArgs(['partner', 'status', '--help']))
+      .toEqual({ command: 'help', topic: 'partner-status' });
+    expect(parseArgs(['partner', 'status', '--limit', '25', '--cursor', 'cursor-1']))
+      .toEqual({ command: 'partner-status', limit: 25, cursor: 'cursor-1' });
+    expect(parseArgs(['transactions', '--include-pending'])).toEqual({
+      command: 'transactions', filters: { includePending: true },
+    });
+    expect(() => parseArgs(['partner', 'status', '--limit', '201']))
+      .toThrow(/between 1 and 200/);
   });
 
   it('parses category list, create, and rename with preview by default', () => {

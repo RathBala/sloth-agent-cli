@@ -34,6 +34,8 @@ import {
   agentApiV1ScenarioMutationResponse,
   agentApiV1ScenariosResponse,
   agentApiV1TransactionsResponse,
+  agentApiV1TransactionsWithPendingResponse,
+  agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
 
 const tempDirectories: string[] = [];
@@ -188,6 +190,7 @@ describe('CLI execution', () => {
     const helpIo = createIo();
     expect(await runCli(['--help'], { env: {}, ...helpIo })).toBe(0);
     expect(helpIo.stdout.join('')).toContain('sloth-agent transactions');
+    expect(helpIo.stdout.join('')).toContain('sloth-agent partner status');
     expect(helpIo.stdout.join('')).toContain('[--account-ref REF]');
     expect(helpIo.stdout.join('')).not.toContain('--account-id');
     expect(helpIo.stdout.join('')).toContain('sloth-agent accounts');
@@ -312,6 +315,15 @@ describe('CLI execution', () => {
         'jointBudgetContribution',
         'uncategorised personally while its joint-budget contribution',
         'is already categorised. To assess its categorisation, inspect both locations.',
+        '--include-pending',
+        'does not force an extra refresh',
+        'writable: false',
+        'availability current or unavailable',
+      ]],
+      [['partner', '--help'], ['partner status', 'settlement context']],
+      [['partner', 'status', '--help'], [
+        '--limit N', '--cursor CURSOR', 'agent:read', 'does not refresh bank accounts',
+        'partner_owes_you', 'amountPence', 'nextCursor',
       ]],
       [['assign', '--help'], [
         'sharing',
@@ -1660,6 +1672,31 @@ describe('CLI execution', () => {
         signal: expect.any(AbortSignal),
       }),
     );
+  });
+
+  it('requests pending rows and reads partner status through read-only endpoints', async () => {
+    const transactionIo = createIo();
+    const transactionFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1TransactionsWithPendingResponse,
+    ));
+    expect(await runCli(['transactions', '--include-pending'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: transactionFetch, ...transactionIo,
+    })).toBe(0);
+    expect(transactionFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/transactions?includePending=true',
+      expect.objectContaining({ method: 'GET' }),
+    );
+
+    const partnerIo = createIo();
+    const partnerFetch = vi.fn().mockResolvedValue(jsonResponse(agentApiV1PartnerStatusResponse));
+    expect(await runCli(['partner', 'status', '--limit', '25'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' }, fetch: partnerFetch, ...partnerIo,
+    })).toBe(0);
+    expect(partnerFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/partner-status?limit=25',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(JSON.parse(partnerIo.stdout.join(''))).toEqual(agentApiV1PartnerStatusResponse);
   });
 
   it('rejects the removed transaction account ID filter before making a request', async () => {

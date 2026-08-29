@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.22.0 - 2026-08-29
+
+- Add read-only `partner status` output for the current settlement balance and
+  paginated recorded partner payments.
+- Add opt-in `transactions --include-pending` output from the latest complete
+  observation in the command's normal refresh flow, with explicit availability
+  and non-writable pending rows.
+- Strictly validate both new response contracts and cover their nested help in
+  packed-binary and release-preflight checks.
+- Accept the existing completed-refresh `checkpointId` while continuing to
+  reject it from non-completed refresh states.
+
 ## 0.21.1 - 2026-08-29
 
 - Clarify in portfolio, current budget status, and transaction help that a

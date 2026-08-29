@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.21.1';
+export const CLI_VERSION = '0.22.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -91,7 +91,8 @@ export function usageText(): string {
     '  sloth-agent transactions [--uncategorized[=true|false]] [--shared[=true|false]] [--limit N]',
     '    [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--q TEXT]',
     '    [--account-ref REF] [--category-id ID] [--line-item-id ID]',
-    '    [--cursor CURSOR] [--base-url URL]',
+    '    [--cursor CURSOR] [--include-pending] [--base-url URL]',
+    '  sloth-agent partner status [--limit N] [--cursor CURSOR] [--base-url URL]',
     '  sloth-agent assign --input assignments.json [--apply] [--base-url URL]',
     '  sloth-agent rules [list] [--base-url URL]',
     '  sloth-agent rules get --transaction-ref REF [--base-url URL]',
@@ -712,6 +713,8 @@ export function transactionsHelpText(): string {
     '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
     '                                  The transaction\'s native scope is used when omitted.',
     '  --cursor CURSOR                Optional. Continue from a previous nextCursor.',
+    '  --include-pending               Optional. Include the latest complete pending observation',
+    '                                  from the normal linked-bank refresh flow.',
     '  --base-url URL                 Optional. Override the API origin.',
     '  -h, --help                     Show this help.',
     ...API_ORIGIN_HELP_LINES,
@@ -724,9 +727,17 @@ export function transactionsHelpText(): string {
     '  A completed refresh updates the Budget balance audit for configured backing accounts.',
     '  A same-day cached read does not add another audit checkpoint.',
     '  The command waits up to 45 seconds, then returns cached data if refresh continues.',
+    '  --include-pending does not force an extra refresh or make pending rows writable.',
+    '  Date, text, and account filters apply to pending rows. Assignment, sharing, category,',
+    '  line-item, limit, and cursor filters apply only to booked transactions.',
     '',
     'Output:',
     '  JSON containing transactions, nextCursor, and structured refresh status.',
+    '  With --include-pending, pending reports availability current or unavailable.',
+    '  A current empty list means the latest complete observation had no matching pending rows.',
+    '  Unavailable means no pending snapshot was returned; it does not mean there are none.',
+    '  Pending rows have opaque pendingRef and accountRef values plus writable: false and',
+    '  writeBlockReason: "pending". They cannot be passed to assign or other write commands.',
     '  Every transaction includes accountRef for its originating account.',
     '  Refresh failures do not hide readable cached transactions.',
     '  Personal assignments use the top-level categoryId, lineItemId, and categorySplits.',
@@ -739,7 +750,57 @@ export function transactionsHelpText(): string {
     'Examples:',
     '  sloth-agent transactions --uncategorized --limit 50',
     '  sloth-agent transactions --assignment-scope joint --uncategorized',
+    '  sloth-agent transactions --include-pending --start-date 2026-08-27',
     '  sloth-agent transactions --q "tesco" --start-date 2026-05-01 --end-date 2026-05-31',
+  ].join('\n');
+}
+
+export function partnerHelpText(): string {
+  return [
+    'Sloth Agent CLI — partner',
+    '',
+    'Read partner settlement context and recorded partner payments.',
+    '',
+    'Commands:',
+    '  sloth-agent partner status   Read the current settlement balance and payment activity',
+    '',
+    'Help:',
+    '  Run sloth-agent partner status --help for inputs, output, and examples.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function partnerStatusHelpText(): string {
+  return [
+    'Sloth Agent CLI — partner status',
+    '',
+    'Read the current partner settlement balance and recorded partner payments.',
+    '',
+    'Usage:',
+    '  sloth-agent partner status [--limit N] [--cursor CURSOR] [--base-url URL]',
+    '',
+    'Options:',
+    '  --limit N        Optional. Return 1 to 200 payment records; defaults to 50.',
+    '  --cursor CURSOR  Optional. Continue payment activity from a previous nextCursor.',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Read behavior:',
+    '  Requires agent:read. This command does not refresh bank accounts or change Sloth Money.',
+    '  It calculates settlement from shared booked transactions and recorded partner payments.',
+    '',
+    'Output:',
+    '  JSON containing asOf, partnerStatus, settlement, payments, and nextCursor.',
+    '  settlement is null when no partner is connected. Otherwise balance.direction is',
+    '  settled when amountPence is 0. The you_owe and partner_owes_you directions have',
+    '  a positive amountPence.',
+    '  Each payment has an opaque paymentRef, sent or received direction, amountPence,',
+    '  currency, and occurredAt. A null nextCursor means there are no more payments.',
+    '',
+    'Examples:',
+    '  sloth-agent partner status',
+    '  sloth-agent partner status --limit 100',
   ].join('\n');
 }
 
@@ -1503,6 +1564,8 @@ export function commandHelpText(topic: HelpTopic): string {
     'line-items-create': lineItemsCreateHelpText,
     'line-items-rename': lineItemsRenameHelpText,
     transactions: transactionsHelpText,
+    partner: partnerHelpText,
+    'partner-status': partnerStatusHelpText,
     assign: assignHelpText,
     rules: rulesHelpText,
     'rules-get': rulesGetHelpText,
@@ -1685,6 +1748,9 @@ function buildTransactionsQuery(
   const params = new URLSearchParams();
   if (filters.uncategorized !== undefined) {
     params.set('uncategorized', String(filters.uncategorized));
+  }
+  if (filters.includePending !== undefined) {
+    params.set('includePending', String(filters.includePending));
   }
   if (filters.shared !== undefined) params.set('shared', String(filters.shared));
   if (filters.limit !== undefined) params.set('limit', String(filters.limit));
@@ -2659,6 +2725,24 @@ export async function runCli(
         },
       );
       const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
+      writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'partner-status') {
+      const query = new URLSearchParams();
+      if (parsed.limit !== undefined) query.set('limit', String(parsed.limit));
+      if (parsed.cursor !== undefined) query.set('cursor', parsed.cursor);
+      const suffix = query.size > 0 ? `?${query.toString()}` : '';
+      const response = await fetchImplementation(
+        `${baseUrl}/api/agent/v1/partner-status${suffix}`,
+        {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+      const data = parseApiResponse('partner-status', await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
       return 0;
     }

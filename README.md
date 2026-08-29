@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect personal and household accounts, investments, and budgets, manage goals and forecast scenarios, move assigned budget money, update planned amounts, categorise transactions, and configure payment notifications through the
+Use your own agent to inspect personal and household accounts, investments, budgets, pending card activity, and partner settlement context; manage goals and forecast scenarios; move assigned budget money; update planned amounts; categorise booked transactions; and configure payment notifications through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.21.1 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.22.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -25,7 +25,7 @@ Create a personal access token in Sloth Money under
 where the CLI runs.
 
 New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`, `portfolio`,
-`budget`, `categories`, `transactions`, `goals`, and `scenarios` list. Enable **Allow changes** when
+`budget`, `categories`, `transactions`, `partner status`, `goals`, and `scenarios` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
 or line items, move assigned budget money, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals and scenarios. Token
 permissions cannot be changed later - revoke and reissue the token instead.
@@ -113,6 +113,8 @@ sloth-agent categories create --help
 sloth-agent line-items --help
 sloth-agent line-items create --help
 sloth-agent transactions --help
+sloth-agent partner --help
+sloth-agent partner status --help
 sloth-agent rules --help
 sloth-agent assign --help
 sloth-agent receipts --help
@@ -810,6 +812,23 @@ Read uncategorised contributions to the joint budget:
 sloth-agent transactions --assignment-scope joint --uncategorized
 ```
 
+Include the current pending snapshot while reviewing transactions:
+
+```bash
+sloth-agent transactions --include-pending
+```
+
+This option reuses the transaction command's normal linked-bank refresh. It
+does not force a second refresh. Sloth Money keeps the latest complete pending
+observation until the next fully successful refresh, including an empty result.
+Booked rows remain in `transactions`; pending
+rows appear in `pending.transactions` with `writable: false` and
+`writeBlockReason: "pending"`, so they cannot be passed to `assign`. A current
+empty list means the latest complete observation had no matching pending rows.
+`unavailable` means no valid complete snapshot is available and must not be interpreted as
+proof that there are no pending payments. Date, text, and account filters apply
+to pending rows; categorisation and pagination filters remain booked-only.
+
 The first transaction read after the UTC day changes may refresh linked bank
 data. The CLI waits up to 45 seconds for that refresh to persist, then returns
 the requested booked transactions. If the refresh is still running, partially
@@ -832,6 +851,18 @@ add another audit checkpoint.
 
 Re-run the transaction query later to observe the completed refresh. A partial
 account failure remains eligible for an automatic retry.
+
+Read partner settlement context when an incoming payment may be a recorded
+partner payment:
+
+```bash
+sloth-agent partner status
+```
+
+The read-only response reports whether a mutual partner is connected, the
+current settlement direction and amount in pence, and recent sent or received
+payments. It uses opaque payment references and paginates with `nextCursor`.
+The command does not refresh bank accounts or change partner records.
 
 Set `"assignmentScope": "joint"` on an assignment to categorise the eligible
 shared portion for the joint budget.

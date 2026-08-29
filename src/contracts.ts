@@ -97,6 +97,7 @@ type ApiCommand =
   | 'line-items-create'
   | 'line-items-rename'
   | 'transactions'
+  | 'partner-status'
   | 'assign'
   | 'rules-list'
   | 'rules-get'
@@ -635,25 +636,117 @@ const REFRESH_REASONS = new Set([
 ]);
 
 function isRefreshStatus(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, ['status', 'reason', 'utcDate'])
-    && typeof value.status === 'string'
-    && REFRESH_STATUSES.has(value.status)
-    && typeof value.reason === 'string'
-    && REFRESH_REASONS.has(value.reason)
-    && isIsoDate(value.utcDate)
-  );
+  if (
+    !isObject(value)
+    || typeof value.status !== 'string'
+    || !REFRESH_STATUSES.has(value.status)
+    || typeof value.reason !== 'string'
+    || !REFRESH_REASONS.has(value.reason)
+    || !isIsoDate(value.utcDate)
+  ) return false;
+  return value.status === 'completed'
+    ? hasOnlyFields(value, ['status', 'reason', 'utcDate', 'checkpointId'])
+      && typeof value.checkpointId === 'string'
+      && value.checkpointId.length > 0
+    : hasOnlyFields(value, ['status', 'reason', 'utcDate']);
 }
 
 function isTransactionsResponse(value: unknown): boolean {
+  const isPendingTransaction = (transaction: unknown): boolean => (
+    isObject(transaction)
+    && hasOnlyFields(transaction, [
+      'pendingRef', 'name', 'amount', 'currency', 'date', 'status',
+      'accountRef', 'scope', 'writable', 'writeBlockReason',
+    ])
+    && typeof transaction.pendingRef === 'string'
+    && /^sloth_pending_v1_[A-Za-z0-9_-]{43}$/.test(transaction.pendingRef)
+    && typeof transaction.name === 'string'
+    && typeof transaction.amount === 'number'
+    && Number.isFinite(transaction.amount)
+    && isCurrency(transaction.currency)
+    && isIsoDate(transaction.date)
+    && transaction.status === 'pending'
+    && isAccountRef(transaction.accountRef)
+    && (transaction.scope === 'personal' || transaction.scope === 'joint')
+    && transaction.writable === false
+    && transaction.writeBlockReason === 'pending'
+  );
+  const isPendingSnapshot = (snapshot: unknown): boolean => {
+    if (!isObject(snapshot)) return false;
+    if (snapshot.availability === 'current') {
+      return hasOnlyFields(snapshot, ['availability', 'observedAt', 'transactions', 'truncated'])
+        && isIsoDateTime(snapshot.observedAt)
+        && Array.isArray(snapshot.transactions)
+        && snapshot.transactions.length <= 200
+        && snapshot.transactions.every(isPendingTransaction)
+        && typeof snapshot.truncated === 'boolean';
+    }
+    return snapshot.availability === 'unavailable'
+      && hasOnlyFields(snapshot, ['availability', 'observedAt', 'transactions', 'truncated'])
+      && snapshot.observedAt === null
+      && Array.isArray(snapshot.transactions)
+      && snapshot.transactions.length === 0
+      && snapshot.truncated === false;
+  };
   return (
     isObject(value)
+    && hasOnlyFields(value, ['transactions', 'nextCursor', 'refresh', 'pending'])
     && Array.isArray(value.transactions)
     && value.transactions.every(isTransaction)
     && (value.nextCursor === null || typeof value.nextCursor === 'string')
     && isRefreshStatus(value.refresh)
+    && (value.pending === undefined || isPendingSnapshot(value.pending))
   );
+}
+
+function isPartnerStatusResponse(value: unknown): boolean {
+  if (
+    !isObject(value)
+    || !hasOnlyFields(value, ['asOf', 'partnerStatus', 'settlement', 'payments', 'nextCursor'])
+    || !isIsoDateTime(value.asOf)
+    || (value.partnerStatus !== 'connected' && value.partnerStatus !== 'not_connected')
+    || (value.nextCursor !== null && typeof value.nextCursor !== 'string')
+    || !Array.isArray(value.payments)
+    || value.payments.length > 200
+  ) return false;
+
+  const settlementIsValid = isObject(value.settlement)
+    && hasOnlyFields(value.settlement, ['currency', 'balance'])
+    && isCurrency(value.settlement.currency)
+    && isObject(value.settlement.balance)
+    && hasOnlyFields(value.settlement.balance, ['direction', 'amountPence'])
+    && (
+      value.settlement.balance.direction === 'you_owe'
+      || value.settlement.balance.direction === 'partner_owes_you'
+      || value.settlement.balance.direction === 'settled'
+    )
+    && isNonnegativeSafeInteger(value.settlement.balance.amountPence)
+    && (
+      (value.settlement.balance.direction === 'settled'
+        && value.settlement.balance.amountPence === 0)
+      || (value.settlement.balance.direction !== 'settled'
+        && value.settlement.balance.amountPence > 0)
+    );
+  if (
+    (value.partnerStatus === 'connected' && !settlementIsValid)
+    || (value.partnerStatus === 'not_connected' && value.settlement !== null)
+    || (value.partnerStatus === 'not_connected' && value.payments.length > 0)
+    || (value.partnerStatus === 'not_connected' && value.nextCursor !== null)
+  ) return false;
+
+  return value.payments.every((payment) => (
+    isObject(payment)
+    && hasOnlyFields(payment, [
+      'paymentRef', 'direction', 'amountPence', 'currency', 'occurredAt',
+    ])
+    && typeof payment.paymentRef === 'string'
+    && /^sloth_partner_payment_v1_[A-Za-z0-9_-]{43}$/.test(payment.paymentRef)
+    && (payment.direction === 'sent' || payment.direction === 'received')
+    && isNonnegativeSafeInteger(payment.amountPence)
+    && payment.amountPence > 0
+    && isCurrency(payment.currency)
+    && (payment.occurredAt === null || isIsoDateTime(payment.occurredAt))
+  ));
 }
 
 function isAssignmentResponse(value: unknown): boolean {
@@ -1598,6 +1691,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
           ? isLineItemMutationResponse(value)
     : command === 'transactions'
       ? isTransactionsResponse(value)
+      : command === 'partner-status'
+        ? isPartnerStatusResponse(value)
       : command === 'rules-list'
         ? isNotificationRuleListResponse(value)
         : command === 'rules-get' || command === 'rules-set'
