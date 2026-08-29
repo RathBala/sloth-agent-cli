@@ -111,6 +111,8 @@ type ApiCommand =
   | 'goals-mark-spent'
   | 'goals-restore'
   | 'goals-delete'
+  | 'scenarios-list'
+  | 'scenarios-mutation'
   | 'receipts-extract'
   | 'receipts-get'
   | 'receipts-attach'
@@ -1403,6 +1405,116 @@ function isGoalDeleteResponse(value: unknown): boolean {
   );
 }
 
+function isScenarioAmount(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= 0
+    && Math.abs(value * 100 - Math.round(value * 100)) < Number.EPSILON * 100;
+}
+
+function isScenarioContribution(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, [
+      'accountRef',
+      'accountLabel',
+      'accountType',
+      'recurringAmount',
+      'oneOffAmount',
+    ])
+    && isAccountRef(value.accountRef)
+    && typeof value.accountLabel === 'string'
+    && value.accountLabel.trim().length > 0
+    && (
+      value.accountType === 'current'
+      || value.accountType === 'savings'
+      || value.accountType === 'investments'
+    )
+    && (
+      value.recurringAmount === null
+      || isScenarioAmount(value.recurringAmount)
+    )
+    && isScenarioAmount(value.oneOffAmount);
+}
+
+function isScenarioOption(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['id', 'label', 'isActive', 'contributions'])
+    && typeof value.id === 'string'
+    && value.id.trim().length > 0
+    && value.id === value.id.trim()
+    && value.id.length <= 200
+    && typeof value.label === 'string'
+    && value.label.trim().length > 0
+    && value.label === value.label.trim()
+    && value.label.length <= 60
+    && typeof value.isActive === 'boolean'
+    && Array.isArray(value.contributions)
+    && value.contributions.every(isScenarioContribution);
+}
+
+function hasConsistentScenarioOptions(
+  options: unknown[],
+  activeOptionId: string,
+): boolean {
+  const parsedOptions = options.filter(isObject);
+  if (parsedOptions.length !== options.length) return false;
+  const optionIds = parsedOptions.map(option => String(option.id));
+  const activeOptions = parsedOptions.filter(option => option.isActive === true);
+  return new Set(optionIds).size === optionIds.length
+    && activeOptions.length === 1
+    && activeOptions[0]?.id === activeOptionId;
+}
+
+function isScenario(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['monthKey', 'name', 'activeOptionId', 'options'])
+    && isMonthKeyOrNull(value.monthKey)
+    && value.monthKey !== null
+    && (
+      value.name === null
+      || (typeof value.name === 'string'
+        && value.name.trim().length > 0
+        && value.name === value.name.trim()
+        && value.name.length <= 60)
+    )
+    && typeof value.activeOptionId === 'string'
+    && value.activeOptionId.trim().length > 0
+    && value.activeOptionId === value.activeOptionId.trim()
+    && value.activeOptionId.length <= 200
+    && Array.isArray(value.options)
+    && value.options.length > 0
+    && value.options.every(isScenarioOption)
+    && hasConsistentScenarioOptions(value.options, value.activeOptionId);
+}
+
+function isScenariosResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, ['currency', 'forecastBasis', 'scenarios'])
+    && isCurrency(value.currency)
+    && isForecastBasis(value.forecastBasis)
+    && Array.isArray(value.scenarios)
+    && value.scenarios.every(isScenario);
+}
+
+function isScenarioMutationResponse(value: unknown): boolean {
+  return isObject(value)
+    && hasOnlyFields(value, [
+      'currency',
+      'changed',
+      'forecastBasis',
+      'scenario',
+      'deletedMonthKey',
+      'goals',
+    ])
+    && isCurrency(value.currency)
+    && typeof value.changed === 'boolean'
+    && isForecastBasis(value.forecastBasis)
+    && (value.scenario === null || isScenario(value.scenario))
+    && isMonthKeyOrNull(value.deletedMonthKey)
+    && Array.isArray(value.goals)
+    && value.goals.every(isGoal);
+}
+
 function isReceiptConfirmation(value: unknown): boolean {
   try {
     validateReceiptConfirmation(value);
@@ -1508,6 +1620,10 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
           ? isPartnerResponse(value)
           : command === 'goals-list'
             ? isGoalsResponse(value)
+          : command === 'scenarios-list'
+            ? isScenariosResponse(value)
+          : command === 'scenarios-mutation'
+            ? isScenarioMutationResponse(value)
             : command === 'goals-preview'
               ? isGoalPreviewResponse(value)
             : command === 'goals-delete'

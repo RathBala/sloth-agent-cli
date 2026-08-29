@@ -31,6 +31,8 @@ import {
   agentApiV1NotificationRule,
   agentApiV1PortfolioResponse,
   agentApiV1RenewalExtractionResponse,
+  agentApiV1ScenarioMutationResponse,
+  agentApiV1ScenariosResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -192,6 +194,7 @@ describe('CLI execution', () => {
     expect(helpIo.stdout.join('')).toContain('--account-ref REF');
     expect(helpIo.stdout.join('')).toContain('Every nested subcommand has its own help');
     expect(helpIo.stdout.join('')).toContain('sloth-agent receipts');
+    expect(helpIo.stdout.join('')).toContain('sloth-agent scenarios');
     expect(helpIo.stdout.join('')).toContain('view-only');
     expect(helpIo.stderr).toEqual([]);
 
@@ -453,6 +456,69 @@ describe('CLI execution', () => {
         'Without --apply',
         'write-enabled token',
         'Allow changes',
+      ]],
+      [['scenarios', '--help'], [
+        'month-anchored',
+        'scenarios list',
+        'scenarios create',
+        'scenarios update',
+        'scenarios activate',
+        'scenarios delete',
+        'active option controls',
+      ]],
+      [['scenarios', 'list', '--help'], [
+        'read-only',
+        'active option',
+        'contributions',
+        '--base-url URL',
+        '-h, --help',
+      ]],
+      [['scenarios', 'create', '--help'], [
+        '--month YYYY-MM',
+        '--name NAME',
+        '--account-ref REF',
+        '--recurring-amount AMOUNT',
+        '--one-off-amount AMOUNT',
+        'No and Yes',
+        'activates Yes',
+        'later active scenario changes it',
+        'Without --apply',
+        'zero writes',
+        'recalculated Goals',
+        'at most two decimal places',
+        '--apply',
+        '--base-url URL',
+        'Preview and apply use the same output contract',
+      ]],
+      [['scenarios', 'update', '--help'], [
+        '--month YYYY-MM',
+        '--option-id ID',
+        '--option-label LABEL',
+        '--clear-recurring',
+        'active option when --option-id is omitted',
+        'zero explicitly stops',
+        'earlier recurring amount',
+        'recalculated Goals',
+        'requires --option-id',
+        'cannot be used',
+        'at most two decimal places',
+        '--base-url URL',
+      ]],
+      [['scenarios', 'activate', '--help'], [
+        '--month YYYY-MM',
+        '--option-id ID',
+        'recalculates Goals',
+        'Without --apply',
+        'selected scenario',
+        '--base-url URL',
+      ]],
+      [['scenarios', 'delete', '--help'], [
+        '--month YYYY-MM',
+        'recalculates Goals',
+        'Without --apply',
+        'write-enabled token',
+        'deletedMonthKey',
+        '--base-url URL',
       ]],
       [['ask-partner', '--help'], [
         '--transaction-ref REF',
@@ -893,6 +959,157 @@ describe('CLI execution', () => {
     );
     expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1GoalsResponse);
     expect(io.stderr).toEqual([]);
+  });
+
+  it('lists scenarios as validated JSON', async () => {
+    const io = createIo();
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1ScenariosResponse,
+    ));
+
+    expect(await runCli(['scenarios'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: fetchMock,
+      ...io,
+    })).toBe(0);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/scenarios',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1ScenariosResponse);
+    expect(io.stderr).toEqual([]);
+  });
+
+  it('previews and applies scenario creation through the server', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
+    const argv = [
+      'scenarios', 'create', '--month', '2026-09',
+      '--name', 'Deposit into the shopping pot each month?',
+      '--account-ref', accountRef, '--recurring-amount', '100',
+    ];
+    const previewIo = createIo();
+    const previewFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1ScenarioMutationResponse,
+    ));
+
+    expect(await runCli(argv, {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: previewFetch,
+      ...previewIo,
+    })).toBe(0);
+    expect(previewFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/scenarios/preview',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer token' }),
+        body: JSON.stringify({
+          action: 'create',
+          scenario: {
+            monthKey: '2026-09',
+            name: 'Deposit into the shopping pot each month?',
+            accountRef,
+            recurringAmount: 100,
+            oneOffAmount: 0,
+          },
+        }),
+      }),
+    );
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual(
+      agentApiV1ScenarioMutationResponse,
+    );
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1ScenarioMutationResponse,
+      201,
+    ));
+    expect(await runCli([...argv, '--apply'], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      'https://budget.slothmoney.app/api/agent/v1/scenarios',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          monthKey: '2026-09',
+          name: 'Deposit into the shopping pot each month?',
+          accountRef,
+          recurringAmount: 100,
+          oneOffAmount: 0,
+        }),
+      }),
+    );
+  });
+
+  it('previews and applies scenario update, activation, and deletion', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
+    const cases = [{
+      argv: [
+        'scenarios', 'update', '--month', '2026-09', '--option-id', 'yes',
+        '--account-ref', accountRef, '--recurring-amount', '125',
+      ],
+      previewBody: {
+        action: 'update',
+        monthKey: '2026-09',
+        updates: { optionId: 'yes', accountRef, recurringAmount: 125 },
+      },
+      applyEndpoint: 'https://budget.slothmoney.app/api/agent/v1/scenarios/2026-09',
+      applyMethod: 'PATCH',
+      applyBody: { optionId: 'yes', accountRef, recurringAmount: 125 },
+    }, {
+      argv: ['scenarios', 'activate', '--month', '2026-09', '--option-id', 'no'],
+      previewBody: { action: 'activate', monthKey: '2026-09', optionId: 'no' },
+      applyEndpoint: 'https://budget.slothmoney.app/api/agent/v1/scenarios/2026-09/activate',
+      applyMethod: 'POST',
+      applyBody: { optionId: 'no' },
+    }, {
+      argv: ['scenarios', 'delete', '--month', '2026-09'],
+      previewBody: { action: 'delete', monthKey: '2026-09' },
+      applyEndpoint: 'https://budget.slothmoney.app/api/agent/v1/scenarios/2026-09',
+      applyMethod: 'DELETE',
+      applyBody: undefined,
+    }];
+
+    for (const scenarioCase of cases) {
+      const previewIo = createIo();
+      const previewFetch = vi.fn().mockResolvedValue(jsonResponse(
+        agentApiV1ScenarioMutationResponse,
+      ));
+      expect(await runCli(scenarioCase.argv, {
+        env: { SLOTH_AGENT_TOKEN: 'token' },
+        fetch: previewFetch,
+        ...previewIo,
+      })).toBe(0);
+      expect(previewFetch).toHaveBeenCalledWith(
+        'https://budget.slothmoney.app/api/agent/v1/scenarios/preview',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify(scenarioCase.previewBody),
+        }),
+      );
+
+      const applyIo = createIo();
+      const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+        agentApiV1ScenarioMutationResponse,
+      ));
+      expect(await runCli([...scenarioCase.argv, '--apply'], {
+        env: { SLOTH_AGENT_TOKEN: 'token' },
+        fetch: applyFetch,
+        ...applyIo,
+      })).toBe(0);
+      expect(applyFetch).toHaveBeenCalledWith(
+        scenarioCase.applyEndpoint,
+        expect.objectContaining({
+          method: scenarioCase.applyMethod,
+          ...(scenarioCase.applyBody === undefined
+            ? {}
+            : { body: JSON.stringify(scenarioCase.applyBody) }),
+        }),
+      );
+    }
   });
 
   it('previews and applies goal creation', async () => {

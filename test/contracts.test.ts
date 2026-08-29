@@ -32,6 +32,8 @@ import {
   agentApiV1NotificationRule,
   agentApiV1PortfolioResponse,
   agentApiV1RenewalExtractionResponse,
+  agentApiV1ScenarioMutationResponse,
+  agentApiV1ScenariosResponse,
   agentApiV1TransactionsResponse,
 } from './fixtures/agent-api-v1.js';
 
@@ -46,6 +48,65 @@ describe('household portfolio contract', () => {
         providerAccountId: 'must-not-leak',
       }],
     })).toThrow(/invalid portfolio response/i);
+  });
+});
+
+describe('scenario contracts', () => {
+  it('accepts list and recalculated mutation responses', () => {
+    expect(parseApiResponse('scenarios-list', agentApiV1ScenariosResponse))
+      .toBe(agentApiV1ScenariosResponse);
+    expect(parseApiResponse('scenarios-mutation', agentApiV1ScenarioMutationResponse))
+      .toBe(agentApiV1ScenarioMutationResponse);
+  });
+
+  it('rejects unexpected financial or option fields', () => {
+    expect(() => parseApiResponse('scenarios-list', {
+      ...agentApiV1ScenariosResponse,
+      scenarios: [{
+        ...agentApiV1ScenariosResponse.scenarios[0],
+        options: [{
+          ...agentApiV1ScenariosResponse.scenarios[0].options[1],
+          contributions: [{
+            ...agentApiV1ScenariosResponse.scenarios[0].options[1].contributions[0],
+            balance: 110,
+          }],
+        }],
+      }],
+    })).toThrow(/invalid scenarios-list response/i);
+    expect(() => parseApiResponse('scenarios-mutation', {
+      ...agentApiV1ScenarioMutationResponse,
+      changed: 'yes',
+    })).toThrow(/invalid scenarios-mutation response/i);
+    expect(() => parseApiResponse('scenarios-list', {
+      ...agentApiV1ScenariosResponse,
+      scenarios: [{
+        ...agentApiV1ScenariosResponse.scenarios[0],
+        options: [{
+          ...agentApiV1ScenariosResponse.scenarios[0].options[1],
+          contributions: [{
+            ...agentApiV1ScenariosResponse.scenarios[0].options[1].contributions[0],
+            recurringAmount: 100.001,
+          }],
+        }],
+      }],
+    })).toThrow(/invalid scenarios-list response/i);
+    expect(() => parseApiResponse('scenarios-list', {
+      ...agentApiV1ScenariosResponse,
+      scenarios: [{
+        ...agentApiV1ScenariosResponse.scenarios[0],
+        activeOptionId: 'missing',
+      }],
+    })).toThrow(/invalid scenarios-list response/i);
+    expect(() => parseApiResponse('scenarios-list', {
+      ...agentApiV1ScenariosResponse,
+      scenarios: [{
+        ...agentApiV1ScenariosResponse.scenarios[0],
+        options: agentApiV1ScenariosResponse.scenarios[0].options.map(option => ({
+          ...option,
+          id: 'duplicate',
+        })),
+      }],
+    })).toThrow(/invalid scenarios-list response/i);
   });
 });
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.21.0 - 2026-08-28
+
+- Add `scenarios` commands to list, create, update, activate, and delete the
+  month-anchored choices used by Goal forecasts.
+- Preview every scenario change against Sloth's canonical planner with zero
+  writes; `--apply` remains the explicit write boundary.
+- Create the common No/Yes choice directly, support recurring and one-off
+  account contributions, and return the recalculated Goal roadmap.
+
 ## 0.20.0 - 2026-08-27
 
 - Add `portfolio` views for personal, partner-shared, and combined household

@@ -113,6 +113,10 @@ try {
   assert.match(help, /sloth-agent goals mark-spent/);
   assert.match(help, /sloth-agent goals restore/);
   assert.match(help, /sloth-agent goals delete/);
+  assert.match(help, /sloth-agent scenarios create/);
+  assert.match(help, /sloth-agent scenarios update/);
+  assert.match(help, /sloth-agent scenarios activate/);
+  assert.match(help, /sloth-agent scenarios delete/);
   assert.match(help, /Every nested subcommand has its own help/);
 
   const commandHelpCases = [
@@ -180,6 +184,12 @@ try {
     [['goals', 'mark-spent', '--help'], [/\{"isSpent":true\}/, /Keep goals cannot be marked spent/, /Without --apply/]],
     [['goals', 'restore', '--help'], [/\{"isSpent":false\}/, /clears spentAt/, /Without --apply/]],
     [['goals', 'delete', '--help'], [/removes its goal drift history/]],
+    [['scenarios', '--help'], [/month-anchored/, /scenarios create/, /scenarios activate/]],
+    [['scenarios', 'list', '--help'], [/read-only/, /active option/, /contributions/, /--base-url URL/, /-h, --help/]],
+    [['scenarios', 'create', '--help'], [/--month YYYY-MM/, /No and Yes/, /zero writes/, /recalculated Goals/, /at most two decimal places/, /Preview and apply use the same output contract/]],
+    [['scenarios', 'update', '--help'], [/--clear-recurring/, /zero explicitly stops/, /earlier recurring amount/, /requires --option-id/, /at most two decimal places/, /--base-url URL/]],
+    [['scenarios', 'activate', '--help'], [/--option-id ID/, /recalculates Goals/, /selected scenario/, /--base-url URL/]],
+    [['scenarios', 'delete', '--help'], [/--month YYYY-MM/, /recalculates Goals/, /deletedMonthKey/, /--base-url URL/]],
     [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
   ];
   for (const [args, expectedPatterns] of commandHelpCases) {

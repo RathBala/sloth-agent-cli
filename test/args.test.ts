@@ -38,6 +38,12 @@ describe('CLI arguments', () => {
       parseArgs(['goals', 'mark-spent', '--help']),
       parseArgs(['goals', 'restore', '--help']),
       parseArgs(['goals', 'delete', '--help']),
+      parseArgs(['scenarios', '--help']),
+      parseArgs(['scenarios', 'list', '--help']),
+      parseArgs(['scenarios', 'create', '--help']),
+      parseArgs(['scenarios', 'update', '--help']),
+      parseArgs(['scenarios', 'activate', '--help']),
+      parseArgs(['scenarios', 'delete', '--help']),
       parseArgs(['ask-partner', '--help']),
     ]).toEqual([
       { command: 'help', topic: 'auth' },
@@ -69,6 +75,12 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'goals-mark-spent' },
       { command: 'help', topic: 'goals-restore' },
       { command: 'help', topic: 'goals-delete' },
+      { command: 'help', topic: 'scenarios' },
+      { command: 'help', topic: 'scenarios-list' },
+      { command: 'help', topic: 'scenarios-create' },
+      { command: 'help', topic: 'scenarios-update' },
+      { command: 'help', topic: 'scenarios-activate' },
+      { command: 'help', topic: 'scenarios-delete' },
       { command: 'help', topic: 'ask-partner' },
     ]);
     expect(parseArgs(['categories', '--help', '--base-url'])).toEqual({
@@ -91,6 +103,102 @@ describe('CLI arguments', () => {
   it('parses both goal list forms', () => {
     expect(parseArgs(['goals'])).toEqual({ command: 'goals-list' });
     expect(parseArgs(['goals', 'list'])).toEqual({ command: 'goals-list' });
+  });
+
+  it('parses scenario reads and preview-first changes', () => {
+    const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
+
+    expect(parseArgs(['scenarios'])).toEqual({ command: 'scenarios-list' });
+    expect(parseArgs(['scenarios', 'list'])).toEqual({ command: 'scenarios-list' });
+    expect(parseArgs([
+      'scenarios', 'create', '--month', '2026-09', '--name', 'Deposit monthly?',
+      '--account-ref', accountRef, '--recurring-amount', '100',
+    ])).toEqual({
+      command: 'scenarios-create',
+      monthKey: '2026-09',
+      name: 'Deposit monthly?',
+      accountRef,
+      recurringAmount: 100,
+      oneOffAmount: 0,
+      apply: false,
+    });
+    expect(parseArgs([
+      'scenarios', 'create', '--month=2026-09', '--name=Add a bonus?',
+      `--account-ref=${accountRef}`, '--one-off-amount=50.25', '--apply',
+    ])).toEqual({
+      command: 'scenarios-create',
+      monthKey: '2026-09',
+      name: 'Add a bonus?',
+      accountRef,
+      oneOffAmount: 50.25,
+      apply: true,
+    });
+    expect(parseArgs([
+      'scenarios', 'update', '--month', '2026-09', '--option-id', 'yes',
+      '--option-label', 'Save it', '--account-ref', accountRef,
+      '--clear-recurring', '--one-off-amount', '0',
+    ])).toEqual({
+      command: 'scenarios-update',
+      monthKey: '2026-09',
+      optionId: 'yes',
+      optionLabel: 'Save it',
+      accountRef,
+      recurringAmount: null,
+      oneOffAmount: 0,
+      apply: false,
+    });
+    expect(parseArgs([
+      'scenarios', 'activate', '--month', '2026-09', '--option-id', 'no', '--apply',
+    ])).toEqual({
+      command: 'scenarios-activate',
+      monthKey: '2026-09',
+      optionId: 'no',
+      apply: true,
+    });
+    const longOptionId = 'option-'.padEnd(100, 'x');
+    expect(parseArgs([
+      'scenarios', 'activate', '--month', '2026-09', '--option-id', longOptionId,
+    ])).toMatchObject({ optionId: longOptionId });
+    expect(parseArgs(['scenarios', 'delete', '--month', '2026-09'])).toEqual({
+      command: 'scenarios-delete',
+      monthKey: '2026-09',
+      apply: false,
+    });
+  });
+
+  it('requires complete, unambiguous scenario changes', () => {
+    const accountRef = `sloth_account_v1_${'A'.repeat(43)}`;
+
+    expect(() => parseArgs(['scenarios', 'create', '--month', '2026-13']))
+      .toThrow(/valid YYYY-MM/);
+    expect(() => parseArgs([
+      'scenarios', 'create', '--month', '2026-09', '--name', 'Deposit?',
+      '--account-ref', accountRef,
+    ])).toThrow(/recurring-amount or --one-off-amount/);
+    expect(() => parseArgs([
+      'scenarios', 'create', '--month', '2026-09', '--name', 'Deposit?',
+      '--account-ref', accountRef, '--recurring-amount', '0', '--one-off-amount', '0',
+    ])).toThrow(/at least one positive contribution/);
+    expect(() => parseArgs([
+      'scenarios', 'update', '--month', '2026-09', '--option-label', 'Save it',
+    ])).toThrow(/--option-label requires --option-id/);
+    expect(() => parseArgs([
+      'scenarios', 'update', '--month', '2026-09', '--recurring-amount', '100',
+    ])).toThrow(/contribution changes require --account-ref/);
+    expect(() => parseArgs([
+      'scenarios', 'update', '--month', '2026-09', '--name', 'Deposit?',
+      '--account-ref', accountRef,
+    ])).toThrow(/--account-ref requires a contribution change/);
+    expect(() => parseArgs([
+      'scenarios', 'update', '--month', '2026-09', '--account-ref', accountRef,
+      '--recurring-amount', '100', '--clear-recurring',
+    ])).toThrow(/mutually exclusive/);
+    expect(() => parseArgs(['scenarios', 'update', '--month', '2026-09']))
+      .toThrow(/at least one field to update/);
+    expect(() => parseArgs(['scenarios', 'activate', '--month', '2026-09']))
+      .toThrow(/requires --option-id/);
+    expect(() => parseArgs(['scenarios', 'delete']))
+      .toThrow(/requires --month/);
   });
 
   it('parses category list, create, and rename with preview by default', () => {

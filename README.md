@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect personal and household accounts, investments, and budgets, manage goals, move assigned budget money, update planned amounts, categorise transactions, and configure payment notifications through the
+Use your own agent to inspect personal and household accounts, investments, and budgets, manage goals and forecast scenarios, move assigned budget money, update planned amounts, categorise transactions, and configure payment notifications through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.17.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.21.0 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -25,9 +25,9 @@ Create a personal access token in Sloth Money under
 where the CLI runs.
 
 New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`, `portfolio`,
-`budget`, `categories`, `transactions`, and `goals` list. Enable **Allow changes** when
+`budget`, `categories`, `transactions`, `goals`, and `scenarios` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
-or line items, move assigned budget money, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals. Token
+or line items, move assigned budget money, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals and scenarios. Token
 permissions cannot be changed later - revoke and reissue the token instead.
 
 ### Local computer
@@ -122,6 +122,9 @@ sloth-agent goals create --help
 sloth-agent goals update --help
 sloth-agent goals mark-spent --help
 sloth-agent goals restore --help
+sloth-agent scenarios create --help
+sloth-agent scenarios update --help
+sloth-agent scenarios activate --help
 sloth-agent ask-partner --help
 ```
 
@@ -747,6 +750,52 @@ Goal sharing remains app-managed. Goal list output includes a
 one-based `priority`; `1` is highest. Moving one goal automatically shifts the
 goals between its old and new positions. Sloth recalculates the active-scenario
 roadmap before every applied Goal mutation and returns the updated forecast.
+
+List the scenarios that supply assumptions to that roadmap:
+
+```bash
+sloth-agent scenarios
+```
+
+Create a monthly contribution choice. Preview is the default and performs zero
+writes; add `--apply` after reviewing the returned scenario and recalculated
+Goals:
+
+```bash
+sloth-agent scenarios create \
+  --month 2026-09 \
+  --name "Deposit £100 into the shopping pot each month?" \
+  --account-ref sloth_account_v1_... \
+  --recurring-amount 100
+```
+
+Creation adds No and Yes options and activates Yes. The recurring contribution
+continues until a later active scenario changes it. A one-off amount applies
+only in the scenario month. Scenarios alter the forecast; they do not move
+money.
+
+Use stable IDs from `scenarios` output to edit or select an option:
+
+```bash
+sloth-agent scenarios update \
+  --month 2026-09 \
+  --option-id yes \
+  --account-ref sloth_account_v1_... \
+  --recurring-amount 125 \
+  --apply
+
+sloth-agent scenarios activate \
+  --month 2026-09 \
+  --option-id no \
+  --apply
+
+sloth-agent scenarios delete --month 2026-09 --apply
+```
+
+For recurring contributions, `--recurring-amount 0` explicitly stops the
+earlier amount. `--clear-recurring` removes this month's override, so the
+earlier recurring amount continues. Contribution updates use the active option
+when `--option-id` is omitted.
 
 Read uncategorised contributions to the joint budget:
 

@@ -391,3 +391,41 @@ export const agentApiV1RenewalExtractionResponse = {
   renewalDate: null,
   confidence: 'low',
 } as const;
+
+export const agentApiV1Scenario = {
+  monthKey: '2026-09',
+  name: 'Deposit into the shopping pot each month?',
+  activeOptionId: 'yes',
+  options: [{
+    id: 'no',
+    label: 'No',
+    isActive: false,
+    contributions: [],
+  }, {
+    id: 'yes',
+    label: 'Yes',
+    isActive: true,
+    contributions: [{
+      accountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
+      accountLabel: 'Monzo · Everyday account',
+      accountType: 'current',
+      recurringAmount: 100,
+      oneOffAmount: 0,
+    }],
+  }],
+} as const;
+
+export const agentApiV1ScenariosResponse = {
+  currency: 'GBP',
+  forecastBasis: { ...agentApiV1ForecastBasis, activeScenarioRevision: 8 },
+  scenarios: [agentApiV1Scenario],
+} as const;
+
+export const agentApiV1ScenarioMutationResponse = {
+  currency: 'GBP',
+  changed: true,
+  forecastBasis: { ...agentApiV1ForecastBasis, activeScenarioRevision: 8 },
+  scenario: agentApiV1Scenario,
+  deletedMonthKey: null,
+  goals: [agentApiV1GoalMutationResponse.goal],
+} as const;

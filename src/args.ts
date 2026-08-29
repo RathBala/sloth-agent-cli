@@ -74,6 +74,12 @@ export type HelpTopic =
   | 'goals-mark-spent'
   | 'goals-restore'
   | 'goals-delete'
+  | 'scenarios'
+  | 'scenarios-list'
+  | 'scenarios-create'
+  | 'scenarios-update'
+  | 'scenarios-activate'
+  | 'scenarios-delete'
   | 'ask-partner';
 
 export type ParsedCommand =
@@ -260,6 +266,42 @@ export type ParsedCommand =
     goalId: string;
     apply: boolean;
   }
+  | { command: 'scenarios-list'; baseUrl?: string }
+  | {
+    command: 'scenarios-create';
+    baseUrl?: string;
+    monthKey: string;
+    name: string;
+    accountRef: string;
+    recurringAmount?: number;
+    oneOffAmount?: number;
+    apply: boolean;
+  }
+  | {
+    command: 'scenarios-update';
+    baseUrl?: string;
+    monthKey: string;
+    name?: string;
+    optionId?: string;
+    optionLabel?: string;
+    accountRef?: string;
+    recurringAmount?: number | null;
+    oneOffAmount?: number;
+    apply: boolean;
+  }
+  | {
+    command: 'scenarios-activate';
+    baseUrl?: string;
+    monthKey: string;
+    optionId: string;
+    apply: boolean;
+  }
+  | {
+    command: 'scenarios-delete';
+    baseUrl?: string;
+    monthKey: string;
+    apply: boolean;
+  }
   | { command: 'ask-partner'; baseUrl?: string; transactionRef: string };
 
 const PRODUCTION_BASE_URL = 'https://budget.slothmoney.app';
@@ -333,6 +375,17 @@ function parsePositiveDecimalAmount(value: string, name: string): number {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new UsageError(`${name} must be a positive amount with at most two decimal places`);
+  }
+  return amount;
+}
+
+function parseNonNegativeDecimalAmount(value: string, name: string): number {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) {
+    throw new UsageError(`${name} must be zero or a positive amount with at most two decimal places`);
+  }
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new UsageError(`${name} must be zero or a positive amount with at most two decimal places`);
   }
   return amount;
 }
@@ -1241,6 +1294,244 @@ function parseGoals(args: string[], baseUrl?: string): ParsedCommand {
   throw new UsageError(`Unknown goals command: ${subcommand}`);
 }
 
+function parseScenarioText(value: string, option: string, maxLength = 60): string {
+  const text = value.trim();
+  if (text.length > maxLength) {
+    throw new UsageError(`${option} must be at most ${maxLength} characters`);
+  }
+  return text;
+}
+
+function parseScenarios(args: string[], baseUrl?: string): ParsedCommand {
+  const subcommand = args.shift();
+  if (subcommand === undefined || subcommand === 'list') {
+    if (args.length > 0) {
+      throw new UsageError(`Unknown scenarios list option: ${args[0]}`);
+    }
+    return withBaseUrl({ command: 'scenarios-list' }, baseUrl);
+  }
+
+  if (subcommand === 'create') {
+    let monthKey: string | undefined;
+    let name: string | undefined;
+    let accountRef: string | undefined;
+    let recurringAmount: number | undefined;
+    let oneOffAmount: number | undefined;
+    let apply = false;
+
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+        continue;
+      }
+      const [option, inlineValue] = argument.includes('=')
+        ? argument.split(/=(.*)/s, 2)
+        : [argument, undefined];
+      if (
+        option !== '--month'
+        && option !== '--name'
+        && option !== '--account-ref'
+        && option !== '--recurring-amount'
+        && option !== '--one-off-amount'
+      ) {
+        throw new UsageError(`Unknown scenarios create option: ${argument}`);
+      }
+      const value = requireNonEmpty(
+        inlineValue ?? readOptionValue(args, index, option),
+        option,
+      );
+      if (inlineValue === undefined) index += 1;
+
+      if (option === '--month') {
+        monthKey = setOnce(monthKey, parseGoalMonthKey(value, option), option);
+      } else if (option === '--name') {
+        name = setOnce(name, parseScenarioText(value, option), option);
+      } else if (option === '--account-ref') {
+        accountRef = setOnce(accountRef, parseAccountRef(value), option);
+      } else if (option === '--recurring-amount') {
+        recurringAmount = setOnce(
+          recurringAmount,
+          parseNonNegativeDecimalAmount(value, option),
+          option,
+        );
+      } else {
+        oneOffAmount = setOnce(
+          oneOffAmount,
+          parseNonNegativeDecimalAmount(value, option),
+          option,
+        );
+      }
+    }
+
+    if (!monthKey) throw new UsageError('scenarios create requires --month <YYYY-MM>');
+    if (!name) throw new UsageError('scenarios create requires --name <name>');
+    if (!accountRef) throw new UsageError('scenarios create requires --account-ref <accountRef>');
+    if (recurringAmount === undefined && oneOffAmount === undefined) {
+      throw new UsageError('scenarios create requires --recurring-amount or --one-off-amount');
+    }
+    if ((recurringAmount ?? 0) === 0 && (oneOffAmount ?? 0) === 0) {
+      throw new UsageError('scenarios create requires at least one positive contribution');
+    }
+    return withBaseUrl({
+      command: 'scenarios-create',
+      monthKey,
+      name,
+      accountRef,
+      ...(recurringAmount === undefined ? {} : { recurringAmount }),
+      ...(oneOffAmount === undefined
+        ? recurringAmount === undefined ? {} : { oneOffAmount: 0 }
+        : { oneOffAmount }),
+      apply,
+    }, baseUrl);
+  }
+
+  if (subcommand === 'update') {
+    let monthKey: string | undefined;
+    let name: string | undefined;
+    let optionId: string | undefined;
+    let optionLabel: string | undefined;
+    let accountRef: string | undefined;
+    let recurringAmount: number | null | undefined;
+    let oneOffAmount: number | undefined;
+    let apply = false;
+
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+        continue;
+      }
+      if (argument === '--clear-recurring') {
+        if (recurringAmount !== undefined) {
+          throw new UsageError('--recurring-amount and --clear-recurring are mutually exclusive');
+        }
+        recurringAmount = null;
+        continue;
+      }
+      const [option, inlineValue] = argument.includes('=')
+        ? argument.split(/=(.*)/s, 2)
+        : [argument, undefined];
+      if (
+        option !== '--month'
+        && option !== '--name'
+        && option !== '--option-id'
+        && option !== '--option-label'
+        && option !== '--account-ref'
+        && option !== '--recurring-amount'
+        && option !== '--one-off-amount'
+      ) {
+        throw new UsageError(`Unknown scenarios update option: ${argument}`);
+      }
+      const value = requireNonEmpty(
+        inlineValue ?? readOptionValue(args, index, option),
+        option,
+      );
+      if (inlineValue === undefined) index += 1;
+
+      if (option === '--month') {
+        monthKey = setOnce(monthKey, parseGoalMonthKey(value, option), option);
+      } else if (option === '--name') {
+        name = setOnce(name, parseScenarioText(value, option), option);
+      } else if (option === '--option-id') {
+        optionId = setOnce(optionId, parseScenarioText(value, option, 200), option);
+      } else if (option === '--option-label') {
+        optionLabel = setOnce(optionLabel, parseScenarioText(value, option), option);
+      } else if (option === '--account-ref') {
+        accountRef = setOnce(accountRef, parseAccountRef(value), option);
+      } else if (option === '--recurring-amount') {
+        if (recurringAmount !== undefined) {
+          throw new UsageError('--recurring-amount and --clear-recurring are mutually exclusive');
+        }
+        recurringAmount = parseNonNegativeDecimalAmount(value, option);
+      } else {
+        oneOffAmount = setOnce(
+          oneOffAmount,
+          parseNonNegativeDecimalAmount(value, option),
+          option,
+        );
+      }
+    }
+
+    if (!monthKey) throw new UsageError('scenarios update requires --month <YYYY-MM>');
+    if (optionLabel !== undefined && optionId === undefined) {
+      throw new UsageError('--option-label requires --option-id');
+    }
+    if ((recurringAmount !== undefined || oneOffAmount !== undefined) && !accountRef) {
+      throw new UsageError('scenario contribution changes require --account-ref');
+    }
+    if (
+      accountRef !== undefined
+      && recurringAmount === undefined
+      && oneOffAmount === undefined
+    ) {
+      throw new UsageError('--account-ref requires a contribution change');
+    }
+    if (
+      name === undefined
+      && optionLabel === undefined
+      && accountRef === undefined
+      && recurringAmount === undefined
+      && oneOffAmount === undefined
+    ) {
+      throw new UsageError('scenarios update requires at least one field to update');
+    }
+    return withBaseUrl({
+      command: 'scenarios-update',
+      monthKey,
+      ...(name === undefined ? {} : { name }),
+      ...(optionId === undefined ? {} : { optionId }),
+      ...(optionLabel === undefined ? {} : { optionLabel }),
+      ...(accountRef === undefined ? {} : { accountRef }),
+      ...(recurringAmount === undefined ? {} : { recurringAmount }),
+      ...(oneOffAmount === undefined ? {} : { oneOffAmount }),
+      apply,
+    }, baseUrl);
+  }
+
+  if (subcommand === 'activate' || subcommand === 'delete') {
+    let monthKey: string | undefined;
+    let optionId: string | undefined;
+    let apply = false;
+    for (let index = 0; index < args.length; index += 1) {
+      const argument = args[index]!;
+      if (argument === '--apply') {
+        if (apply) throw new UsageError('--apply may only be provided once');
+        apply = true;
+        continue;
+      }
+      const [option, inlineValue] = argument.includes('=')
+        ? argument.split(/=(.*)/s, 2)
+        : [argument, undefined];
+      if (option !== '--month' && !(subcommand === 'activate' && option === '--option-id')) {
+        throw new UsageError(`Unknown scenarios ${subcommand} option: ${argument}`);
+      }
+      const value = requireNonEmpty(
+        inlineValue ?? readOptionValue(args, index, option),
+        option,
+      );
+      if (inlineValue === undefined) index += 1;
+      if (option === '--month') {
+        monthKey = setOnce(monthKey, parseGoalMonthKey(value, option), option);
+      } else {
+        optionId = setOnce(optionId, parseScenarioText(value, option, 200), option);
+      }
+    }
+    if (!monthKey) throw new UsageError(`scenarios ${subcommand} requires --month <YYYY-MM>`);
+    if (subcommand === 'activate') {
+      if (!optionId) throw new UsageError('scenarios activate requires --option-id <id>');
+      return withBaseUrl({
+        command: 'scenarios-activate', monthKey, optionId, apply,
+      }, baseUrl);
+    }
+    return withBaseUrl({ command: 'scenarios-delete', monthKey, apply }, baseUrl);
+  }
+
+  throw new UsageError(`Unknown scenarios command: ${subcommand}`);
+}
+
 function parseRules(args: string[], baseUrl?: string): ParsedCommand {
   const subcommand = args.shift();
   if (subcommand === undefined || subcommand === 'list') {
@@ -1339,6 +1630,14 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'delete') return 'goals-delete';
     return 'goals';
   }
+  if (command === 'scenarios') {
+    if (subcommand === 'list') return 'scenarios-list';
+    if (subcommand === 'create') return 'scenarios-create';
+    if (subcommand === 'update') return 'scenarios-update';
+    if (subcommand === 'activate') return 'scenarios-activate';
+    if (subcommand === 'delete') return 'scenarios-delete';
+    return 'scenarios';
+  }
   if (command === 'rules') {
     if (subcommand === 'get') return 'rules-get';
     if (subcommand === 'set') return 'rules-set';
@@ -1400,6 +1699,10 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'goals') {
     return parseGoals(args, baseUrl);
+  }
+
+  if (command === 'scenarios') {
+    return parseScenarios(args, baseUrl);
   }
 
   if (command === 'rules') {

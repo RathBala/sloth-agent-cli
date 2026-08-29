@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.20.0';
+export const CLI_VERSION = '0.21.0';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -110,6 +110,12 @@ export function usageText(): string {
     '  sloth-agent goals mark-spent --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent goals restore --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent goals delete --goal-id ID [--apply] [--base-url URL]',
+    '  sloth-agent scenarios [list] [--base-url URL]',
+    '  sloth-agent scenarios create --month YYYY-MM --name NAME --account-ref REF',
+    '    [--recurring-amount AMOUNT] [--one-off-amount AMOUNT] [--apply]',
+    '  sloth-agent scenarios update --month YYYY-MM [fields] [--apply]',
+    '  sloth-agent scenarios activate --month YYYY-MM --option-id ID [--apply]',
+    '  sloth-agent scenarios delete --month YYYY-MM [--apply]',
     '  sloth-agent ask-partner --transaction-ref REF [--base-url URL]',
     '',
     'Help:',
@@ -1030,6 +1036,198 @@ export function goalsDeleteHelpText(): string {
   ].join('\n');
 }
 
+export function scenariosHelpText(): string {
+  return [
+    'Sloth Agent CLI - scenarios',
+    '',
+    'Manage the month-anchored choices used by the Goal forecast.',
+    'Each scenario contains options. Its active option controls the forecast calculation.',
+    '',
+    'Commands:',
+    '  sloth-agent scenarios list       List scenarios and their options.',
+    '  sloth-agent scenarios create     Create a No/Yes scenario.',
+    '  sloth-agent scenarios update     Change a scenario or option.',
+    '  sloth-agent scenarios activate   Make an option active.',
+    '  sloth-agent scenarios delete     Remove a scenario.',
+    '',
+    'Help:',
+    '  Run sloth-agent scenarios <command> --help for command-specific details.',
+    ...API_ORIGIN_HELP_LINES,
+  ].join('\n');
+}
+
+export function scenariosListHelpText(): string {
+  return [
+    'Sloth Agent CLI - scenarios list',
+    '',
+    'List each scenario, its active option, and account contributions.',
+    '',
+    'Usage:',
+    '  sloth-agent scenarios [list] [--base-url URL] [-h]',
+    '',
+    'Options:',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    '',
+    'Behavior:',
+    'This command is read-only and requires agent:read.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON with currency, forecastBasis, and scenarios. Each scenario contains',
+    '  activeOptionId and options with isActive and account contributions.',
+  ].join('\n');
+}
+
+export function scenariosCreateHelpText(): string {
+  return [
+    'Sloth Agent CLI - scenarios create',
+    '',
+    'Create a month-anchored choice and recalculate the Goal roadmap.',
+    '',
+    'Usage:',
+    '  sloth-agent scenarios create --month YYYY-MM --name NAME --account-ref REF',
+    '    [--recurring-amount AMOUNT] [--one-off-amount AMOUNT] [--apply]',
+    '    [--base-url URL] [-h]',
+    '',
+    'Required:',
+    '  --month YYYY-MM              Month when this scenario begins.',
+    '  --name NAME                  Question shown for the scenario, up to 60 characters.',
+    '  --account-ref REF            Exact accountRef from sloth-agent accounts.',
+    '',
+    'Contribution: provide at least one:',
+    '  --recurring-amount AMOUNT    Optional monthly contribution in the budget currency.',
+    '  --one-off-amount AMOUNT      Optional contribution for this month.',
+    '  AMOUNT accepts zero or a positive decimal with at most two decimal places.',
+    '  At least one supplied amount must be positive.',
+    '',
+    'Options:',
+    '  --apply          Optional. Save the scenario; otherwise preview it.',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    '',
+    'Provide at least one positive contribution. A recurring contribution continues',
+    'until a later active scenario changes it. Creation adds No and Yes options and',
+    'activates Yes. It records a forecast assumption and does not move money.',
+    '',
+    'Write behavior:',
+    '  Without --apply, Sloth authenticates, calculates the result, and performs zero writes.',
+    '  With --apply, Sloth saves the scenario using a write-enabled token with Allow changes.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON with changed, forecastBasis, the proposed or saved scenario, and',
+    '  recalculated Goals. Preview and apply use the same output contract.',
+    '',
+    'Example:',
+    '  sloth-agent scenarios create --month 2026-09 \\',
+    '    --name "Deposit £100 into the shopping pot each month?" \\',
+    '    --account-ref PASTE_THE_EXACT_ACCOUNT_REF_HERE --recurring-amount 100',
+  ].join('\n');
+}
+
+export function scenariosUpdateHelpText(): string {
+  return [
+    'Sloth Agent CLI - scenarios update',
+    '',
+    'Change a scenario, one option, or an account contribution.',
+    '',
+    'Usage:',
+    '  sloth-agent scenarios update --month YYYY-MM [fields] [--apply]',
+    '    [--base-url URL] [-h]',
+    '',
+    'Required:',
+    '  --month YYYY-MM                 Scenario month.',
+    '',
+    'Fields:',
+    '  --name NAME                     Rename the scenario, up to 60 characters.',
+    '  --option-id ID                  Select an option ID, up to 200 characters.',
+    '  --option-label LABEL            Rename it, up to 60 characters; requires --option-id.',
+    '  --account-ref REF               Account for contribution changes.',
+    '  --recurring-amount AMOUNT       Set a monthly contribution; cannot be used',
+    '                                  with --clear-recurring.',
+    '  --clear-recurring               Inherit the earlier recurring amount.',
+    '  --one-off-amount AMOUNT         Set this month\'s one-off contribution.',
+    '  Amounts accept zero or a positive decimal with at most two decimal places.',
+    '  Contribution fields require --account-ref, and --account-ref requires one',
+    '  of those fields. Provide at least one field that changes the scenario.',
+    '',
+    'Options:',
+    '  --apply          Optional. Save the change; otherwise preview it.',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    '',
+    'Contribution changes use the active option when --option-id is omitted.',
+    'For recurring contributions, zero explicitly stops the earlier recurring amount.',
+    '--clear-recurring removes this override so the earlier recurring amount continues.',
+    '',
+    'Write behavior:',
+    '  Without --apply, Sloth authenticates, calculates the result, and performs zero writes.',
+    '  With --apply, Sloth saves the change using a write-enabled token with Allow changes.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON with changed, forecastBasis, the proposed or saved scenario, and',
+    '  recalculated Goals. Preview and apply use the same output contract.',
+  ].join('\n');
+}
+
+export function scenariosActivateHelpText(): string {
+  return [
+    'Sloth Agent CLI - scenarios activate',
+    '',
+    'Select the option that controls the forecast and recalculates Goals.',
+    '',
+    'Usage:',
+    '  sloth-agent scenarios activate --month YYYY-MM --option-id ID [--apply]',
+    '    [--base-url URL] [-h]',
+    '',
+    'Required:',
+    '  --month YYYY-MM   Scenario month.',
+    '  --option-id ID    Exact option ID from scenarios list, up to 200 characters.',
+    '',
+    'Options:',
+    '  --apply          Optional. Save the active option; otherwise preview it.',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    '',
+    'Write behavior:',
+    'Without --apply, Sloth calculates the result and performs zero writes.',
+    'With --apply, Sloth saves the active option using a write-enabled token with Allow changes.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON with changed, forecastBasis, the selected scenario, and recalculated Goals.',
+  ].join('\n');
+}
+
+export function scenariosDeleteHelpText(): string {
+  return [
+    'Sloth Agent CLI - scenarios delete',
+    '',
+    'Remove one scenario. Sloth recalculates Goals without it.',
+    '',
+    'Usage:',
+    '  sloth-agent scenarios delete --month YYYY-MM [--apply] [--base-url URL] [-h]',
+    '',
+    'Required:',
+    '  --month YYYY-MM   Scenario month.',
+    '',
+    'Options:',
+    '  --apply          Optional. Remove the scenario; otherwise preview deletion.',
+    '  --base-url URL   Optional. Override the API origin.',
+    '  -h, --help       Show this help.',
+    '',
+    'Write behavior:',
+    'Without --apply, Sloth calculates the result and performs zero writes.',
+    'With --apply, Sloth removes the scenario using a write-enabled token with Allow changes.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Output:',
+    '  JSON with changed, forecastBasis, deletedMonthKey, and recalculated Goals.',
+  ].join('\n');
+}
+
 export function askPartnerHelpText(): string {
   return [
     'Sloth Agent CLI — ask-partner',
@@ -1317,6 +1515,12 @@ export function commandHelpText(topic: HelpTopic): string {
     'goals-mark-spent': goalsMarkSpentHelpText,
     'goals-restore': goalsRestoreHelpText,
     'goals-delete': goalsDeleteHelpText,
+    scenarios: scenariosHelpText,
+    'scenarios-list': scenariosListHelpText,
+    'scenarios-create': scenariosCreateHelpText,
+    'scenarios-update': scenariosUpdateHelpText,
+    'scenarios-activate': scenariosActivateHelpText,
+    'scenarios-delete': scenariosDeleteHelpText,
     'ask-partner': askPartnerHelpText,
   };
   return helpByTopic[topic]();
@@ -1695,6 +1899,96 @@ function classifyRemoteStatus(error: unknown): (
 function hasFailures(value: unknown): boolean {
   if (!value || typeof value !== 'object' || !('failed' in value)) return false;
   return Array.isArray(value.failed) && value.failed.length > 0;
+}
+
+type ScenarioMutationCommand = Extract<ParsedCommand, {
+  command:
+    | 'scenarios-create'
+    | 'scenarios-update'
+    | 'scenarios-activate'
+    | 'scenarios-delete';
+}>;
+
+interface ScenarioRequestDescriptor {
+  endpoint: string;
+  method: 'POST' | 'PATCH' | 'DELETE';
+  body?: unknown;
+}
+
+function scenarioRequestDescriptor(
+  parsed: ScenarioMutationCommand,
+  baseUrl: string,
+): ScenarioRequestDescriptor {
+  const previewEndpoint = `${baseUrl}/api/agent/v1/scenarios/preview`;
+
+  switch (parsed.command) {
+    case 'scenarios-create': {
+      const scenario = {
+        monthKey: parsed.monthKey,
+        name: parsed.name,
+        accountRef: parsed.accountRef,
+        ...(parsed.recurringAmount === undefined
+          ? {}
+          : { recurringAmount: parsed.recurringAmount }),
+        ...(parsed.oneOffAmount === undefined
+          ? {}
+          : { oneOffAmount: parsed.oneOffAmount }),
+      };
+      return parsed.apply
+        ? { endpoint: `${baseUrl}/api/agent/v1/scenarios`, method: 'POST', body: scenario }
+        : {
+          endpoint: previewEndpoint,
+          method: 'POST',
+          body: { action: 'create', scenario },
+        };
+    }
+    case 'scenarios-update': {
+      const updates = {
+        ...(parsed.name === undefined ? {} : { name: parsed.name }),
+        ...(parsed.optionId === undefined ? {} : { optionId: parsed.optionId }),
+        ...(parsed.optionLabel === undefined ? {} : { optionLabel: parsed.optionLabel }),
+        ...(parsed.accountRef === undefined ? {} : { accountRef: parsed.accountRef }),
+        ...(parsed.recurringAmount === undefined
+          ? {}
+          : { recurringAmount: parsed.recurringAmount }),
+        ...(parsed.oneOffAmount === undefined ? {} : { oneOffAmount: parsed.oneOffAmount }),
+      };
+      return parsed.apply
+        ? {
+          endpoint: `${baseUrl}/api/agent/v1/scenarios/${encodeURIComponent(parsed.monthKey)}`,
+          method: 'PATCH',
+          body: updates,
+        }
+        : {
+          endpoint: previewEndpoint,
+          method: 'POST',
+          body: { action: 'update', monthKey: parsed.monthKey, updates },
+        };
+    }
+    case 'scenarios-activate':
+      return parsed.apply
+        ? {
+          endpoint: `${baseUrl}/api/agent/v1/scenarios/${encodeURIComponent(parsed.monthKey)}/activate`,
+          method: 'POST',
+          body: { optionId: parsed.optionId },
+        }
+        : {
+          endpoint: previewEndpoint,
+          method: 'POST',
+          body: { action: 'activate', monthKey: parsed.monthKey, optionId: parsed.optionId },
+        };
+    case 'scenarios-delete':
+      return parsed.apply
+        ? {
+          endpoint: `${baseUrl}/api/agent/v1/scenarios/${encodeURIComponent(parsed.monthKey)}`,
+          method: 'DELETE',
+        }
+        : {
+          endpoint: previewEndpoint,
+          method: 'POST',
+          body: { action: 'delete', monthKey: parsed.monthKey },
+        };
+  }
 }
 
 export async function runCli(
@@ -2203,6 +2497,47 @@ export async function runCli(
         await parseHttpResponse(response, token),
       );
       writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'scenarios-list') {
+      const response = await fetchImplementation(
+        `${baseUrl}/api/agent/v1/scenarios`,
+        {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+      writeJson(
+        writeStdout,
+        parseApiResponse('scenarios-list', await parseHttpResponse(response, token)),
+      );
+      return 0;
+    }
+
+    if (
+      parsed.command === 'scenarios-create'
+      || parsed.command === 'scenarios-update'
+      || parsed.command === 'scenarios-activate'
+      || parsed.command === 'scenarios-delete'
+    ) {
+      const request = scenarioRequestDescriptor(parsed, baseUrl);
+      const response = await fetchImplementation(request.endpoint, {
+        method: request.method,
+        headers: request.body === undefined
+          ? headers
+          : { ...headers, 'Content-Type': 'application/json' },
+        ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      writeJson(
+        writeStdout,
+        parseApiResponse(
+          'scenarios-mutation',
+          await parseHttpResponse(response, token),
+        ),
+      );
       return 0;
     }
 
