@@ -232,6 +232,7 @@ describe('CLI execution', () => {
       [['budget', 'status', '--help'], [
         '--scope personal|joint', '--period YYYY-MM', 'historical', 'read-only',
         'moneyInPence', 'moneyOutPence', 'uncategorized', 'refresh', 'budget is null',
+        'Budget balance audit',
       ]],
       [['budget', 'update', '--help'], [
         '--input FILE', 'plannedPence', 'Without --apply',
@@ -279,7 +280,7 @@ describe('CLI execution', () => {
       ]],
       [['portfolio', '--help'], [
         '--view mine|partner|household', 'Defaults to mine', 'waits up to 45 seconds',
-        'shared balances', 'does not assign partner accounts to Goals',
+        'shared balances', 'does not assign partner accounts to Goals', 'Budget balance audit',
       ]],
       [['accounts', 'remove', '--help'], [
         '--account-ref REF', 'archive', 'retaining its underlying records',
@@ -304,6 +305,7 @@ describe('CLI execution', () => {
         'must not be before --start-date',
         'waits up to 45 seconds',
         'remotely persists booked transactions',
+        'Budget balance audit',
         'refresh status',
         'Every transaction includes accountRef',
         'top-level categoryId, lineItemId, and categorySplits',

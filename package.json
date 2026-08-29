@@ -1,6 +1,6 @@
 {
   "name": "@slothmoney/agent-cli",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "description": "Command-line access to the Sloth Money Agent API.",
   "type": "module",
   "bin": {

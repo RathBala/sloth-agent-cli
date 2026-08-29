@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.21.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.21.1 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -449,6 +449,10 @@ nonnegative `moneyInPence` and `moneyOutPence` plus their difference as
 custom categories are normal rows. A transaction with no category at all is
 reported separately under `activity.uncategorized`.
 
+A completed current-period refresh updates the Budget balance audit for any
+configured backing accounts. A same-day cached read does not add another audit
+checkpoint.
+
 `budget` contains assigned, spent, and available category amounts when a
 trustworthy period plan exists. It is `null` when it does not; activity still
 returns. The response includes only the period budget currency and silently
@@ -648,6 +652,9 @@ planning only. It does not change account ownership, transaction access, Goal
 funding, or who can move money. Totals use the viewer's budget currency and
 exclude other native currencies without converting them.
 
+A completed balance refresh updates the Budget balance audit for any configured
+backing accounts. A same-day cached read does not add another audit checkpoint.
+
 Archive an owned manual account. The account disappears from active Sloth
 surfaces, but its underlying records are retained. Repeating an applied removal
 is safe and returns `changed: false`.
@@ -818,6 +825,10 @@ a structured `refresh` object:
   }
 }
 ```
+
+A completed refresh also updates the Budget balance audit for any configured
+backing accounts. A same-day cached read reuses the existing data and does not
+add another audit checkpoint.
 
 Re-run the transaction query later to observe the completed refresh. A partial
 account failure remains eligible for an automatic retry.

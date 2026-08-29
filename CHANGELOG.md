@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.1 - 2026-08-29
+
+- Clarify in portfolio, current budget status, and transaction help that a
+  completed eligible refresh updates the configured Budget balance audit.
+- Explain that a same-day cached read reuses fresh bank data without adding
+  another audit checkpoint.
+
 ## 0.21.0 - 2026-08-28
 
 - Add `scenarios` commands to list, create, update, activate, and delete the

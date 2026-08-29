@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.21.0';
+export const CLI_VERSION = '0.21.1';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -527,6 +527,8 @@ export function portfolioHelpText(): string {
     '',
     'Access:',
     '  This read-only command waits up to 45 seconds for eligible linked balances to refresh.',
+    '  A completed refresh updates the Budget balance audit for configured backing accounts.',
+    '  A same-day cached read does not add another audit checkpoint.',
     '  Partner shows only balances or holdings your partner explicitly shared.',
     '  Household combines your accounts with those shared balances and deduplicates joint accounts.',
     '  Shared data supports planning only. It does not assign partner accounts to Goals or change ownership.',
@@ -593,6 +595,8 @@ export function budgetStatusHelpText(): string {
     'Access and freshness:',
     '  This command is read-only, requires agent:read, and never changes the budget.',
     '  Current periods use the normal transaction refresh policy; historical periods are cache-only.',
+    '  A completed refresh updates the Budget balance audit for configured backing accounts.',
+    '  A same-day cached read does not add another audit checkpoint.',
     '  A historical response returns refresh as null.',
     '',
     'Output:',
@@ -717,6 +721,8 @@ export function transactionsHelpText(): string {
     '  --end-date must not be before --start-date.',
     '  The first transaction read each UTC day may refresh linked bank data.',
     '  Refresh remotely persists booked transactions and account balances.',
+    '  A completed refresh updates the Budget balance audit for configured backing accounts.',
+    '  A same-day cached read does not add another audit checkpoint.',
     '  The command waits up to 45 seconds, then returns cached data if refresh continues.',
     '',
     'Output:',
