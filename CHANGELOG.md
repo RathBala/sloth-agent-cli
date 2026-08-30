@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.0 - 2026-08-30
+
+- Allow connected accounts to set a private Sloth name with `--account-name`
+  or restore the bank-provided label with `--use-provider-name`.
+- Keep manual-account naming requirements and dry-run previews unchanged.
+
 ## 0.22.2 - 2026-08-30
 
 - Accept and explain the safe `checkpoint_failed` transaction refresh reason
