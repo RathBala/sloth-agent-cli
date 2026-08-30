@@ -615,7 +615,7 @@ Copy the value from `sloth-agent accounts`. Account references are the public
 account identifier for transaction filtering.
 
 Account changes are previews unless `--apply` is present. Connected accounts
-support Goal-funding eligibility and partner visibility. Manual current accounts support their
+support a private Sloth name, Goal-funding eligibility, and partner visibility. Manual current accounts support their
 institution, name, currency, and ownership. Manual balance accounts also
 support balance, Savings/Investments type, and Goal-funding eligibility.
 Partner-owned shared accounts return an explanatory error.
@@ -636,7 +636,17 @@ sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
   --partner-visibility balance \
   --apply
+
+sloth-agent accounts update \
+  --account-ref sloth_account_v1_... \
+  --use-provider-name \
+  --apply
 ```
+
+`--account-name` sets the private name shown in Sloth for either a connected or
+manual account. For a connected account, `--use-provider-name` clears that
+private override and returns to the latest name supplied by the bank. The two
+name options are mutually exclusive.
 
 Read the same current position from your, your partner's, or the combined
 household perspective:

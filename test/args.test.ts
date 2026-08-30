@@ -335,6 +335,19 @@ describe('CLI arguments', () => {
       apply: false,
     });
     expect(parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--use-provider-name',
+    ])).toEqual({
+      command: 'accounts-update',
+      accountRef,
+      update: { accountName: null },
+      apply: false,
+    });
+    expect(() => parseArgs([
+      'accounts', 'update', '--account-ref', accountRef,
+      '--account-name', 'Bills', '--use-provider-name',
+    ])).toThrow(/mutually exclusive/);
+    expect(parseArgs([
       'accounts', 'remove', '--account-ref', accountRef,
     ])).toEqual({
       command: 'accounts-remove',

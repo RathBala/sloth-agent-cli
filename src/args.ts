@@ -102,7 +102,7 @@ export type ParsedCommand =
     accountRef: string;
     update: {
       institutionName?: string;
-      accountName?: string;
+      accountName?: string | null;
       currency?: string;
       ownership?: 'personal' | 'joint';
       balanceAmount?: number;
@@ -767,8 +767,14 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     return withBaseUrl({ command: 'accounts' }, baseUrl);
   }
   if (subcommand === 'update') {
+    const useProviderNameCount = args.filter(argument => argument === '--use-provider-name').length;
+    if (useProviderNameCount > 1) {
+      throw new UsageError('--use-provider-name may only be provided once');
+    }
+    const useProviderName = useProviderNameCount === 1;
+    const namedArgs = args.filter(argument => argument !== '--use-provider-name');
     const { values, apply } = parseNamedOptions(
-      args,
+      namedArgs,
       'accounts update',
       new Set([
         '--account-ref',
@@ -784,6 +790,9 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     );
     const institutionName = values.get('--institution-name');
     const accountName = values.get('--account-name');
+    if (useProviderName && accountName !== undefined) {
+      throw new UsageError('--account-name and --use-provider-name are mutually exclusive');
+    }
     const currencyValue = values.get('--currency');
     const ownershipValue = values.get('--ownership');
     const balanceValue = values.get('--balance-amount');
@@ -825,6 +834,7 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
       ...(accountName === undefined
         ? {}
         : { accountName: parseAccountName(accountName, '--account-name') }),
+      ...(useProviderName ? { accountName: null } : {}),
       ...(currencyValue === undefined ? {} : { currency: currencyValue.toUpperCase() }),
       ...(ownershipValue === undefined
         ? {}

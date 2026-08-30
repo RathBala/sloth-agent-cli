@@ -276,6 +276,7 @@ describe('CLI execution', () => {
       ]],
       [['accounts', 'update', '--help'], [
         '--account-ref REF', '--institution-name NAME', '--ownership individual|joint',
+        '--account-name NAME', '--use-provider-name', 'mutually exclusive',
         '--balance-amount AMOUNT', '--goal-funding-account true|false',
         'Without --apply', 'write-enabled token', 'Partner-owned', 'Manual accounts',
         '--partner-visibility private|balance|holdings', 'does not change ownership',
@@ -870,6 +871,52 @@ describe('CLI execution', () => {
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify({ isGoalFundingAccount: true }),
+      }),
+    );
+    expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
+      agentApiV1AccountMutationResponse,
+    );
+  });
+
+  it('previews and applies restoring a connected account provider name', async () => {
+    const accountRef = agentApiV1AccountsResponse.accounts[0].accountRef;
+    const previewIo = createIo();
+    const previewFetch = vi.fn();
+    const previewCredentialStore = vi.fn();
+
+    expect(await runCli([
+      'accounts', 'update', '--account-ref', accountRef, '--use-provider-name',
+    ], {
+      env: {},
+      fetch: previewFetch,
+      getCredentialStore: previewCredentialStore,
+      ...previewIo,
+    })).toBe(0);
+    expect(previewFetch).not.toHaveBeenCalled();
+    expect(previewCredentialStore).not.toHaveBeenCalled();
+    expect(JSON.parse(previewIo.stdout.join(''))).toEqual({
+      dryRun: true,
+      endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+      method: 'PATCH',
+      payload: { accountName: null },
+    });
+
+    const applyIo = createIo();
+    const applyFetch = vi.fn().mockResolvedValue(jsonResponse(
+      agentApiV1AccountMutationResponse,
+    ));
+    expect(await runCli([
+      'accounts', 'update', '--account-ref', accountRef, '--use-provider-name', '--apply',
+    ], {
+      env: { SLOTH_AGENT_TOKEN: 'token' },
+      fetch: applyFetch,
+      ...applyIo,
+    })).toBe(0);
+    expect(applyFetch).toHaveBeenCalledWith(
+      `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ accountName: null }),
       }),
     );
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
