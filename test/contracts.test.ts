@@ -436,6 +436,16 @@ describe('API response validation', () => {
       'transactions',
       agentApiV1TransactionsResponse,
     )).toBe(agentApiV1TransactionsResponse);
+    const quotaLimitedTransactions = {
+      ...agentApiV1TransactionsResponse,
+      refresh: {
+        status: 'failed',
+        reason: 'quota_exceeded',
+        utcDate: '2026-08-30',
+      },
+    };
+    expect(parseApiResponse('transactions', quotaLimitedTransactions))
+      .toBe(quotaLimitedTransactions);
     expect(parseApiResponse(
       'categories',
       agentApiV1CategoriesResponse,

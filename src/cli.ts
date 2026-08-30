@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.22.0';
+export const CLI_VERSION = '0.22.1';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -740,6 +740,7 @@ export function transactionsHelpText(): string {
     '  writeBlockReason: "pending". They cannot be passed to assign or other write commands.',
     '  Every transaction includes accountRef for its originating account.',
     '  Refresh failures do not hide readable cached transactions.',
+    '  reason: "quota_exceeded" means the UTC-day provider refresh allowance is exhausted.',
     '  Personal assignments use the top-level categoryId, lineItemId, and categorySplits.',
     '  Joint assignments appear under jointBudgetContribution.',
     '  A transaction can be uncategorised personally while its joint-budget contribution',

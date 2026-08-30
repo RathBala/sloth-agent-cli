@@ -310,6 +310,7 @@ describe('CLI execution', () => {
         'remotely persists booked transactions',
         'Budget balance audit',
         'refresh status',
+        'quota_exceeded',
         'Every transaction includes accountRef',
         'top-level categoryId, lineItemId, and categorySplits',
         'jointBudgetContribution',

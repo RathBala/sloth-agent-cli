@@ -632,6 +632,7 @@ const REFRESH_REASONS = new Set([
   'wait_timeout',
   'account_failures',
   'partial_already_attempted',
+  'quota_exceeded',
   'refresh_error',
 ]);
 

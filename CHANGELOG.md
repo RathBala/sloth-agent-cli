@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.1 - 2026-08-30
+
+- Accept and explain the safe transaction refresh reason `quota_exceeded` while
+  continuing to return cached booked transactions.
+
 ## 0.22.0 - 2026-08-29
 
 - Add read-only `partner status` output for the current settlement balance and

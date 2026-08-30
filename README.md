@@ -15,7 +15,7 @@ sloth-agent --version
 For a one-off pinned run:
 
 ```bash
-npm exec --yes --package=@slothmoney/agent-cli@0.22.0 -- sloth-agent --help
+npm exec --yes --package=@slothmoney/agent-cli@0.22.1 -- sloth-agent --help
 ```
 
 ## Authenticate
@@ -844,6 +844,10 @@ a structured `refresh` object:
   }
 }
 ```
+
+`reason: "quota_exceeded"` means the UTC-day provider refresh allowance is
+exhausted. The command still returns the latest cached booked transactions; it
+does not expose the provider's error message.
 
 A completed refresh also updates the Budget balance audit for any configured
 backing accounts. A same-day cached read reuses the existing data and does not
