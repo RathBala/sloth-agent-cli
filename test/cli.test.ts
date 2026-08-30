@@ -311,6 +311,7 @@ describe('CLI execution', () => {
         'Budget balance audit',
         'refresh status',
         'quota_exceeded',
+        'checkpoint_failed',
         'Every transaction includes accountRef',
         'top-level categoryId, lineItemId, and categorySplits',
         'jointBudgetContribution',

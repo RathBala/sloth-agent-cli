@@ -633,6 +633,7 @@ const REFRESH_REASONS = new Set([
   'account_failures',
   'partial_already_attempted',
   'quota_exceeded',
+  'checkpoint_failed',
   'refresh_error',
 ]);
 

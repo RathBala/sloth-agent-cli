@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.2 - 2026-08-30
+
+- Accept and explain the safe `checkpoint_failed` transaction refresh reason
+  while continuing to return cached booked transactions.
+
 ## 0.22.1 - 2026-08-30
 
 - Accept and explain the safe transaction refresh reason `quota_exceeded` while

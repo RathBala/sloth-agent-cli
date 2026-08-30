@@ -34,7 +34,7 @@ import {
   UsageError,
 } from './errors.js';
 
-export const CLI_VERSION = '0.22.1';
+export const CLI_VERSION = '0.22.2';
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
@@ -741,6 +741,7 @@ export function transactionsHelpText(): string {
     '  Every transaction includes accountRef for its originating account.',
     '  Refresh failures do not hide readable cached transactions.',
     '  reason: "quota_exceeded" means the UTC-day provider refresh allowance is exhausted.',
+    '  reason: "checkpoint_failed" means the Budget balance-audit checkpoint failed after refresh.',
     '  Personal assignments use the top-level categoryId, lineItemId, and categorySplits.',
     '  Joint assignments appear under jointBudgetContribution.',
     '  A transaction can be uncategorised personally while its joint-budget contribution',

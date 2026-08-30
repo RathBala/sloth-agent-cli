@@ -446,6 +446,16 @@ describe('API response validation', () => {
     };
     expect(parseApiResponse('transactions', quotaLimitedTransactions))
       .toBe(quotaLimitedTransactions);
+    const checkpointFailedTransactions = {
+      ...agentApiV1TransactionsResponse,
+      refresh: {
+        status: 'failed',
+        reason: 'checkpoint_failed',
+        utcDate: '2026-08-30',
+      },
+    };
+    expect(parseApiResponse('transactions', checkpointFailedTransactions))
+      .toBe(checkpointFailedTransactions);
     expect(parseApiResponse(
       'categories',
       agentApiV1CategoriesResponse,
