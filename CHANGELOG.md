@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Read the CLI version from `package.json`, so release preparation has one
+  authoritative version field.
+
 ## 0.23.0 - 2026-08-30
 
 - Allow connected accounts to set a private Sloth name with `--account-name`

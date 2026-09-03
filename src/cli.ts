@@ -33,8 +33,9 @@ import {
   ConfigError,
   UsageError,
 } from './errors.js';
+import { CLI_VERSION } from './version.js';
 
-export const CLI_VERSION = '0.23.0';
+export { CLI_VERSION };
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_CONTRACT_PDF_BYTES = 6_000_000;
 const API_ORIGIN_HELP_LINES = [
