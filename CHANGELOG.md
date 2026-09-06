@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve optional normalized `counterpartyName` and `transactionReference`
+  metadata in booked and pending transaction output while rejecting raw
+  provider debtor, creditor, and remittance fields.
 - Read the CLI version from `package.json`, so release preparation has one
   authoritative version field.
 

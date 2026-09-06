@@ -159,6 +159,8 @@ try {
       /--include-pending/,
       /does not force an extra refresh/,
       /writable: false/,
+      /counterpartyName/,
+      /transactionReference/,
     ]],
     [['partner', '--help'], [/partner status/, /settlement context/]],
     [['partner', 'status', '--help'], [

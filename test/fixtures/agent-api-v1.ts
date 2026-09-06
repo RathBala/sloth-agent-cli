@@ -127,6 +127,8 @@ export const agentApiV1TransactionsResponse = {
     transactionRef: 'sloth_txn_ref',
     id: 'tx-1',
     name: 'Tesco',
+    counterpartyName: 'Tesco Stores',
+    transactionReference: 'Weekly groceries',
     amount: -20.32,
     currency: 'GBP',
     date: '2026-05-01',
@@ -163,6 +165,8 @@ export const agentApiV1TransactionsWithPendingResponse = {
     transactions: [{
       pendingRef: `sloth_pending_v1_${'A'.repeat(43)}`,
       name: 'Tasker on Taskrabbit',
+      counterpartyName: 'Tasker',
+      transactionReference: 'Taskrabbit booking',
       amount: -50.83,
       currency: 'GBP',
       date: '2026-07-31',

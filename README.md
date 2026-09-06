@@ -889,6 +889,10 @@ Transaction reads expose `personalBudgetAmountPence` for the caller's explicit
 personal-only portion and `jointBudgetContribution.amountPence` for the full
 shared portion. The 60/40 settlement ratio does not reduce joint-budget spend.
 
+Booked transactions and opt-in pending rows include `counterpartyName` and
+`transactionReference` when the bank supplies them. The Agent API does not
+return provider-native debtor, creditor, or raw remittance fields.
+
 Shared personal-account transactions with a joint assignment are included in
 the joint budget automatically. The settlement ratio remains independent from
 the amount attributed to the joint budget.

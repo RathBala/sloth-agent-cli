@@ -321,6 +321,8 @@ describe('CLI execution', () => {
         '--include-pending',
         'does not force an extra refresh',
         'writable: false',
+        'counterpartyName',
+        'transactionReference',
         'availability current or unavailable',
       ]],
       [['partner', '--help'], ['partner status', 'settlement context']],
@@ -1735,6 +1737,8 @@ describe('CLI execution', () => {
       'https://budget.slothmoney.app/api/agent/v1/transactions?includePending=true',
       expect.objectContaining({ method: 'GET' }),
     );
+    expect(JSON.parse(transactionIo.stdout.join('')))
+      .toEqual(agentApiV1TransactionsWithPendingResponse);
 
     const partnerIo = createIo();
     const partnerFetch = vi.fn().mockResolvedValue(jsonResponse(agentApiV1PartnerStatusResponse));

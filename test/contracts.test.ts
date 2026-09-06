@@ -119,6 +119,13 @@ describe('partner and pending read contracts', () => {
     expect(parseApiResponse('transactions', agentApiV1TransactionsWithPendingResponse))
       .toEqual(agentApiV1TransactionsWithPendingResponse);
     expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
+      transactions: [{
+        ...agentApiV1TransactionsResponse.transactions[0],
+        debtorName: 'Raw provider debtor',
+      }],
+    })).toThrow(/invalid transactions response/i);
+    expect(() => parseApiResponse('transactions', {
       ...agentApiV1TransactionsWithPendingResponse,
       pending: {
         ...agentApiV1TransactionsWithPendingResponse.pending,

@@ -576,9 +576,21 @@ function isLineItemMutationResponse(value: unknown): boolean {
 function isTransaction(value: unknown): boolean {
   return (
     isObject(value)
+    && hasOnlyFields(value, [
+      'transactionRef', 'id', 'name', 'counterpartyName', 'transactionReference',
+      'amount', 'currency', 'date', 'status', 'accountRef', 'scope',
+      'categoryId', 'lineItemId', 'categorySplits', 'incomeSubtype',
+      'personalBudgetAmountPence', 'jointBudgetContribution', 'isShared',
+      'shareRatio', 'sharedAmount', 'partnerExclusiveAmount', 'userExclusiveAmount',
+      'partnerExplanation', 'partnerExplanationUpdatedAt',
+      'partnerExplanationRequestId', 'partnerExplanationRequestStatus',
+      'partnerExplanationRequestExpiresAt', 'partnerExplanationSource',
+    ])
     && typeof value.transactionRef === 'string'
     && typeof value.id === 'string'
     && typeof value.name === 'string'
+    && (value.counterpartyName === undefined || typeof value.counterpartyName === 'string')
+    && (value.transactionReference === undefined || typeof value.transactionReference === 'string')
     && typeof value.amount === 'number'
     && Number.isFinite(value.amount)
     && typeof value.currency === 'string'
@@ -657,12 +669,21 @@ function isTransactionsResponse(value: unknown): boolean {
   const isPendingTransaction = (transaction: unknown): boolean => (
     isObject(transaction)
     && hasOnlyFields(transaction, [
-      'pendingRef', 'name', 'amount', 'currency', 'date', 'status',
+      'pendingRef', 'name', 'counterpartyName', 'transactionReference',
+      'amount', 'currency', 'date', 'status',
       'accountRef', 'scope', 'writable', 'writeBlockReason',
     ])
     && typeof transaction.pendingRef === 'string'
     && /^sloth_pending_v1_[A-Za-z0-9_-]{43}$/.test(transaction.pendingRef)
     && typeof transaction.name === 'string'
+    && (
+      transaction.counterpartyName === undefined
+      || typeof transaction.counterpartyName === 'string'
+    )
+    && (
+      transaction.transactionReference === undefined
+      || typeof transaction.transactionReference === 'string'
+    )
     && typeof transaction.amount === 'number'
     && Number.isFinite(transaction.amount)
     && isCurrency(transaction.currency)

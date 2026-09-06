@@ -743,6 +743,8 @@ export function transactionsHelpText(): string {
     '  Pending rows have opaque pendingRef and accountRef values plus writable: false and',
     '  writeBlockReason: "pending". They cannot be passed to assign or other write commands.',
     '  Every transaction includes accountRef for its originating account.',
+    '  Booked and pending rows include counterpartyName and transactionReference when available.',
+    '  Provider-native debtor, creditor, and raw remittance fields are not exposed.',
     '  Refresh failures do not hide readable cached transactions.',
     '  reason: "quota_exceeded" means the UTC-day provider refresh allowance is exhausted.',
     '  reason: "checkpoint_failed" means the Budget balance-audit checkpoint failed after refresh.',
