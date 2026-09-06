@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.24.0 - 2026-09-06
+
 - Preserve optional normalized `counterpartyName` and `transactionReference`
   metadata in booked and pending transaction output while rejecting raw
   provider debtor, creditor, and remittance fields.
