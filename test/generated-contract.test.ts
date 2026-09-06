@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
 
-it('detects independently edited schemas, fixtures, and validator versions without writing', () => {
+it.each(['\n', '\r\n'])('detects contract drift with %j source line endings without writing', (lineEnding) => {
   const source = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-schema-check-'));
   try {
     const directory = path.join(source, 'server/src/contracts/public/agent-v1');
@@ -12,7 +12,7 @@ it('detects independently edited schemas, fixtures, and validator versions witho
     const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts'];
     for (const file of files) {
       const generated = fs.readFileSync(`src/generated/agent-v1/${file}`, 'utf8');
-      fs.writeFileSync(path.join(directory, file), generated.slice(generated.indexOf('\n') + 1));
+      fs.writeFileSync(path.join(directory, file), generated.slice(generated.indexOf('\n') + 1).replace(/\r?\n/g, lineEnding));
     }
     const manifest = path.join(source, 'server/package.json');
     fs.writeFileSync(manifest, JSON.stringify({ dependencies: { 'zod-v4': 'npm:zod@4.1.12' } }));

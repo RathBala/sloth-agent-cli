@@ -71,7 +71,8 @@ hand-edit generated files to make a consumer accept a producer change.
 | CLI | sloth-agent-cli: shared runtime validation, generated fixtures, bounded tests, drift/packed checks |
 | Agent API | sloth-budget server: extracted schema, inferred producer type, imports updated |
 | Refresh consumers | sloth-budget server: import move only; quota/checkpoint reasons preserved |
-| UI, jobs, persistence, Functions, rules | No behavior or data contract change; no migration/deployment target added |
+| Browser consumers | sloth-budget: budget preference validator and refresh type imports moved; UI and persistence behavior unchanged |
+| Jobs, persistence, Functions, rules | No behavior or data contract change; no migration/deployment target added |
 | Public developer/privacy pages | sloth-site inventory reviewed; this refactor changes no public fields, credentials, or telemetry, so no copy/deployment change is required |
 | Operational visibility | Existing server diagnostics and CLI errors unchanged; no new payload logging |
 | Product analytics | Unchanged: no new product choice or learning question; CLI telemetry remains prohibited |
@@ -92,15 +93,15 @@ runtime can be updated first.
 | One versioned schema with runtime validation | Implemented: canonical server modules, generated CLI modules, route and CLI parser imports |
 | Remove duplicate response fixtures | Implemented: canonical transactionFixtures module; test imports and HTTP contract runner use it |
 | Preserve public metadata and strict/safe output | Implemented: existing metadata tests plus packed HTTP malformed-field checks |
-| Typed producer and consumer agreement | Implemented: inferred service public fields; exact-source and Zod-version drift check |
+| Typed producer and consumer agreement | Implemented: inferred service public fields; normalized-source and Zod-version drift check |
 | Red / Green / Refactor | Implemented: four invalid-row cases failed against the old CLI validator, then passed with the shared schema |
 | Packaging and cross-repository integration | Implemented: combined test:package --server-repo gate |
 | Isolated scope | Implemented: paired source changes; npm publication remains a separate version-tagged release |
 
 ## Verification evidence
 
-- `npm run verify`: passed lint, typecheck, 130 tests, build, and clean package install.
-- `npm run contracts:check -- --server-repo ../sloth-budget`: passed exact-source/version comparison.
+- `npm run verify`: passed lint, typecheck, 131 tests, build, and clean package install.
+- `npm run contracts:check -- --server-repo ../sloth-budget`: passed normalized-source/version comparison.
 - `npm run test:package -- --server-repo ../sloth-budget`: passed packed CLI/server integration, including 14 server HTTP requests and four CLI package HTTP cases.
 - `npm pack --dry-run --json`: inspected; only the three intended generated modules, no source/tests/env files.
 - Server `yarn --cwd server build`: passed.
@@ -114,8 +115,8 @@ runtime can be updated first.
   - `server/src/services/__tests__/automaticTransactionRefreshService.test.ts` (21)
 - Both worktrees: `git diff --check` passed; obsolete references and temporary instrumentation inspected.
 
-Checks use local synthetic responses, not production banking data. No full frontend
-suite or production exercise was needed for this runtime-schema-only refactor.
+Checks use local synthetic responses, not production banking data. The paired gate also runs the two browser consumer suites (34 tests) and the
+production frontend build because browser code imports the shared contracts.
 The remaining contract aggregators exceed 1,000 lines; other response families could
 be extracted individually later, but are deliberately outside this transaction scope.
 
@@ -124,7 +125,7 @@ be extracted individually later, but are deliberately outside this transaction s
 
 The isolated branches were updated to CLI `f0b09f04` and server `f7528eac7` after
 0.24.0 was released. The runtime transaction source did not change. CLI lint,
-typecheck, all 130 tests, source drift check, package dry-run inspection, and the
+typecheck, all 131 tests, source drift check, package dry-run inspection, and the
 paired clean-install/server build gate were repeated against those baselines.
 The earlier 149 targeted server tests cover the unchanged refactor source.
 The later landing decision authorizes committing and pushing both repositories to main.
@@ -138,3 +139,8 @@ The scheduled server job verifies valid producer responses against the released
 CLI. The CLI package test owns malformed-response checks for the new validator;
 it runs these over loopback HTTP even without a sibling checkout. This keeps the
 server's release compatibility check usable before the refactored CLI is published.
+
+
+The drift check normalizes CRLF to LF before comparing source text, so platform
+checkout line endings do not count as schema changes. Both line-ending forms are
+covered by the regression test; changed fields and fixtures still fail the check.

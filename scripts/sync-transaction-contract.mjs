@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Git may check out the same contract with CRLF on Windows.
+const readContract = file => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+
 const root = path.resolve(import.meta.dirname, '..');
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
@@ -20,12 +23,12 @@ const header = '// Generated from sloth-budget/server/src/contracts/public/agent
 const zodVersion = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'server/package.json'), 'utf8')).dependencies['zod-v4'];
 const localVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).dependencies['zod-v4'];
 if (zodVersion !== localVersion) throw new Error('Server and CLI must pin the same zod-v4 version');
-const entries = files.map(file => [file, header + fs.readFileSync(path.join(source, file), 'utf8')]);
+const entries = files.map(file => [file, header + readContract(path.join(source, file))]);
 if (!args.includes('--check')) fs.mkdirSync(destination, { recursive: true });
 for (const [file, content] of entries) {
   const target = path.join(destination, file);
   if (args.includes('--check')) {
-    if (!fs.existsSync(target) || fs.readFileSync(target, 'utf8') !== content) {
+    if (!fs.existsSync(target) || readContract(target) !== content) {
       throw new Error(`Transaction contract drift: ${file}. Run contracts:sync with the same --server-repo.`);
     }
   } else fs.writeFileSync(target, content);
