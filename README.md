@@ -959,3 +959,49 @@ version with `npm run test:registry -- VERSION`. That script runs `npm exec`
 from a fresh temporary directory with an isolated npm cache, so a checkout's
 older local `sloth-agent` executable cannot satisfy the registry smoke test.
 The temporary directory is removed after the check.
+
+### Fill pots and fund ahead
+
+```bash
+sloth-agent budget fill --scope personal --mode auto
+sloth-agent budget fill --scope joint --mode manual --input overrides.json
+sloth-agent budget fund-ahead --scope personal
+# Replace the placeholder with previewFingerprint from the matching preview:
+sloth-agent budget fill --scope personal --mode auto --apply --expected-preview <previewFingerprint>
+```
+
+These commands contact Sloth Money for a read-only preview. They need `agent:read`;
+applying needs `agent:write`, `--apply`, and `--expected-preview`. Keep all other
+arguments the same. Changed funding inputs return a conflict: preview again and
+review before applying. After an uncertain response, inspect the budget before
+retrying. Neither command changes planned targets.
+
+Auto-fill tops up `max(0, target − assigned)`, without funding spent money again.
+It reserves explicit overrides first, then uses remaining To Assign in the web
+category order. A partial auto-fill is allowed. Manual-fill adds the full target
+for each category unless overridden; a total exceeding To Assign cannot apply.
+Fund-ahead moves all positive To Assign to next-period reserve, which returns to
+To Assign when the next period is prepared. It accepts no amount or overrides.
+
+An optional overrides file contains:
+
+```json
+{"allocations":[{"categoryId":"groceries","amountPence":10000}]}
+```
+
+Supply up to 400 unique budgetable category IDs with additional nonnegative,
+safe-integer pence amounts. Zero skips a category. Omitted categories follow the
+mode defaults. Unknown fields, duplicate IDs, and invalid amounts are rejected.
+Use `budget` or `categories` to discover IDs.
+
+`--period YYYY-MM` defaults to the current configured Sloth period. Historical
+and future periods are rejected. Previews can project new-period carryover
+without writing; apply saves preparation, funding, and category movement history
+atomically. No-op requests write nothing.
+
+Results contain `previewFingerprint`, `applied`, `canApply`, `noOp`,
+`preparationRequired`, scope, period, currency, mode, category IDs/names, targets,
+assigned amounts before/after, proposed additions, shortfall, total assigned,
+and To Assign/reserve before/after. Fund-ahead returns no category allocations.
+The versioned funding schema is generated from `sloth-budget` with the existing
+`contracts:sync` command, alongside transaction schemas.

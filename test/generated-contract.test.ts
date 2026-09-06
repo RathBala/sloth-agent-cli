@@ -9,7 +9,7 @@ it.each(['\n', '\r\n'])('detects contract drift with %j source line endings with
   try {
     const directory = path.join(source, 'server/src/contracts/public/agent-v1');
     fs.mkdirSync(directory, { recursive: true });
-    const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts'];
+    const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts', 'budgetFunding.ts'];
     for (const file of files) {
       const generated = fs.readFileSync(`src/generated/agent-v1/${file}`, 'utf8');
       fs.writeFileSync(path.join(directory, file), generated.slice(generated.indexOf('\n') + 1).replace(/\r?\n/g, lineEnding));
@@ -24,7 +24,7 @@ it.each(['\n', '\r\n'])('detects contract drift with %j source line endings with
       fs.appendFileSync(target, '\n// drift\n');
       const result = spawnSync(process.execPath, args, { encoding: 'utf8' });
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain(`Transaction contract drift: ${file}`);
+      expect(result.stderr).toContain(`Public Agent contract drift: ${file}`);
       fs.writeFileSync(target, original);
     }
     fs.writeFileSync(manifest, JSON.stringify({ dependencies: { 'zod-v4': 'different' } }));

@@ -27,7 +27,7 @@ const helpRoutes = [
   ['auth'], ['auth', 'login'], ['auth', 'status'], ['auth', 'logout'],
   ['accounts'], ['accounts', 'list'], ['accounts', 'update'], ['accounts', 'remove'],
   ['investments'],
-  ['budget'], ['budget', 'status'], ['budget', 'update'], ['budget', 'move'],
+  ['budget'], ['budget', 'status'], ['budget', 'update'], ['budget', 'move'], ['budget', 'fill'], ['budget', 'fund-ahead'],
   ['categories'], ['categories', 'list'], ['categories', 'create'], ['categories', 'rename'],
   ['line-items'], ['line-items', 'create'], ['line-items', 'rename'],
   ['transactions'], ['assign'],
@@ -56,7 +56,7 @@ for (const route of helpRoutes) {
 const nestedCommands = new Map([
   ['auth', ['login', 'status', 'logout']],
   ['accounts', ['list', 'update', 'remove']],
-  ['budget', ['status', 'update', 'move']],
+  ['budget', ['status', 'update', 'move', 'fill', 'fund-ahead']],
   ['categories', ['list', 'create', 'rename']],
   ['line-items', ['create', 'rename']],
   ['rules', ['list', 'get', 'set', 'delete', 'scan-contract']],

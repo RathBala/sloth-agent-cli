@@ -144,6 +144,8 @@ try {
     [['budget', '--help'], [/sloth-agent budget\s+Read one budget period\./, /budget status/, /budget update/, /budget move/, /--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
     [['budget', 'status', '--help'], [/--period YYYY-MM/, /historical periods/, /moneyInPence/, /moneyOutPence/, /uncategorized/, /budget is null/, /read-only/, /refresh/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
+    [['budget', 'fill', '--help'], [/--mode auto\|manual/, /--expected-preview/, /read-only preview/, /no partial writes/]],
+    [['budget', 'fund-ahead', '--help'], [/next-period reserve/, /--expected-preview/, /No amount or overrides/]],
     [['budget', 'move', '--help'], [/--from-category-id ID/, /--amount AMOUNT/, /9,007,199,254,740,991/, /To Assign/, /Without --apply/, /may become negative/, /does not change planned amounts/]],
     [['categories', '--help'], [
       /categories list/,

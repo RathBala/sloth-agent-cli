@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.0
+
+- Preview and apply Auto-fill, Manual-fill with category overrides, and Fund-ahead.
+- Require the reviewed preview fingerprint for funding writes and reject stale previews.
+- Share validated funding contracts with the server and test complete funding commands in the packed CLI.
+
+
 ## Unreleased
 
 ## 0.24.0 - 2026-09-06

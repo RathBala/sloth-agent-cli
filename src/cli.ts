@@ -9,6 +9,7 @@ import {
   parseArgs,
   resolveBaseUrl,
 } from './args.js';
+import { budgetFundingOverridesSchema, budgetFundingResponseSchema } from './generated/agent-v1/budgetFunding.js';
 import { ICON_KEYS } from './category-metadata.js';
 import {
   type AssignmentPayload,
@@ -82,6 +83,8 @@ export function usageText(): string {
     '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
+    '  sloth-agent budget fill --scope personal|joint --mode auto|manual [--input FILE] [--apply --expected-preview HASH]',
+    '  sloth-agent budget fund-ahead --scope personal|joint [--apply --expected-preview HASH]',
     '  sloth-agent budget move --scope personal|joint [--period YYYY-MM]',
     '    --from-category-id ID --to-category-id ID --amount AMOUNT [--apply]',
     '  sloth-agent categories [list] [--base-url URL]',
@@ -556,6 +559,8 @@ export function budgetHelpText(): string {
     '  sloth-agent budget status  Read assigned, spent, and available money.',
     '  sloth-agent budget update  Preview or update planned line-item amounts.',
     '  sloth-agent budget move    Preview or move assigned money.',
+    '  sloth-agent budget fill    Preview or fill category pots from To Assign.',
+    '  sloth-agent budget fund-ahead  Preview or reserve all To Assign for next period.',
     '',
     'Help:',
     '  Run sloth-agent budget <command> --help for command-specific details.',
@@ -651,7 +656,51 @@ export function budgetUpdateHelpText(): string {
   ].join('\n');
 }
 
-export function budgetMoveHelpText(): string {
+export function budgetFundingHelpText(fundAhead = false): string {
+  const command = fundAhead ? 'fund-ahead' : 'fill';
+  return [
+    `Sloth Agent CLI: budget ${command}`, '',
+    fundAhead ? 'Move all positive To Assign into next-period reserve.' : 'Fill category pots from current To Assign.', '',
+    'Usage:',
+    `  sloth-agent budget ${command} --scope personal|joint${fundAhead ? '' : ' --mode auto|manual [--input FILE]'} [--period YYYY-MM] [--apply --expected-preview HASH] [--base-url URL]`, '',
+    'Inputs:',
+    '  --scope personal|joint  Required. Personal or joint budget ownership.',
+    ...(!fundAhead ? [
+      '  --mode auto|manual     Required. Auto tops up assigned gaps; manual adds full targets.',
+      '  --input FILE           Optional JSON overrides; omitted categories use mode defaults.',
+      '  Format: {"allocations":[{"categoryId":"groceries","amountPence":10000}]}',
+      '  Up to 400 unique budgetable category IDs. Amounts are additional whole-number pence,',
+      '  from 0 to 9,007,199,254,740,991. Zero skips a category. Unknown fields are rejected.',
+    ] : ['  No amount or overrides: all positive To Assign moves to reserve.']),
+    '  --period YYYY-MM       Optional. Defaults to the current configured Sloth period.',
+    '                         Historical and future periods cannot be filled.',
+    '  --apply                Optional. Save the reviewed funding atomically.',
+    '  --expected-preview HASH Required with --apply. Use previewFingerprint from the preview.',
+    '  --base-url URL         Optional API origin override. HTTPS except localhost.',
+    '  -h, --help             Show this help.', '',
+    'Preview and writes:',
+    '  Without --apply, contacts Sloth Money for a read-only preview (agent:read required).',
+    '  With --apply, requires agent:write and the same arguments used for the preview.',
+    '  Changed funding inputs reject the write. Preview again and review before retrying.',
+    '  No automatic retry after a conflict or uncertain response. Check the budget first.',
+    '  Previews may project new-period carryover; only apply saves it with the funding.',
+    '  No-op requests write nothing. Planned targets never change.',
+    ...(!fundAhead ? [
+      '  Auto reserves overrides first, then fills remaining gaps in web category order.',
+      '  Auto can partially fill; manual or overrides exceeding To Assign cannot apply.',
+      '  Category balances, To Assign, and movement history save together; no partial writes.',
+    ] : ['  Reserve returns to To Assign at the next period; no future category targets change.']), '',
+    'Output:',
+    '  JSON: previewFingerprint, applied, canApply, noOp, preparationRequired, scope, periodKey,',
+    '  currency, mode, category IDs/names, targets, assigned before/after, additions, shortfall,',
+    '  totalAssignedPence, reservedPence, and To Assign/reserve before and after.', '',
+    'Examples:',
+    `  sloth-agent budget ${command} --scope personal${fundAhead ? '' : ' --mode auto'}`,
+    `  sloth-agent budget ${command} --scope personal${fundAhead ? '' : ' --mode auto'} --apply --expected-preview <previewFingerprint>`, '',
+  ].join('\n');
+}
+
+function budgetMoveHelpText(): string {
   return [
     'Sloth Agent CLI — budget move',
     '',
@@ -1564,6 +1613,8 @@ export function commandHelpText(topic: HelpTopic): string {
     budget: budgetHelpText,
     'budget-status': budgetStatusHelpText,
     'budget-move': budgetMoveHelpText,
+    'budget-fill': () => budgetFundingHelpText(),
+    'budget-fund-ahead': () => budgetFundingHelpText(true),
     'budget-update': budgetUpdateHelpText,
     categories: categoriesHelpText,
     'categories-create': categoriesCreateHelpText,
@@ -2136,7 +2187,7 @@ export async function runCli(
     }
 
     if (parsed.command === 'auth-status') {
-      const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
+    const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
       token = credential.token;
       let remoteStatus: 'valid' | ReturnType<typeof classifyRemoteStatus> = 'valid';
       let exitCode = 0;
@@ -2302,9 +2353,34 @@ export async function runCli(
       return 0;
     }
 
+      const fundingOverrides = (parsed.command === 'budget-fill' && parsed.input)
+      ? (() => {
+        let value: unknown;
+        try { value = JSON.parse(fs.readFileSync(parsed.input!, 'utf8')); }
+        catch { throw new UsageError('Could not read --input as JSON'); }
+        const checked = budgetFundingOverridesSchema.safeParse(value);
+        if (!checked.success) throw new UsageError('Use allocations with unique categoryId and nonnegative safe-integer amountPence values');
+        return checked.data.allocations;
+      })() : undefined;
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
+
+    if (parsed.command === 'budget-fill' || parsed.command === 'budget-fund-ahead') {
+      const payload = { scope: parsed.scope, mode: parsed.mode,
+        ...(parsed.periodKey ? { periodKey: parsed.periodKey } : {}),
+        ...(fundingOverrides ? { allocations: fundingOverrides } : {}),
+        ...(parsed.apply ? { expectedPreview: parsed.expectedPreview } : {}),
+      };
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/budget-funding${parsed.apply ? '' : '/preview'}`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const checked = budgetFundingResponseSchema.safeParse(await parseHttpResponse(response, token));
+      if (!checked.success) throw new Error('Sloth Money returned an invalid budget funding response');
+      writeJson(writeStdout, checked.data);
+      return 0;
+    }
 
     if (parsed.command === 'receipts-extract') {
       const image = readReceiptImage(parsed.image);

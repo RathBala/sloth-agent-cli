@@ -7,7 +7,7 @@ const readContract = file => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n'
 const root = path.resolve(import.meta.dirname, '..');
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  process.stdout.write('Usage: node scripts/sync-transaction-contract.mjs --server-repo PATH [--check]\nCopies the versioned transaction schema and synthetic fixtures from sloth-budget.\n--check compares without writing and exits nonzero on drift.\n');
+  process.stdout.write('Usage: node scripts/sync-transaction-contract.mjs --server-repo PATH [--check]\nCopies the versioned public schemas and synthetic fixtures from sloth-budget.\n--check compares without writing and exits nonzero on drift.\n');
   process.exit(0);
 }
 const sourceIndex = args.indexOf('--server-repo');
@@ -18,7 +18,7 @@ if (sourceIndex < 0 || !args[sourceIndex + 1]
 const sourceRoot = path.resolve(args[sourceIndex + 1]);
 const source = path.join(sourceRoot, 'server/src/contracts/public/agent-v1');
 const destination = path.join(root, 'src/generated/agent-v1');
-const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts'];
+const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts', 'budgetFunding.ts'];
 const header = '// Generated from sloth-budget/server/src/contracts/public/agent-v1. Do not edit.\n';
 const zodVersion = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'server/package.json'), 'utf8')).dependencies['zod-v4'];
 const localVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).dependencies['zod-v4'];
@@ -29,8 +29,8 @@ for (const [file, content] of entries) {
   const target = path.join(destination, file);
   if (args.includes('--check')) {
     if (!fs.existsSync(target) || readContract(target) !== content) {
-      throw new Error(`Transaction contract drift: ${file}. Run contracts:sync with the same --server-repo.`);
+      throw new Error(`Public Agent contract drift: ${file}. Run contracts:sync with the same --server-repo.`);
     }
   } else fs.writeFileSync(target, content);
 }
-process.stdout.write(`Transaction contract ${args.includes('--check') ? 'matches' : 'generated'} (agent-v1).\n`);
+process.stdout.write(`Public Agent contract ${args.includes('--check') ? 'matches' : 'generated'} (agent-v1).\n`);
