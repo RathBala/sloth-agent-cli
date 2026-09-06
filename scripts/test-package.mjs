@@ -1,3 +1,4 @@
+import { testTransactionPackage } from './test-transaction-package.mjs';
 import assert from 'node:assert/strict';
 import {
   execFileSync,
@@ -8,6 +9,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
+const sourceIndex = process.argv.indexOf('--server-repo');
+const serverRepo = sourceIndex === -1 ? undefined : process.argv[sourceIndex + 1];
+if (sourceIndex !== -1 && !serverRepo) throw new Error('--server-repo requires a path');
+if (serverRepo) {
+  execFileSync(process.execPath, [path.join(projectRoot, 'scripts/sync-transaction-contract.mjs'),
+    '--check', '--server-repo', serverRepo], { stdio: 'inherit' });
+}
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-agent-package-'));
 const isWindows = process.platform === 'win32';
 const npmExecutable = isWindows ? 'npm.cmd' : 'npm';
@@ -73,6 +81,13 @@ try {
     'bin.js',
   );
   assert(fs.existsSync(executable));
+  await testTransactionPackage(packagedEntryPoint);
+  if (serverRepo) {
+    execFileSync('yarn', ['test:agent-cli-contract', '--cli-bin', executable], {
+      cwd: path.resolve(serverRepo), stdio: 'inherit', timeout: 120_000,
+    });
+  }
+
   const runCliSync = (args, options = {}) => execFileSync(
     isWindows ? process.execPath : executable,
     isWindows ? [packagedEntryPoint, ...args] : args,
@@ -129,6 +144,8 @@ try {
     [['budget', '--help'], [/sloth-agent budget\s+Read one budget period\./, /budget status/, /budget update/, /budget move/, /--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
     [['budget', 'status', '--help'], [/--period YYYY-MM/, /historical periods/, /moneyInPence/, /moneyOutPence/, /uncategorized/, /budget is null/, /read-only/, /refresh/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
+    [['budget', 'fill', '--help'], [/--mode auto\|manual/, /--expected-preview/, /read-only preview/, /no partial writes/]],
+    [['budget', 'fund-ahead', '--help'], [/next-period reserve/, /--expected-preview/, /No amount or overrides/]],
     [['budget', 'move', '--help'], [/--from-category-id ID/, /--amount AMOUNT/, /9,007,199,254,740,991/, /To Assign/, /Without --apply/, /may become negative/, /does not change planned amounts/]],
     [['categories', '--help'], [
       /categories list/,
@@ -159,6 +176,8 @@ try {
       /--include-pending/,
       /does not force an extra refresh/,
       /writable: false/,
+      /counterpartyName/,
+      /transactionReference/,
     ]],
     [['partner', '--help'], [/partner status/, /settlement context/]],
     [['partner', 'status', '--help'], [

@@ -122,60 +122,6 @@ export const agentApiV1PortfolioResponse = {
   }],
 } as const;
 
-export const agentApiV1TransactionsResponse = {
-  transactions: [{
-    transactionRef: 'sloth_txn_ref',
-    id: 'tx-1',
-    name: 'Tesco',
-    amount: -20.32,
-    currency: 'GBP',
-    date: '2026-05-01',
-    status: 'booked',
-    accountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
-    scope: 'personal',
-    categoryId: null,
-    lineItemId: null,
-    categorySplits: [],
-    incomeSubtype: null,
-    personalBudgetAmountPence: 2032,
-    jointBudgetContribution: null,
-  }],
-  nextCursor: null,
-  refresh: {
-    status: 'completed',
-    reason: 'refreshed',
-    utcDate: '2026-07-31',
-    checkpointId: 'agent-refresh-run',
-  },
-} as const;
-
-export const agentApiV1TransactionsWithPendingResponse = {
-  ...agentApiV1TransactionsResponse,
-  refresh: {
-    status: 'completed',
-    reason: 'refreshed',
-    utcDate: '2026-07-31',
-    checkpointId: 'agent-refresh-run',
-  },
-  pending: {
-    availability: 'current',
-    observedAt: '2026-07-31T06:00:00.000Z',
-    transactions: [{
-      pendingRef: `sloth_pending_v1_${'A'.repeat(43)}`,
-      name: 'Tasker on Taskrabbit',
-      amount: -50.83,
-      currency: 'GBP',
-      date: '2026-07-31',
-      status: 'pending',
-      accountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
-      scope: 'joint',
-      writable: false,
-      writeBlockReason: 'pending',
-    }],
-    truncated: false,
-  },
-} as const;
-
 export const agentApiV1PartnerStatusResponse = {
   asOf: '2026-08-25T12:00:00.000Z',
   partnerStatus: 'connected',

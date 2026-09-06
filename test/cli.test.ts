@@ -33,10 +33,9 @@ import {
   agentApiV1RenewalExtractionResponse,
   agentApiV1ScenarioMutationResponse,
   agentApiV1ScenariosResponse,
-  agentApiV1TransactionsResponse,
-  agentApiV1TransactionsWithPendingResponse,
   agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
+import { agentApiV1TransactionsResponse, agentApiV1TransactionsWithPendingResponse } from '../src/generated/agent-v1/transactionFixtures.js';
 
 const tempDirectories: string[] = [];
 const passwordPrompt = vi.hoisted(() => vi.fn());
@@ -321,6 +320,8 @@ describe('CLI execution', () => {
         '--include-pending',
         'does not force an extra refresh',
         'writable: false',
+        'counterpartyName',
+        'transactionReference',
         'availability current or unavailable',
       ]],
       [['partner', '--help'], ['partner status', 'settlement context']],
@@ -1735,6 +1736,8 @@ describe('CLI execution', () => {
       'https://budget.slothmoney.app/api/agent/v1/transactions?includePending=true',
       expect.objectContaining({ method: 'GET' }),
     );
+    expect(JSON.parse(transactionIo.stdout.join('')))
+      .toEqual(agentApiV1TransactionsWithPendingResponse);
 
     const partnerIo = createIo();
     const partnerFetch = vi.fn().mockResolvedValue(jsonResponse(agentApiV1PartnerStatusResponse));

@@ -1,6 +1,6 @@
 {
   "name": "@slothmoney/agent-cli",
-  "version": "0.23.0",
+  "version": "0.26.0",
   "description": "Command-line access to the Sloth Money Agent API.",
   "type": "module",
   "bin": {
@@ -14,12 +14,14 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint .",
     "prepack": "npm run build",
-    "test": "vitest run",
+    "test": "node scripts/test.mjs",
     "test:package": "node scripts/test-package.mjs",
     "test:registry": "node scripts/test-registry-package.mjs",
     "release:preflight": "node scripts/release-preflight.mjs",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:package"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:package",
+    "contracts:sync": "node scripts/sync-transaction-contract.mjs",
+    "contracts:check": "node scripts/sync-transaction-contract.mjs --check"
   },
   "engines": {
     "node": ">=22"
@@ -55,6 +57,7 @@
   },
   "dependencies": {
     "@github/keytar": "7.10.6",
-    "@inquirer/password": "4.0.18"
+    "@inquirer/password": "4.0.18",
+    "zod-v4": "npm:zod@4.1.12"
   }
 }

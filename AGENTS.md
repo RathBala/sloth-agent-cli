@@ -37,3 +37,14 @@
 - Inspect `npm pack --dry-run --json` and pass the clean-install package test.
 - Publish only from a reviewed version tag through the trusted GitHub workflow
   after the initial package has established the npm trusted publisher.
+
+## Shared transaction contracts
+
+- Edit public transaction response schemas and synthetic fixtures only in
+  `sloth-budget/server/src/contracts/public/agent-v1/`; regenerate this repo's
+  `src/generated/agent-v1/` with `npm run contracts:sync -- --server-repo PATH`.
+- Before releasing a transaction contract change, run
+  `npm run test:package -- --server-repo PATH` against the paired server checkout.
+  It checks exact source/version agreement and the installed CLI over loopback HTTP.
+- Use `npm test -- test/<file>.test.ts` for bounded targeted checks. See
+  `docs/transaction-contract.md` for ownership, generation, and integration details.

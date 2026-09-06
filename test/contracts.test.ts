@@ -34,10 +34,9 @@ import {
   agentApiV1RenewalExtractionResponse,
   agentApiV1ScenarioMutationResponse,
   agentApiV1ScenariosResponse,
-  agentApiV1TransactionsResponse,
-  agentApiV1TransactionsWithPendingResponse,
   agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
+import { agentApiV1TransactionsResponse, agentApiV1TransactionsWithPendingResponse } from '../src/generated/agent-v1/transactionFixtures.js';
 
 describe('household portfolio contract', () => {
   it('accepts the trusted household portfolio response and rejects leaked partner details', () => {
@@ -118,6 +117,13 @@ describe('partner and pending read contracts', () => {
       .toEqual(agentApiV1PartnerStatusResponse);
     expect(parseApiResponse('transactions', agentApiV1TransactionsWithPendingResponse))
       .toEqual(agentApiV1TransactionsWithPendingResponse);
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
+      transactions: [{
+        ...agentApiV1TransactionsResponse.transactions[0],
+        debtorName: 'Raw provider debtor',
+      }],
+    })).toThrow(/invalid transactions response/i);
     expect(() => parseApiResponse('transactions', {
       ...agentApiV1TransactionsWithPendingResponse,
       pending: {
@@ -752,5 +758,19 @@ describe('income budget period contract', () => {
   });
   it('rejects an invalid period', () => {
     expect(() => validateAssignmentPayload({ assignments: [{ transactionRef: 'sloth_txn_test', categoryId: 'income', incomePeriodKey: '2026-13' }] })).toThrow(/incomePeriodKey/);
+  });
+});
+
+describe('canonical transaction response validation', () => {
+  it.each([
+    { categorySplits: [{ categoryId: 'groceries', amountPence: -1 }] },
+    { counterpartyName: 42 },
+    { date: '2026-02-30' },
+    { isShared: 'yes' },
+  ])('rejects a row the producer cannot emit: %j', (change) => {
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
+      transactions: [{ ...agentApiV1TransactionsResponse.transactions[0], ...change }],
+    })).toThrow('Invalid transactions response');
   });
 });

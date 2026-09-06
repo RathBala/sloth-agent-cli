@@ -1,7 +1,25 @@
 # Changelog
 
+## 0.26.0
+
+- Assign Pay income to a personal or joint budget period through the existing assignment input.
+- Preserve the selected period in transaction reads and expose funding consequences in assignment results.
+- Support atomic source corrections, clearing, and account moves through the assignment API.
+
+## 0.25.0
+
+- Preview and apply Auto-fill, Manual-fill with category overrides, and Fund-ahead.
+- Require the reviewed preview fingerprint for funding writes and reject stale previews.
+- Share validated funding contracts with the server and test complete funding commands in the packed CLI.
+
+
 ## Unreleased
 
+## 0.24.0 - 2026-09-06
+
+- Preserve optional normalized `counterpartyName` and `transactionReference`
+  metadata in booked and pending transaction output while rejecting raw
+  provider debtor, creditor, and remittance fields.
 - Read the CLI version from `package.json`, so release preparation has one
   authoritative version field.
 

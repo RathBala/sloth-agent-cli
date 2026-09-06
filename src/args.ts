@@ -47,6 +47,8 @@ export type HelpTopic =
   | 'investments'
   | 'portfolio'
   | 'budget'
+  | 'budget-fill'
+  | 'budget-fund-ahead'
   | 'budget-status'
   | 'budget-move'
   | 'budget-update'
@@ -86,6 +88,8 @@ export type HelpTopic =
   | 'ask-partner';
 
 export type ParsedCommand =
+  | { command: 'budget-fill'; baseUrl?: string; scope: 'personal' | 'joint'; mode: 'auto' | 'manual' | 'fund-ahead'; periodKey?: string; input?: string; expectedPreview?: string; apply: boolean }
+  | { command: 'budget-fund-ahead'; baseUrl?: string; scope: 'personal' | 'joint'; mode: 'auto' | 'manual' | 'fund-ahead'; periodKey?: string; input?: string; expectedPreview?: string; apply: boolean }
   | { command: 'help'; topic?: HelpTopic }
   | { command: 'version' }
   | {
@@ -911,6 +915,27 @@ function parsePortfolio(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
+  if (args[0] === 'fill' || args[0] === 'fund-ahead') {
+    const name = args.shift()!;
+    const { values, apply } = parseNamedOptions(args, `budget ${name}`, new Set([
+      '--scope', '--period', '--expected-preview', ...(name === 'fill' ? ['--mode', '--input'] : []),
+    ]));
+    const scope = requiredOption(values, '--scope', `budget ${name}`);
+    if (scope !== 'personal' && scope !== 'joint') throw new UsageError('--scope must be personal or joint');
+    const mode = name === 'fill' ? requiredOption(values, '--mode', 'budget fill') : 'fund-ahead';
+    if (name === 'fill' && mode !== 'auto' && mode !== 'manual') throw new UsageError('--mode must be auto or manual');
+    const expectedPreview = values.get('--expected-preview');
+    if (apply && !expectedPreview) throw new UsageError('--apply requires --expected-preview from a fresh preview');
+    if (expectedPreview && (!apply || !/^[a-f0-9]{64}$/.test(expectedPreview))) throw new UsageError('--expected-preview requires --apply and a 64-character preview fingerprint');
+    const period = values.get('--period');
+    const input = values.get('--input');
+    return withBaseUrl({ command: name === 'fill' ? 'budget-fill' : 'budget-fund-ahead', scope,
+      mode: mode as 'auto' | 'manual' | 'fund-ahead', apply,
+      ...(period ? { periodKey: parseGoalMonthKey(period, '--period') } : {}),
+      ...(input ? { input } : {}), ...(expectedPreview ? { expectedPreview } : {}),
+    }, baseUrl);
+  }
+
   const subcommand = args[0] === 'status' || args[0] === 'update' || args[0] === 'move'
     ? args.shift()
     : undefined;
@@ -1713,6 +1738,8 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     return 'line-items';
   }
   if (command === 'budget') {
+    if (subcommand === 'fill') return 'budget-fill';
+    if (subcommand === 'fund-ahead') return 'budget-fund-ahead';
     if (subcommand === 'status') return 'budget-status';
     if (subcommand === 'update') return 'budget-update';
     if (subcommand === 'move') return 'budget-move';
