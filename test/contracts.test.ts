@@ -744,3 +744,13 @@ describe('API response validation', () => {
     })).toThrow(/invalid goals-delete response/i);
   });
 });
+
+describe('income budget period contract', () => {
+  it('preserves a valid period in the existing assignment payload', () => {
+    const payload = { assignments: [{ transactionRef: 'sloth_txn_test', categoryId: 'income', lineItemId: '__sloth_income_pay__', incomePeriodKey: '2026-09' }] };
+    expect(validateAssignmentPayload(payload)).toEqual(payload);
+  });
+  it('rejects an invalid period', () => {
+    expect(() => validateAssignmentPayload({ assignments: [{ transactionRef: 'sloth_txn_test', categoryId: 'income', incomePeriodKey: '2026-13' }] })).toThrow(/incomePeriodKey/);
+  });
+});

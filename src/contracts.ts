@@ -25,6 +25,7 @@ export interface AgentAssignment {
   lineItemId?: string | null;
   categorySplits?: AgentCategorySplit[] | null;
   incomeSubtype?: 'pay' | 'interest' | null;
+  incomePeriodKey?: string;
 }
 
 export interface AssignmentPayload {
@@ -294,11 +295,15 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
       'lineItemId',
       'categorySplits',
       'incomeSubtype',
+      'incomePeriodKey',
     ]),
     label,
   );
 
   requireString(assignment.transactionRef, `${label}.transactionRef`);
+  if (assignment.incomePeriodKey !== undefined && (typeof assignment.incomePeriodKey !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(assignment.incomePeriodKey))) {
+    throw new UsageError(`${label}.incomePeriodKey must be YYYY-MM`);
+  }
   let sharing: AgentAssignment['sharing'];
   if (assignment.sharing !== undefined) {
     const sharingValue = requireObject(assignment.sharing, `${label}.sharing`);
@@ -397,6 +402,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
     && (
       assignment.assignmentScope !== undefined
       || assignment.lineItemId !== undefined
+      || assignment.incomePeriodKey !== undefined
       || assignment.incomeSubtype !== undefined
       || assignment.categorySplits !== undefined
     )
@@ -413,6 +419,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
     ...(assignment.categoryId !== undefined ? { categoryId: assignment.categoryId as string | null } : {}),
     ...(assignment.lineItemId !== undefined ? { lineItemId: assignment.lineItemId as string | null } : {}),
     ...(categorySplits !== undefined ? { categorySplits } : {}),
+    ...(assignment.incomePeriodKey !== undefined ? { incomePeriodKey: assignment.incomePeriodKey as string } : {}),
     ...(assignment.incomeSubtype !== undefined
       ? { incomeSubtype: assignment.incomeSubtype as 'pay' | 'interest' | null }
       : {}),
@@ -577,6 +584,7 @@ function isTransaction(value: unknown): boolean {
   return (
     isObject(value)
     && typeof value.transactionRef === 'string'
+    && isIncomePeriod(value.incomePeriodKey)
     && typeof value.id === 'string'
     && typeof value.name === 'string'
     && typeof value.amount === 'number'
@@ -595,6 +603,7 @@ function isTransaction(value: unknown): boolean {
       value.jointBudgetContribution === null
       || (
         isObject(value.jointBudgetContribution)
+        && isIncomePeriod(value.jointBudgetContribution.incomePeriodKey)
         && typeof value.jointBudgetContribution.eligible === 'boolean'
         && typeof value.jointBudgetContribution.included === 'boolean'
         && Number.isInteger(value.jointBudgetContribution.amountPence)
@@ -751,6 +760,22 @@ function isPartnerStatusResponse(value: unknown): boolean {
   ));
 }
 
+function isIncomePeriod(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value));
+}
+
+function isIncomeFundingSummary(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isObject(value) || !hasOnlyFields(value, ['destinationPeriodKey', 'currentPeriodKey', 'transactionPeriodKey', 'periodContext', 'revision', 'reserveReusedPence', 'toAssignDeltaPence', 'heldDeltaPence', 'shortfallPence'])) return false;
+  return isIncomePeriod(value.destinationPeriodKey)
+    && typeof value.currentPeriodKey === 'string' && isIncomePeriod(value.currentPeriodKey)
+    && typeof value.transactionPeriodKey === 'string' && isIncomePeriod(value.transactionPeriodKey)
+    && typeof value.revision === 'string' && /^[a-f0-9]{64}$/.test(value.revision)
+    && isNonnegativeSafeInteger(value.reserveReusedPence) && isNonnegativeSafeInteger(value.shortfallPence)
+    && isSafeInteger(value.toAssignDeltaPence) && isSafeInteger(value.heldDeltaPence)
+    && (value.periodContext === null || (isObject(value.periodContext) && hasOnlyFields(value.periodContext, ['startDate', 'endDate', 'currency']) && typeof value.periodContext.startDate === 'string' && typeof value.periodContext.endDate === 'string' && typeof value.periodContext.currency === 'string'));
+}
+
 function isAssignmentResponse(value: unknown): boolean {
   const isResponseSplit = (split: unknown): boolean => (
     isObject(split)
@@ -764,8 +789,9 @@ function isAssignmentResponse(value: unknown): boolean {
     isObject(contribution)
     && hasOnlyFields(contribution, [
       'eligible', 'included', 'amountPence', 'categoryId', 'lineItemId',
-      'categorySplits', 'incomeSubtype',
+      'categorySplits', 'incomeSubtype', 'incomePeriodKey',
     ])
+    && isIncomePeriod(contribution.incomePeriodKey)
     && typeof contribution.eligible === 'boolean'
     && typeof contribution.included === 'boolean'
     && isNonnegativeSafeInteger(contribution.amountPence)
@@ -818,10 +844,13 @@ function isAssignmentResponse(value: unknown): boolean {
       isObject(item)
       && hasOnlyFields(item, [
         'transactionRef', 'categoryId', 'lineItemId', 'categorySplits',
-        'incomeSubtype', 'assignmentScope', 'sharing',
+        'incomeSubtype', 'incomePeriodKey', 'funding', 'assignmentScope', 'sharing', 'sourceUpdated',
       ])
+      && isIncomeFundingSummary(item.funding)
       && typeof item.transactionRef === 'string'
-      && (isCategoryResult(item) || isSharing(item.sharing))
+      && (item.incomePeriodKey === undefined || item.incomePeriodKey === null || (typeof item.incomePeriodKey === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(item.incomePeriodKey)))
+      && (item.sourceUpdated === undefined || item.sourceUpdated === true)
+      && (isCategoryResult(item) || isSharing(item.sharing) || item.sourceUpdated === true)
       && (item.sharing === undefined || isSharing(item.sharing))
     ))
     && Array.isArray(value.failed)
@@ -1043,9 +1072,10 @@ function isBudgetCategory(value: unknown): boolean {
 function isBudgetFunding(value: unknown): boolean {
   return value === null || (
     isObject(value)
-    && hasOnlyFields(value, ['toAssignPence', 'nextPeriodReservePence'])
+    && hasOnlyFields(value, ['toAssignPence', 'nextPeriodReservePence', 'futureIncomeReserves'])
     && isSafeInteger(value.toAssignPence)
     && isSafeInteger(value.nextPeriodReservePence)
+    && (value.futureIncomeReserves === undefined || (isObject(value.futureIncomeReserves) && Object.entries(value.futureIncomeReserves).every(([key, amount]) => /^\d{4}-(0[1-9]|1[0-2])$/.test(key) && isSafeInteger(amount))))
   );
 }
 

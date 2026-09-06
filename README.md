@@ -314,6 +314,12 @@ transaction twice.
 
 4. Preview the assignment without writing:
 
+For **Income → Pay**, add `"incomePeriodKey": "2026-09"` to the assignment to fund September with a payment received in August. The bank date stays unchanged. Omission keeps a saved choice; a new Pay assignment defaults to its transaction period. Past periods need saved budget context. Future income stays reserved until its selected period, using unlinked Fund ahead money first. A correction can leave To assign negative. Interest and custom income items cannot use this picker. The CLI's dry run validates the file only; it does not calculate the financial consequence.
+
+```json
+{"assignments":[{"transactionRef":"PASTE_THE_EXACT_TRANSACTION_REF_HERE","categoryId":"income","lineItemId":"__sloth_income_pay__","incomePeriodKey":"2026-09"}]}
+```
+
 ```bash
 sloth-agent assign --input assignments.json
 ```
