@@ -1,3 +1,4 @@
+import { testTransactionPackage } from './test-transaction-package.mjs';
 import assert from 'node:assert/strict';
 import {
   execFileSync,
@@ -8,6 +9,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
+const sourceIndex = process.argv.indexOf('--server-repo');
+const serverRepo = sourceIndex === -1 ? undefined : process.argv[sourceIndex + 1];
+if (sourceIndex !== -1 && !serverRepo) throw new Error('--server-repo requires a path');
+if (serverRepo) {
+  execFileSync(process.execPath, [path.join(projectRoot, 'scripts/sync-transaction-contract.mjs'),
+    '--check', '--server-repo', serverRepo], { stdio: 'inherit' });
+}
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-agent-package-'));
 const isWindows = process.platform === 'win32';
 const npmExecutable = isWindows ? 'npm.cmd' : 'npm';
@@ -73,6 +81,13 @@ try {
     'bin.js',
   );
   assert(fs.existsSync(executable));
+  await testTransactionPackage(packagedEntryPoint);
+  if (serverRepo) {
+    execFileSync('yarn', ['test:agent-cli-contract', '--cli-bin', executable], {
+      cwd: path.resolve(serverRepo), stdio: 'inherit', timeout: 120_000,
+    });
+  }
+
   const runCliSync = (args, options = {}) => execFileSync(
     isWindows ? process.execPath : executable,
     isWindows ? [packagedEntryPoint, ...args] : args,

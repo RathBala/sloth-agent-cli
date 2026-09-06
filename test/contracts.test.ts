@@ -34,10 +34,9 @@ import {
   agentApiV1RenewalExtractionResponse,
   agentApiV1ScenarioMutationResponse,
   agentApiV1ScenariosResponse,
-  agentApiV1TransactionsResponse,
-  agentApiV1TransactionsWithPendingResponse,
   agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
+import { agentApiV1TransactionsResponse, agentApiV1TransactionsWithPendingResponse } from '../src/generated/agent-v1/transactionFixtures.js';
 
 describe('household portfolio contract', () => {
   it('accepts the trusted household portfolio response and rejects leaked partner details', () => {
@@ -749,5 +748,20 @@ describe('API response validation', () => {
       deleted: false,
       deletedGoalId: 'goal-1',
     })).toThrow(/invalid goals-delete response/i);
+  });
+});
+
+
+describe('canonical transaction response validation', () => {
+  it.each([
+    { categorySplits: [{ categoryId: 'groceries', amountPence: -1 }] },
+    { counterpartyName: 42 },
+    { date: '2026-02-30' },
+    { isShared: 'yes' },
+  ])('rejects a row the producer cannot emit: %j', (change) => {
+    expect(() => parseApiResponse('transactions', {
+      ...agentApiV1TransactionsResponse,
+      transactions: [{ ...agentApiV1TransactionsResponse.transactions[0], ...change }],
+    })).toThrow('Invalid transactions response');
   });
 });

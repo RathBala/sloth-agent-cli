@@ -33,10 +33,9 @@ import {
   agentApiV1RenewalExtractionResponse,
   agentApiV1ScenarioMutationResponse,
   agentApiV1ScenariosResponse,
-  agentApiV1TransactionsResponse,
-  agentApiV1TransactionsWithPendingResponse,
   agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
+import { agentApiV1TransactionsResponse, agentApiV1TransactionsWithPendingResponse } from '../src/generated/agent-v1/transactionFixtures.js';
 
 const tempDirectories: string[] = [];
 const passwordPrompt = vi.hoisted(() => vi.fn());

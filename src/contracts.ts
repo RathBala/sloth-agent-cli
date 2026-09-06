@@ -1,3 +1,5 @@
+import { agentTransactionsWireResponseSchema } from './generated/agent-v1/transactions.js';
+import { transactionRefreshStatusSchema } from './generated/agent-v1/transactionRefresh.js';
 import {
   ApiError,
   UsageError,
@@ -573,155 +575,6 @@ function isLineItemMutationResponse(value: unknown): boolean {
   );
 }
 
-function isTransaction(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, [
-      'transactionRef', 'id', 'name', 'counterpartyName', 'transactionReference',
-      'amount', 'currency', 'date', 'status', 'accountRef', 'scope',
-      'categoryId', 'lineItemId', 'categorySplits', 'incomeSubtype',
-      'personalBudgetAmountPence', 'jointBudgetContribution', 'isShared',
-      'shareRatio', 'sharedAmount', 'partnerExclusiveAmount', 'userExclusiveAmount',
-      'partnerExplanation', 'partnerExplanationUpdatedAt',
-      'partnerExplanationRequestId', 'partnerExplanationRequestStatus',
-      'partnerExplanationRequestExpiresAt', 'partnerExplanationSource',
-    ])
-    && typeof value.transactionRef === 'string'
-    && typeof value.id === 'string'
-    && typeof value.name === 'string'
-    && (value.counterpartyName === undefined || typeof value.counterpartyName === 'string')
-    && (value.transactionReference === undefined || typeof value.transactionReference === 'string')
-    && typeof value.amount === 'number'
-    && Number.isFinite(value.amount)
-    && typeof value.currency === 'string'
-    && typeof value.date === 'string'
-    && value.status === 'booked'
-    && isAccountRef(value.accountRef)
-    && (value.scope === 'personal' || value.scope === 'joint')
-    && (value.categoryId === null || typeof value.categoryId === 'string')
-    && (value.lineItemId === null || typeof value.lineItemId === 'string')
-    && Array.isArray(value.categorySplits)
-    && Number.isInteger(value.personalBudgetAmountPence)
-    && Number(value.personalBudgetAmountPence) >= 0
-    && (
-      value.jointBudgetContribution === null
-      || (
-        isObject(value.jointBudgetContribution)
-        && typeof value.jointBudgetContribution.eligible === 'boolean'
-        && typeof value.jointBudgetContribution.included === 'boolean'
-        && Number.isInteger(value.jointBudgetContribution.amountPence)
-        && Number(value.jointBudgetContribution.amountPence) > 0
-        && (
-          value.jointBudgetContribution.categoryId === null
-          || typeof value.jointBudgetContribution.categoryId === 'string'
-        )
-        && (
-          value.jointBudgetContribution.lineItemId === null
-          || typeof value.jointBudgetContribution.lineItemId === 'string'
-        )
-        && Array.isArray(value.jointBudgetContribution.categorySplits)
-        && (
-          value.jointBudgetContribution.incomeSubtype === null
-          || value.jointBudgetContribution.incomeSubtype === 'pay'
-          || value.jointBudgetContribution.incomeSubtype === 'interest'
-        )
-      )
-    )
-    && (
-      value.incomeSubtype === null
-      || value.incomeSubtype === 'pay'
-      || value.incomeSubtype === 'interest'
-    )
-  );
-}
-
-const REFRESH_STATUSES = new Set(['skipped', 'completed', 'in_progress', 'partial', 'failed']);
-const REFRESH_REASONS = new Set([
-  'all_fetched_today',
-  'no_api_connections',
-  'no_selected_accounts',
-  'refreshed',
-  'wait_timeout',
-  'account_failures',
-  'partial_already_attempted',
-  'quota_exceeded',
-  'checkpoint_failed',
-  'refresh_error',
-]);
-
-function isRefreshStatus(value: unknown): boolean {
-  if (
-    !isObject(value)
-    || typeof value.status !== 'string'
-    || !REFRESH_STATUSES.has(value.status)
-    || typeof value.reason !== 'string'
-    || !REFRESH_REASONS.has(value.reason)
-    || !isIsoDate(value.utcDate)
-  ) return false;
-  return value.status === 'completed'
-    ? hasOnlyFields(value, ['status', 'reason', 'utcDate', 'checkpointId'])
-      && typeof value.checkpointId === 'string'
-      && value.checkpointId.length > 0
-    : hasOnlyFields(value, ['status', 'reason', 'utcDate']);
-}
-
-function isTransactionsResponse(value: unknown): boolean {
-  const isPendingTransaction = (transaction: unknown): boolean => (
-    isObject(transaction)
-    && hasOnlyFields(transaction, [
-      'pendingRef', 'name', 'counterpartyName', 'transactionReference',
-      'amount', 'currency', 'date', 'status',
-      'accountRef', 'scope', 'writable', 'writeBlockReason',
-    ])
-    && typeof transaction.pendingRef === 'string'
-    && /^sloth_pending_v1_[A-Za-z0-9_-]{43}$/.test(transaction.pendingRef)
-    && typeof transaction.name === 'string'
-    && (
-      transaction.counterpartyName === undefined
-      || typeof transaction.counterpartyName === 'string'
-    )
-    && (
-      transaction.transactionReference === undefined
-      || typeof transaction.transactionReference === 'string'
-    )
-    && typeof transaction.amount === 'number'
-    && Number.isFinite(transaction.amount)
-    && isCurrency(transaction.currency)
-    && isIsoDate(transaction.date)
-    && transaction.status === 'pending'
-    && isAccountRef(transaction.accountRef)
-    && (transaction.scope === 'personal' || transaction.scope === 'joint')
-    && transaction.writable === false
-    && transaction.writeBlockReason === 'pending'
-  );
-  const isPendingSnapshot = (snapshot: unknown): boolean => {
-    if (!isObject(snapshot)) return false;
-    if (snapshot.availability === 'current') {
-      return hasOnlyFields(snapshot, ['availability', 'observedAt', 'transactions', 'truncated'])
-        && isIsoDateTime(snapshot.observedAt)
-        && Array.isArray(snapshot.transactions)
-        && snapshot.transactions.length <= 200
-        && snapshot.transactions.every(isPendingTransaction)
-        && typeof snapshot.truncated === 'boolean';
-    }
-    return snapshot.availability === 'unavailable'
-      && hasOnlyFields(snapshot, ['availability', 'observedAt', 'transactions', 'truncated'])
-      && snapshot.observedAt === null
-      && Array.isArray(snapshot.transactions)
-      && snapshot.transactions.length === 0
-      && snapshot.truncated === false;
-  };
-  return (
-    isObject(value)
-    && hasOnlyFields(value, ['transactions', 'nextCursor', 'refresh', 'pending'])
-    && Array.isArray(value.transactions)
-    && value.transactions.every(isTransaction)
-    && (value.nextCursor === null || typeof value.nextCursor === 'string')
-    && isRefreshStatus(value.refresh)
-    && (value.pending === undefined || isPendingSnapshot(value.pending))
-  );
-}
-
 function isPartnerStatusResponse(value: unknown): boolean {
   if (
     !isObject(value)
@@ -1171,7 +1024,7 @@ function isBudgetActivityStatusResponse(value: unknown): boolean {
     && isActivityAmounts(value.activity.uncategorized)
     && (value.periodStatus === 'historical'
       ? value.refresh === null
-      : isRefreshStatus(value.refresh));
+      : transactionRefreshStatusSchema.safeParse(value.refresh).success);
 }
 
 interface BudgetMovementResponse {
@@ -1713,7 +1566,7 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
         : command === 'line-items-create' || command === 'line-items-rename'
           ? isLineItemMutationResponse(value)
     : command === 'transactions'
-      ? isTransactionsResponse(value)
+      ? agentTransactionsWireResponseSchema.safeParse(value).success
       : command === 'partner-status'
         ? isPartnerStatusResponse(value)
       : command === 'rules-list'
