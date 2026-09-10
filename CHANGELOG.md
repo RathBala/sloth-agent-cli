@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.1
+
+- Finish the email-only Rules response contract and remove the temporary rollout reader.
+
 ## 0.27.0
 
 - Describe Transaction Rules as email reminders and accept the email-only API response during the dashboard feed retirement.

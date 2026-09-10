@@ -234,8 +234,7 @@ function isNotificationRule(value: unknown): boolean {
     && Number.isSafeInteger(value.sourceAmountPence)
     && hasOnlyFields(renewalReminder, ['enabled', 'renewalDate', 'leadDays', 'remindOn'])
     && (renewalReminder.remindOn === null || isIsoDate(renewalReminder.remindOn))
-    && hasOnlyFields(delivery, ['email', 'inApp'])
-    && (delivery.inApp === undefined || delivery.inApp === true)
+    && hasOnlyFields(delivery, ['email'])
     && (value.createdAt === null || isIsoDateTime(value.createdAt))
     && (value.updatedAt === null || isIsoDateTime(value.updatedAt));
 }

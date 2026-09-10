@@ -138,9 +138,9 @@ describe('partner and pending read contracts', () => {
 });
 
 describe('notification rule contracts', () => {
-  it('reads the previous response during the coordinated rollout', () => {
+  it('rejects the retired in-app response field', () => {
     const rule = { ...agentApiV1NotificationRule, delivery: { ...agentApiV1NotificationRule.delivery, inApp: true } };
-    expect(parseApiResponse('rules-get', { rule })).toEqual({ rule });
+    expect(() => parseApiResponse('rules-get', { rule })).toThrow('Invalid rules-get response');
   });
 
   it('accepts the Agent API write shape and rejects computed response fields in input', () => {
