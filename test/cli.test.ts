@@ -382,7 +382,7 @@ describe('CLI execution', () => {
         'renewalDate',
         'delivery',
         '1 to 365',
-        'In-app notifications are always included',
+        'Reminders are sent only when delivery.email is true',
         'Without --apply',
         'write-enabled token',
         'rule.json',

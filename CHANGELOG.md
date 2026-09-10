@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0
+
+- Describe Transaction Rules as email reminders and accept the email-only API response during the dashboard feed retirement.
+
 ## 0.26.0
 
 - Assign Pay income to a personal or joint budget period through the existing assignment input.

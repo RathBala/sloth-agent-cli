@@ -157,8 +157,7 @@ First, run `sloth-agent transactions` and copy the exact `transactionRef` into
 }
 ```
 
-In-app notifications are always included. Set `delivery.email` to choose
-whether Sloth also sends an email. `leadDays` accepts an integer from 1 to 365.
+Set `delivery.email` to `true` to receive reminders by email. `leadDays` accepts an integer from 1 to 365.
 
 Preview the write locally, then apply the same validated file:
 

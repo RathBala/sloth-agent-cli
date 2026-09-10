@@ -138,6 +138,11 @@ describe('partner and pending read contracts', () => {
 });
 
 describe('notification rule contracts', () => {
+  it('reads the previous response during the coordinated rollout', () => {
+    const rule = { ...agentApiV1NotificationRule, delivery: { ...agentApiV1NotificationRule.delivery, inApp: true } };
+    expect(parseApiResponse('rules-get', { rule })).toEqual({ rule });
+  });
+
   it('accepts the Agent API write shape and rejects computed response fields in input', () => {
     const input = {
       amountChange: { enabled: true, comparison: 'increase', baselinePence: 3184 },

@@ -1509,7 +1509,7 @@ export function rulesSetHelpText(): string {
     '  comparison accepts increase or any. baselinePence is a positive integer.',
     '  renewalDate is YYYY-MM-DD or null when its reminder is disabled.',
     '  leadDays is an integer from 1 to 365. At least one condition must be enabled.',
-    '  In-app notifications are always included. delivery.email adds email delivery.',
+    '  Reminders are sent only when delivery.email is true.',
     '',
     'Write behavior:',
     '  Without --apply, Sloth validates the file and prints a local preview.',

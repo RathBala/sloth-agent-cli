@@ -374,7 +374,7 @@ export const agentApiV1NotificationRule = {
     leadDays: 30,
     remindOn: '2027-06-30',
   },
-  delivery: { inApp: true, email: true },
+  delivery: { email: true },
   createdAt: null,
   updatedAt: '2026-08-20T08:00:00.000Z',
 } as const;
