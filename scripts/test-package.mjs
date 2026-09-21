@@ -123,6 +123,7 @@ try {
   assert.match(help, /sloth-agent transactions/);
   assert.match(help, /sloth-agent partner status/);
   assert.doesNotMatch(help, /--account-id/);
+  assert.match(help, /sloth-agent goal-budgets/);
   assert.match(help, /sloth-agent goals create/);
   assert.match(help, /--account-ref REF/);
   assert.match(help, /sloth-agent goals update/);
@@ -136,6 +137,7 @@ try {
   assert.match(help, /Every nested subcommand has its own help/);
 
   const commandHelpCases = [
+    [['goal-budgets', '--help'], [/read-only/, /budgetRef/, /closed/]],
     [['auth', 'login', '--help'], [/hidden prompt/]],
     [['accounts', '--help'], [/accounts list/, /accounts update/, /accounts remove/, /existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalFundingAccount/]],
     [['accounts', 'update', '--help'], [/--institution-name NAME/, /--ownership individual\|joint/, /--goal-funding-account true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],

@@ -427,6 +427,55 @@ have no exclusive amount and Personal when you do. Category-only items retain
 their existing Personal/native default. Each item commits atomically, while a
 bulk request remains best-effort across items.
 
+### Review a temporary budget
+
+These commands are available from the source checkout and are not yet in the
+published npm release.
+
+Set up a temporary budget from the dropdown below **Personal / Joint** on the
+**Budget** page, using an
+existing Spend Goal or a new one. Its name and total come from that Goal. The
+Goal's funding account stays separate from the spending breakdown.
+
+```sh
+sloth-agent goal-budgets
+sloth-agent transactions --goal-budget-ref PASTE_THE_EXACT_BUDGET_REF_HERE --assignment-scope personal
+```
+
+Use `--assignment-scope joint` for a joint budget. Copy `budgetRef` and category
+and line-item IDs from `goal-budgets`. The transaction filter covers the budget's
+whole lifetime unless you also pass dates, including manually entered payments.
+Refunds reduce spending. Summary and category amounts are in minor currency units
+(pence for GBP); the Goal's `targetAmount` is in major units.
+
+Save this as `holiday-assignment.json`, replacing the placeholders with returned IDs:
+
+```json
+{
+  "assignments": [{
+    "transactionRef": "PASTE_THE_EXACT_TRANSACTION_REF_HERE",
+    "assignmentScope": "personal",
+    "goalBudgetRef": "PASTE_THE_EXACT_BUDGET_REF_HERE",
+    "categoryId": "PASTE_THE_EXACT_CATEGORY_ID_HERE",
+    "lineItemId": "PASTE_THE_EXACT_LINE_ITEM_ID_HERE"
+  }]
+}
+```
+
+```sh
+sloth-agent assign --input holiday-assignment.json
+sloth-agent assign --input holiday-assignment.json --apply
+```
+
+Set `goalBudgetRef` to `null` and supply a monthly category to move the portion back
+to the monthly budget. Omitting the field preserves its current destination.
+Each personal or joint portion has one destination; category splits stay within
+that destination. Holiday spending stays in account totals and partner settlement,
+but leaves monthly category spending. No money is transferred or reserved.
+Restore a closed Goal before changing its budget or assignments. Create and edit
+the category breakdown in the app. The owner edits a joint plan; a current partner
+can read it and assign shared spending.
+
 ### Other workflows
 
 Read a personal or joint budget. Omit `--period` to use Sloth's current budget period:

@@ -1,5 +1,6 @@
 // Generated from sloth-budget/server/src/contracts/public/agent-v1. Do not edit.
 import { z } from 'zod-v4';
+import { goalBudgetRefSchema } from './goalBudgets.js';
 import { transactionRefreshStatusSchema } from './transactionRefresh.js';
 
 const trimmedStringSchema = z.string().trim().min(1);
@@ -68,6 +69,7 @@ export const agentTransactionsResponseSchema = z.object({
     status: z.literal('booked'),
     accountRef: agentAccountRefSchema,
     scope: z.enum(['personal', 'joint']),
+    goalBudgetRef: goalBudgetRefSchema.nullable().optional(),
     categoryId: z.string().nullable().describe(parentCategoryIdDescription),
     lineItemId: z.string().nullable().describe(childLineItemIdDescription),
     categorySplits: z.array(agentCategorySplitSchema),
@@ -78,7 +80,8 @@ export const agentTransactionsResponseSchema = z.object({
       eligible: z.boolean(),
       included: z.boolean(),
       amountPence: z.number().int().positive(),
-      categoryId: z.string().nullable(),
+      goalBudgetRef: goalBudgetRefSchema.nullable().optional(),
+    categoryId: z.string().nullable(),
       lineItemId: z.string().nullable(),
       categorySplits: z.array(agentCategorySplitSchema),
       incomeSubtype: z.enum(['pay', 'interest']).nullable(),

@@ -23,6 +23,9 @@
 
 ## Unreleased
 
+- Read temporary budgets with `goal-budgets` and filter their lifetime spending with `transactions --goal-budget-ref`.
+- Assign personal or joint spending to a temporary budget using the existing assignment command.
+
 ## 0.24.0 - 2026-09-06
 
 - Preserve optional normalized `counterpartyName` and `transactionReference`

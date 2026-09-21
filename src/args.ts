@@ -22,6 +22,7 @@ interface GlobalOptions {
 }
 
 export interface TransactionFilters {
+  goalBudgetRef?: string;
   includePending?: boolean;
   uncategorized?: boolean;
   shared?: boolean;
@@ -73,6 +74,7 @@ export type HelpTopic =
   | 'receipts-attach'
   | 'receipts-remove'
   | 'goals'
+  | 'goal-budgets'
   | 'goals-list'
   | 'goals-create'
   | 'goals-update'
@@ -232,6 +234,7 @@ export type ParsedCommand =
     revision: number;
     apply: boolean;
   }
+  | { command: 'goal-budgets'; baseUrl?: string }
   | { command: 'goals-list'; baseUrl?: string }
   | {
     command: 'goals-create';
@@ -614,6 +617,7 @@ function parseTransactions(args: string[]): TransactionFilters {
       '--q',
       '--account-ref',
       '--category-id',
+      '--goal-budget-ref',
       '--line-item-id',
       '--assignment-scope',
       '--cursor',
@@ -646,6 +650,9 @@ function parseTransactions(args: string[]): TransactionFilters {
       filters.q = setOnce(filters.q, value, name);
     } else if (name === '--account-ref') {
       filters.accountRef = setOnce(filters.accountRef, parseAccountRef(value), name);
+    } else if (name === '--goal-budget-ref') {
+      if (!/^gb_[A-Za-z0-9_-]+$/.test(value)) throw new UsageError('--goal-budget-ref must be a reference from goal-budgets');
+      filters.goalBudgetRef = setOnce(filters.goalBudgetRef, value, name);
     } else if (name === '--category-id') {
       filters.categoryId = setOnce(filters.categoryId, value, name);
     } else if (name === '--line-item-id') {
@@ -1766,7 +1773,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (command === 'accounts' && subcommand === 'remove') return 'accounts-remove';
     return command;
   }
-  if (command === 'investments' || command === 'portfolio') return command;
+  if (command === 'investments' || command === 'portfolio' || command === 'goal-budgets') return command;
   return undefined;
 }
 
@@ -1783,6 +1790,11 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'auth') {
     return parseAuth(args, baseUrl);
+  }
+
+  if (command === 'goal-budgets') {
+    if (args.length) throw new UsageError('goal-budgets accepts only --base-url');
+    return withBaseUrl({ command: 'goal-budgets' }, baseUrl);
   }
 
   if (command === 'goals') {

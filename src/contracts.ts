@@ -1,3 +1,4 @@
+import { goalBudgetRefSchema, goalBudgetsResponseSchema } from './generated/agent-v1/goalBudgets.js';
 import { agentTransactionsWireResponseSchema } from './generated/agent-v1/transactions.js';
 import { transactionRefreshStatusSchema } from './generated/agent-v1/transactionRefresh.js';
 import {
@@ -15,6 +16,7 @@ export interface AgentCategorySplit {
 }
 
 export interface AgentAssignment {
+  goalBudgetRef?: string | null;
   transactionRef: string;
   sharing?: {
     isShared: boolean;
@@ -108,6 +110,7 @@ type ApiCommand =
   | 'rules-delete'
   | 'rules-scan-contract'
   | 'ask-partner'
+  | 'goal-budgets'
   | 'goals-list'
   | 'goals-preview'
   | 'goals-create'
@@ -290,6 +293,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
     assignment,
     new Set([
       'transactionRef',
+      'goalBudgetRef',
       'sharing',
       'assignmentScope',
       'categoryId',
@@ -305,6 +309,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
   if (assignment.incomePeriodKey !== undefined && (typeof assignment.incomePeriodKey !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(assignment.incomePeriodKey))) {
     throw new UsageError(`${label}.incomePeriodKey must be YYYY-MM`);
   }
+  if (assignment.goalBudgetRef !== undefined && assignment.goalBudgetRef !== null && !goalBudgetRefSchema.safeParse(assignment.goalBudgetRef).success) throw new UsageError(`${label}.goalBudgetRef must come from goal-budgets`);
   let sharing: AgentAssignment['sharing'];
   if (assignment.sharing !== undefined) {
     const sharingValue = requireObject(assignment.sharing, `${label}.sharing`);
@@ -401,7 +406,8 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
   if (
     !hasCategoryOperation
     && (
-      assignment.assignmentScope !== undefined
+      assignment.goalBudgetRef !== undefined
+      || assignment.assignmentScope !== undefined
       || assignment.lineItemId !== undefined
       || assignment.incomePeriodKey !== undefined
       || assignment.incomeSubtype !== undefined
@@ -413,6 +419,7 @@ function validateAssignment(value: unknown, index: number): AgentAssignment {
 
   return {
     transactionRef: assignment.transactionRef as string,
+    ...(assignment.goalBudgetRef === undefined ? {} : { goalBudgetRef: assignment.goalBudgetRef as string | null }),
     ...(sharing === undefined ? {} : { sharing }),
     ...(assignment.assignmentScope !== undefined
       ? { assignmentScope: assignment.assignmentScope as 'personal' | 'joint' }
@@ -660,8 +667,9 @@ function isAssignmentResponse(value: unknown): boolean {
     isObject(contribution)
     && hasOnlyFields(contribution, [
       'eligible', 'included', 'amountPence', 'categoryId', 'lineItemId',
-      'categorySplits', 'incomeSubtype', 'incomePeriodKey',
+      'categorySplits', 'incomeSubtype', 'incomePeriodKey', 'goalBudgetRef',
     ])
+    && (contribution.goalBudgetRef == null || goalBudgetRefSchema.safeParse(contribution.goalBudgetRef).success)
     && isIncomePeriod(contribution.incomePeriodKey)
     && typeof contribution.eligible === 'boolean'
     && typeof contribution.included === 'boolean'
@@ -715,8 +723,9 @@ function isAssignmentResponse(value: unknown): boolean {
       isObject(item)
       && hasOnlyFields(item, [
         'transactionRef', 'categoryId', 'lineItemId', 'categorySplits',
-        'incomeSubtype', 'incomePeriodKey', 'funding', 'assignmentScope', 'sharing', 'sourceUpdated',
+        'incomeSubtype', 'incomePeriodKey', 'funding', 'assignmentScope', 'sharing', 'sourceUpdated', 'goalBudgetRef',
       ])
+      && (item.goalBudgetRef == null || goalBudgetRefSchema.safeParse(item.goalBudgetRef).success)
       && isIncomeFundingSummary(item.funding)
       && typeof item.transactionRef === 'string'
       && (item.incomePeriodKey === undefined || item.incomePeriodKey === null || (typeof item.incomePeriodKey === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(item.incomePeriodKey)))
@@ -1616,6 +1625,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
         ? isAssignmentResponse(value)
         : command === 'ask-partner'
           ? isPartnerResponse(value)
+          : command === 'goal-budgets'
+            ? goalBudgetsResponseSchema.safeParse(value).success
           : command === 'goals-list'
             ? isGoalsResponse(value)
           : command === 'scenarios-list'

@@ -107,6 +107,7 @@ export function usageText(): string {
     '  sloth-agent receipts get --transaction-ref REF [--base-url URL]',
     '  sloth-agent receipts attach --transaction-ref REF --input receipt.json [--expected-revision N] [--apply]',
     '  sloth-agent receipts remove --transaction-ref REF --revision N [--apply]',
+    '  sloth-agent goal-budgets [--base-url URL]',
     '  sloth-agent goals [list] [--base-url URL]',
     '  sloth-agent goals create --name NAME --target-amount AMOUNT',
     '    --type keep|spend --account-ref REF [--target-month YYYY-MM]',
@@ -762,6 +763,7 @@ export function transactionsHelpText(): string {
     '  --account-ref REF              Optional. Filter by the opaque accountRef from sloth-agent accounts.',
     '                                  Copy the exact sloth_account_v1_... value.',
     '  --category-id ID               Optional. Filter by category ID.',
+    '  --goal-budget-ref REF         Optional. Filter temporary spending across all dates; combine with --assignment-scope.',
     '  --line-item-id ID              Optional. Filter primary or split assignments by line-item ID.',
     '  --assignment-scope SCOPE        Optional. Filter assignments by personal or joint.',
     '                                  The transaction\'s native scope is used when omitted.',
@@ -893,6 +895,9 @@ export function assignHelpText(): string {
     '',
     'Input:',
     '  The top-level object must contain an assignments array.',
+    '  goalBudgetRef selects a temporary budget from goal-budgets; use its category/item IDs.',
+    '  Use null to return to monthly. Omission preserves the existing destination.',
+    '  One destination per personal/joint portion; sharing and settlement are unchanged.',
     '  Each assignment requires transactionRef and at least one category operation or sharing object.',
     '  Each transactionRef may appear only once in the assignments array.',
     '  sharing.isShared is required. shareRatio is optional from 0 to 1 and is your share.',
@@ -944,6 +949,22 @@ export function assignHelpText(): string {
     '  Successful assignments update the original transaction. See the result in',
     '  Sloth Money → Transactions or read the transaction again through the CLI.',
     '  Assignments do not create a separate list.',
+  ].join('\n');
+}
+
+export function goalBudgetsHelpText(): string {
+  return [
+    'Sloth Agent CLI — goal-budgets', '',
+    'Read personal and shared joint temporary budgets, including closed history.', '',
+    'Usage: sloth-agent goal-budgets [--base-url URL]', '',
+    'Requires the existing agent:read credential. This command is read-only and makes no financial writes.',
+    'Output: budgets with budgetRef, scope, currency, Goal target, categories and line items,',
+    'plus lifetime planned/spent/remaining amounts in pence. Category/item amounts are pence;',
+    'targetAmount is in major currency units. Remaining is a plan amount, not available bank cash.',
+    'Configure the breakdown in the app. Use its exact budgetRef and category/item IDs in assign.',
+    'Transactions default to all dates when --goal-budget-ref is supplied; --limit and --cursor paginate.',
+    'Use goalBudgetRef: null with a monthly category to return spending to the monthly budget.',
+    'Omitting goalBudgetRef preserves the current destination. Closed budgets require Goal restore.',
   ].join('\n');
 }
 
@@ -1642,6 +1663,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'receipts-remove': receiptsRemoveHelpText,
     goals: goalsHelpText,
     'goals-list': goalsListHelpText,
+    'goal-budgets': goalBudgetsHelpText,
     'goals-create': goalsCreateHelpText,
     'goals-update': goalsUpdateHelpText,
     'goals-mark-spent': goalsMarkSpentHelpText,
@@ -1821,6 +1843,7 @@ function buildTransactionsQuery(
   if (filters.endDate !== undefined) params.set('endDate', filters.endDate);
   if (filters.q !== undefined) params.set('q', filters.q);
   if (filters.accountRef !== undefined) params.set('accountRef', filters.accountRef);
+  if (filters.goalBudgetRef !== undefined) params.set('goalBudgetRef', filters.goalBudgetRef);
   if (filters.categoryId !== undefined) params.set('categoryId', filters.categoryId);
   if (filters.lineItemId !== undefined) params.set('lineItemId', filters.lineItemId);
   if (filters.assignmentScope !== undefined) {
@@ -2777,6 +2800,12 @@ export async function runCli(
       );
       const data = parseApiResponse('ask-partner', await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
+      return 0;
+    }
+
+    if (parsed.command === 'goal-budgets') {
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/goal-budgets`, { method: 'GET', headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      writeJson(writeStdout, parseApiResponse('goal-budgets', await parseHttpResponse(response, token)));
       return 0;
     }
 
