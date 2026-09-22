@@ -1,3 +1,4 @@
+import { goalFundingConfigurationSchema, fundingMatchesTarget, type GoalFundingConfiguration } from './generated/agent-v1/goals.js';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import nodePath from 'node:path';
@@ -1015,6 +1016,7 @@ export function goalsHelpText(): string {
     '  sloth-agent goals list      List goals; "sloth-agent goals" is equivalent.',
     '  sloth-agent goals create    Preview or create a goal.',
     '  sloth-agent goals update    Preview or update selected goal fields.',
+    '  Create/update: repeat --account-ref for automatic funding or use --funding-input FILE for a split.',
     '  sloth-agent goals mark-spent Preview or mark a Spend goal spent.',
     '  sloth-agent goals restore   Preview or restore a spent goal.',
     '  sloth-agent goals delete    Preview or permanently delete a goal.',
@@ -1045,7 +1047,8 @@ export function goalsListHelpText(): string {
     '',
     'Output:',
     '  JSON containing currency, forecastBasis, and goals. Each goal includes its',
-    '  effectivePriority, funding account, desired targetMonthKey, and calculated',
+    '  effectivePriority, funding mode and accounts, current allocations and progress,',
+    '  projected allocations, desired targetMonthKey, and calculated',
     '  forecastMonthKey.',
   ].join('\n');
 }
@@ -1057,13 +1060,15 @@ export function goalsCreateHelpText(): string {
     'Preview or create a goal.',
     '',
     'Usage:',
-    '  sloth-agent goals create --name NAME --target-amount AMOUNT --type keep|spend --account-ref REF [options]',
+    '  sloth-agent goals create --name NAME --target-amount AMOUNT --type keep|spend (--account-ref REF... | --funding-input FILE) [options]',
     '',
     'Options:',
     '  --name NAME                 Required. Goal name, 1 to 200 characters.',
     '  --target-amount AMOUNT      Required. Positive major-unit amount with up to 2 decimals.',
     '  --type keep|spend           Required. Keep reserves funded money; Spend is spent later.',
-    '  --account-ref REF           Required. Personal Goal-funding account from accounts list.',
+    '  --account-ref REF           Repeat for automatic funding from selected personal accounts.',
+    '  --funding-input FILE        Explicit split JSON; mutually exclusive with --account-ref.',
+    '                              Choose one funding option. Shares must total the target.',
     '  --target-month YYYY-MM      Optional. Desired calendar month; it does not change the forecast.',
     '  --priority POSITION         Optional. One-based priority; defaults to append.',
     '  --apply                     Optional. Create the goal in Sloth Money.',
@@ -1083,7 +1088,10 @@ export function goalsCreateHelpText(): string {
     '',
     'Output:',
     '  Preview and apply return the Goal, currency, calculated forecastMonthKey,',
-    '  effective priority, funding-account details, and forecastBasis.',
+    '  effective priority, funding configuration, allocations counted today, projected',
+    '  allocations, and forecastBasis. Account data gaps set hasMissingAccounts.',
+    '  Automatic funding uses accounts alphabetically. Explicit shares never borrow.',
+    '  Funding file: {"mode":"explicit","allocations":[{"accountRef":"REF","amount":100}]}',
   ].join('\n');
 }
 
@@ -1103,7 +1111,8 @@ export function goalsUpdateHelpText(): string {
     '  --target-month YYYY-MM       Optional. Replace the target month.',
     '  --clear-target-month         Optional. Remove the target month.',
     '  --type keep|spend            Optional. Change how funded money is treated.',
-    '  --account-ref REF            Optional. Reassign to another personal Goal-funding account.',
+    '  --account-ref REF            Repeat to replace selected accounts with automatic funding.',
+    '  --funding-input FILE         Explicit split JSON; mutually exclusive with --account-ref.',
     '  --priority POSITION          Optional. Positive whole-number position; 1 is highest.',
     '  --apply                      Optional. Write the partial update.',
     '  --base-url URL               Optional. Override the API origin.',
@@ -1115,10 +1124,12 @@ export function goalsUpdateHelpText(): string {
     '  Priority 1 is highest. The position cannot exceed the current goal count.',
     '  Moving a goal shifts the intervening goals automatically.',
     '  Sloth recalculates the Goal roadmap before saving the update.',
+    '  An explicit Goal target change needs a matching split in the same update.',
+    '  Explicit amounts must be positive and total the target; other accounts cannot cover shortfalls.',
     '  Set and clear target-month options are mutually exclusive.',
     '  Restore a spent goal before changing its type.',
     '  Sharing remains app-managed. Updates to a shared Goal remain visible to the',
-    '  connected partner, but its assigned account remains private to the owner.',
+    '  connected partner, but accounts and splits remain private to the owner.',
     '',
     'Safety:',
     '  Without --apply, the command returns a dry-run preview and does not write.',
@@ -1793,6 +1804,17 @@ async function resolveCredential(
   return { source: 'keychain', token: storedToken };
 }
 
+function readGoalFundingFile(filePath: string): GoalFundingConfiguration {
+  let value: unknown;
+  try { value = JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+  catch { throw new UsageError('Could not read --funding-input as JSON'); }
+  const parsed = goalFundingConfigurationSchema.safeParse(value);
+  if (!parsed.success || parsed.data.mode !== 'explicit') {
+    throw new UsageError('Funding input needs mode "explicit" and unique allocations with accountRef and positive amount values');
+  }
+  return parsed.data;
+}
+
 function readAssignmentFile(filePath: string): unknown {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
@@ -2427,9 +2449,19 @@ export async function runCli(
         if (!checked.success) throw new UsageError('Use allocations with unique categoryId and nonnegative safe-integer amountPence values');
         return checked.data.allocations;
       })() : undefined;
+    const goalFunding: GoalFundingConfiguration | undefined = parsed.command === 'goals-create' || parsed.command === 'goals-update'
+      ? parsed.fundingInput ? readGoalFundingFile(parsed.fundingInput)
+        : parsed.accountRefs ? { mode: 'automatic', accountRefs: parsed.accountRefs } : undefined
+      : undefined;
+    if (goalFunding && (parsed.command === 'goals-create' || parsed.command === 'goals-update')
+      && parsed.targetAmount !== undefined && !fundingMatchesTarget(goalFunding, parsed.targetAmount)) {
+      throw new UsageError('Account shares must total the Goal target');
+    }
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
-    const headers = requestHeaders(token);
+    const headers = { ...requestHeaders(token),
+      ...((parsed.command.startsWith('goals-') || parsed.command.startsWith('scenarios-')) ? { 'X-Sloth-Goal-Funding-Version': '2' } : {}),
+    };
 
     if (parsed.command === 'budget-fill' || parsed.command === 'budget-fund-ahead') {
       const payload = { scope: parsed.scope, mode: parsed.mode,
@@ -2623,7 +2655,7 @@ export async function runCli(
           ? {}
           : { targetMonthKey: parsed.targetMonthKey }),
         goalType: parsed.goalType,
-        fundingAccountRef: parsed.fundingAccountRef,
+        funding: goalFunding,
         ...(parsed.priority === undefined ? {} : { priority: parsed.priority }),
       };
 
@@ -2662,9 +2694,7 @@ export async function runCli(
           ...(parsed.goalType === undefined
             ? {}
             : { goalType: parsed.goalType }),
-          ...(parsed.fundingAccountRef === undefined
-            ? {}
-            : { fundingAccountRef: parsed.fundingAccountRef }),
+          ...(goalFunding === undefined ? {} : { funding: goalFunding }),
           ...(parsed.priority === undefined
             ? {}
             : { priority: parsed.priority }),

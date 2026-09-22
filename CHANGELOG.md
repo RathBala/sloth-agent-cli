@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.0 - 2026-09-22
+
+- Fund Goals automatically from several personal accounts using repeated `--account-ref` flags.
+- Set fixed account shares with `--funding-input FILE`; target changes validate the matching split.
+- Report current allocations and progress separately from forecast allocations using the shared server contract.
+
 ## 0.28.0
 
 - Read budget-based Cashflow with `budget cashflow --scope personal|joint`, including account shortfalls, freshness and estimate limitations.

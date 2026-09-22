@@ -101,6 +101,30 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
+describe('Goal funding files', () => {
+  it('sends an explicit split using the shared contract and rejects mismatched totals', async () => {
+    const a = agentApiV1GoalPreviewResponse.goal.funding.accountRefs[0];
+    const funding = { mode: 'explicit', allocations: [{ accountRef: a, amount: 100 }] };
+    const file = writeAssignments(funding);
+    const io = createIo();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ...agentApiV1GoalPreviewResponse,
+      goal: { ...agentApiV1GoalPreviewResponse.goal, funding } }), { status: 200 }));
+    const code = await runCli(['goals', 'create', '--name', 'Robot', '--target-amount', '100', '--type', 'spend', '--funding-input', file], {
+      env: { SLOTH_AGENT_TOKEN: 'sloth_pat_test' }, fetch: fetchMock, ...io,
+    });
+    expect(code).toBe(0);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/goals/preview'), expect.objectContaining({
+      headers: expect.objectContaining({ 'X-Sloth-Goal-Funding-Version': '2' }),
+      body: JSON.stringify({ name: 'Robot', targetAmount: 100, goalType: 'spend', funding }),
+    }));
+    fetchMock.mockClear();
+    expect(await runCli(['goals', 'create', '--name', 'Robot', '--target-amount', '120', '--type', 'spend', '--funding-input', file], {
+      env: { SLOTH_AGENT_TOKEN: 'sloth_pat_test' }, fetch: fetchMock, ...createIo(),
+    })).not.toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('CLI execution', () => {
   it('previews notification rule writes locally without credentials or network', async () => {
     const io = createIo();
@@ -448,7 +472,7 @@ describe('CLI execution', () => {
         'Without --apply',
         'write-enabled token',
         'Allow changes',
-        'assigned account remains private',
+        'accounts and splits remain private',
       ]],
       [['goals', 'mark-spent', '--help'], [
         '--goal-id ID',
@@ -1215,7 +1239,7 @@ describe('CLI execution', () => {
         targetAmount: 12_000,
         targetMonthKey: '2027-06',
         goalType: 'spend',
-          fundingAccountRef: accountRef,
+          funding: { mode: 'automatic', accountRefs: [accountRef] },
           priority: 2,
         }),
       }),
@@ -1242,7 +1266,7 @@ describe('CLI execution', () => {
           targetAmount: 12_000,
           targetMonthKey: '2027-06',
           goalType: 'spend',
-          fundingAccountRef: accountRef,
+          funding: { mode: 'automatic', accountRefs: [accountRef] },
           priority: 2,
         }),
       }),
@@ -1308,7 +1332,7 @@ describe('CLI execution', () => {
         targetAmount: 15_000,
         targetMonthKey: '2027-12',
         goalType: 'spend',
-        fundingAccountRef: accountRef,
+        funding: { mode: 'automatic', accountRefs: [accountRef] },
       },
     });
 
@@ -1330,7 +1354,7 @@ describe('CLI execution', () => {
           targetAmount: 15_000,
           targetMonthKey: '2027-12',
           goalType: 'spend',
-          fundingAccountRef: accountRef,
+          funding: { mode: 'automatic', accountRefs: [accountRef] },
         }),
       }),
     );

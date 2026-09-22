@@ -435,7 +435,7 @@ published npm release.
 Set up a temporary budget from the dropdown below **Personal / Joint** on the
 **Budget** page, using an
 existing Spend Goal or a new one. Its name and total come from that Goal. The
-Goal's funding account stays separate from the spending breakdown.
+Goal's funding accounts stay separate from the spending breakdown.
 
 ```sh
 sloth-agent goal-budgets
@@ -797,9 +797,48 @@ sloth-agent goals create \
 
 Without `--apply`, Goal creation authenticates and asks Sloth to calculate the
 Goal without writing it. Preview and apply use the same active-scenario planner
-and return `forecastMonthKey`, the effective priority, the funding account, and
+and return `forecastMonthKey`, the effective priority, the funding configuration, current allocations, forecast allocations, and
 `forecastBasis`. A null forecast includes the final projected month. The CLI
 does not compare the desired and forecast dates or return affordability advice.
+
+Automatic funding is the default. Repeat `--account-ref` to select several personal
+eligible accounts in the Goal currency. Sloth allocates alphabetically by displayed
+institution/account label, then account reference for ties, regardless of flag order.
+Renaming an account can change allocation. Current `savedAmount`, `progressPercent`
+and `allocations` use cached balances; `forecastAllocations` describes projected funding.
+`hasMissingAccounts` identifies incomplete data rather than treating it as a zero balance.
+
+```bash
+sloth-agent goals create --name "Wedding" --target-amount 6000 --type spend \
+  --account-ref PASTE_SAVINGS_REF_HERE --account-ref PASTE_ISA_REF_HERE
+```
+
+For fixed shares, save this JSON as `funding.json`, replacing each placeholder with
+an exact reference from `sloth-agent accounts`:
+
+```json
+{
+  "mode": "explicit",
+  "allocations": [
+    { "accountRef": "PASTE_SAVINGS_REF_HERE", "amount": 4000 },
+    { "accountRef": "PASTE_ISA_REF_HERE", "amount": 2000 }
+  ]
+}
+```
+
+```bash
+sloth-agent goals create --name "Wedding" --target-amount 6000 --type spend --funding-input funding.json
+sloth-agent goals create --name "Wedding" --target-amount 6000 --type spend --funding-input funding.json --apply
+sloth-agent goals update --goal-id GOAL_ID --target-amount 6000 --funding-input funding.json --apply
+```
+
+`--funding-input` and `--account-ref` are mutually exclusive. Positive shares must
+sum exactly to the target. To change an explicit Goal's target, include the matching
+split in the same update; invalid changes save neither value. Update previews check
+the supplied file locally; the server validates it against the complete saved Goal on apply.
+With £1,000 savings and £10,000 ISA, a £4,000/£2,000 split counts £3,000 today;
+a lower-priority Goal can use the remaining £8,000 ISA. Shortfalls never spill into
+another explicit share. Funding choices do not transfer money or use partner accounts.
 
 Every goal is either Keep or Spend. A Keep goal continues reserving its funded
 money. A Spend goal reserves money until you explicitly mark it spent. Goal

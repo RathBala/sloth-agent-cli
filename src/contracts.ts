@@ -1,4 +1,5 @@
 import { budgetCashflowResponseSchema } from './generated/agent-v1/budgetCashflow.js';
+import { agentGoalSchema, agentForecastBasisSchema, agentGoalsResponseSchema, agentGoalPreviewResponseSchema, agentGoalMutationResponseSchema } from './generated/agent-v1/goals.js';
 import { goalBudgetRefSchema, goalBudgetsResponseSchema } from './generated/agent-v1/goalBudgets.js';
 import { agentTransactionsWireResponseSchema } from './generated/agent-v1/transactions.js';
 import { transactionRefreshStatusSchema } from './generated/agent-v1/transactionRefresh.js';
@@ -8,7 +9,6 @@ import {
 } from './errors.js';
 import { isAccountRef } from './account-ref.js';
 import { CATEGORY_TYPES, ICON_KEYS } from './category-metadata.js';
-import { isGoalType } from './goal-metadata.js';
 
 export interface AgentCategorySplit {
   categoryId: string;
@@ -866,51 +866,7 @@ function isMonthKeyOrNull(value: unknown): boolean {
   );
 }
 
-function isPlannedGoalFields(value: JsonObject): boolean {
-  return (
-    typeof value.name === 'string'
-    && value.name.trim().length > 0
-    && typeof value.targetAmount === 'number'
-    && Number.isFinite(value.targetAmount)
-    && value.targetAmount > 0
-    && isMonthKeyOrNull(value.targetMonthKey)
-    && isMonthKeyOrNull(value.forecastMonthKey)
-    && isGoalType(value.goalType)
-    && Number.isSafeInteger(value.effectivePriority)
-    && Number(value.effectivePriority) > 0
-    && isAccountRef(value.fundingAccountRef)
-    && typeof value.fundingAccountLabel === 'string'
-    && value.fundingAccountLabel.trim().length > 0
-  );
-}
-
-function isGoal(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, [
-      'id',
-      'name',
-      'targetAmount',
-      'targetMonthKey',
-      'forecastMonthKey',
-      'goalType',
-      'spentAt',
-      'sharedWithPartner',
-      'effectivePriority',
-      'fundingAccountRef',
-      'fundingAccountLabel',
-    ])
-    && typeof value.id === 'string'
-    && value.id.trim().length > 0
-    && isPlannedGoalFields(value)
-    && (
-      value.goalType === 'spend'
-        ? value.spentAt === null || isIsoDateTime(value.spentAt)
-        : value.spentAt === null
-    )
-    && typeof value.sharedWithPartner === 'boolean'
-  );
-}
+function isGoal(value: unknown): boolean { return agentGoalSchema.safeParse(value).success; }
 
 function isCurrency(value: unknown): boolean {
   return typeof value === 'string' && /^[A-Z]{3}$/.test(value);
@@ -1344,63 +1300,10 @@ function isPortfolioResponse(value: unknown): boolean {
     && isIsoDate(refresh.utcDate);
 }
 
-function isForecastBasis(value: unknown): boolean {
-  return isObject(value)
-    && hasOnlyFields(value, [
-      'calculatedAt',
-      'activeScenarioRevision',
-      'projectionThroughMonthKey',
-    ])
-    && isIsoDateTime(value.calculatedAt)
-    && Number.isSafeInteger(value.activeScenarioRevision)
-    && Number(value.activeScenarioRevision) >= 0
-    && isMonthKeyOrNull(value.projectionThroughMonthKey) === true
-    && value.projectionThroughMonthKey !== null;
-}
-
-function isGoalPreview(value: unknown): boolean {
-  return isObject(value)
-    && hasOnlyFields(value, [
-      'name',
-      'targetAmount',
-      'targetMonthKey',
-      'forecastMonthKey',
-      'goalType',
-      'effectivePriority',
-      'fundingAccountRef',
-      'fundingAccountLabel',
-    ])
-    && isPlannedGoalFields(value);
-}
-
-function isGoalsResponse(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, ['currency', 'forecastBasis', 'goals'])
-    && isCurrency(value.currency)
-    && isForecastBasis(value.forecastBasis)
-    && Array.isArray(value.goals)
-    && value.goals.every(isGoal)
-  );
-}
-
-function isGoalMutationResponse(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, ['currency', 'forecastBasis', 'goal'])
-    && isCurrency(value.currency)
-    && isForecastBasis(value.forecastBasis)
-    && isGoal(value.goal)
-  );
-}
-
-function isGoalPreviewResponse(value: unknown): boolean {
-  return isObject(value)
-    && hasOnlyFields(value, ['currency', 'forecastBasis', 'goal'])
-    && isCurrency(value.currency)
-    && isForecastBasis(value.forecastBasis)
-    && isGoalPreview(value.goal);
-}
+function isForecastBasis(value: unknown): boolean { return agentForecastBasisSchema.safeParse(value).success; }
+function isGoalsResponse(value: unknown): boolean { return agentGoalsResponseSchema.safeParse(value).success; }
+function isGoalMutationResponse(value: unknown): boolean { return agentGoalMutationResponseSchema.safeParse(value).success; }
+function isGoalPreviewResponse(value: unknown): boolean { return agentGoalPreviewResponseSchema.safeParse(value).success; }
 
 function isGoalDeleteResponse(value: unknown): boolean {
   return (

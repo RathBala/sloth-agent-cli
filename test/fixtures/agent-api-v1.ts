@@ -1,3 +1,5 @@
+import { agentApiV1Goal, agentApiV1ForecastBasis, agentApiV1GoalsResponse, agentApiV1GoalMutationResponse, agentApiV1GoalPreviewResponse } from '../../src/generated/agent-v1/goalFixtures.js';
+export { agentApiV1Goal, agentApiV1ForecastBasis, agentApiV1GoalsResponse, agentApiV1GoalMutationResponse, agentApiV1GoalPreviewResponse };
 export const agentApiV1CategoriesResponse = {
   categories: [{ id: 'groceries', name: 'Groceries', source: 'default' }],
   personalLineItemsByCategoryId: {
@@ -187,53 +189,6 @@ export const agentApiV1ExplanationResponse = {
   message: 'Share this partner clarification link',
   expiresAt: '2026-07-21T10:00:00.000Z',
   status: 'open',
-} as const;
-
-export const agentApiV1Goal = {
-  id: 'goal-1',
-  name: 'Emergency fund',
-  targetAmount: 12_000,
-  targetMonthKey: '2027-06',
-  forecastMonthKey: '2027-08',
-  goalType: 'keep',
-  spentAt: null,
-  sharedWithPartner: false,
-  effectivePriority: 1,
-  fundingAccountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
-  fundingAccountLabel: 'Monzo · Everyday account',
-} as const;
-
-export const agentApiV1ForecastBasis = {
-  calculatedAt: '2026-08-21T10:00:00.000Z',
-  activeScenarioRevision: 7,
-  projectionThroughMonthKey: '2126-07',
-} as const;
-
-export const agentApiV1GoalsResponse = {
-  currency: 'GBP',
-  forecastBasis: agentApiV1ForecastBasis,
-  goals: [agentApiV1Goal],
-} as const;
-
-export const agentApiV1GoalMutationResponse = {
-  currency: 'GBP',
-  forecastBasis: agentApiV1ForecastBasis,
-  goal: agentApiV1Goal,
-} as const;
-
-export const agentApiV1GoalPreviewResponse = {
-  currency: 'GBP',
-  forecastBasis: agentApiV1ForecastBasis,
-  goal: {
-    name: 'Emergency fund',
-    targetAmount: 12_000,
-    targetMonthKey: '2027-06',
-    forecastMonthKey: '2027-08',
-    goalType: 'spend',
-    effectivePriority: 2,
-    fundingAccountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
-    fundingAccountLabel: 'Monzo · Everyday account',
-  },
 } as const;
 
 export const agentApiV1GoalDeleteResponse = {

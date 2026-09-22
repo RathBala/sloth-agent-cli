@@ -5,6 +5,20 @@ import {
   resolveBaseUrl,
 } from '../src/args.js';
 
+describe('multi-account Goal inputs', () => {
+  const a = 'sloth_account_v1_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  const b = 'sloth_account_v1_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+  it('accepts repeated accounts or a funding file and rejects mixing or duplicates', () => {
+    expect(parseArgs(['goals', 'create', '--name', 'Wedding', '--target-amount', '6000', '--type', 'spend', '--account-ref', b, '--account-ref', a]))
+      .toMatchObject({ accountRefs: [b, a] });
+    expect(parseArgs(['goals', 'update', '--goal-id', 'wedding', '--target-amount', '7000', '--funding-input', 'split.json']))
+      .toMatchObject({ fundingInput: 'split.json', targetAmount: 7000 });
+    expect(() => parseArgs(['goals', 'update', '--goal-id', 'wedding', '--funding-input', 'split.json', '--account-ref', a]))
+      .toThrow(/mutually exclusive/);
+    expect(() => parseArgs(['goals', 'update', '--goal-id', 'wedding', '--account-ref', a, '--account-ref', a])).toThrow(/once/);
+  });
+});
+
 describe('CLI arguments', () => {
   it('supports help and version without configuration', () => {
     expect(parseArgs(['--help'])).toEqual({ command: 'help' });
@@ -431,7 +445,7 @@ describe('CLI arguments', () => {
       targetAmount: 12_000.5,
       targetMonthKey: '2027-06',
       goalType: 'keep',
-      fundingAccountRef: accountRef,
+      accountRefs: [accountRef],
       priority: 2,
       apply: false,
     });
@@ -449,7 +463,7 @@ describe('CLI arguments', () => {
       name: 'Emergency fund',
       targetAmount: 12_000,
       goalType: 'spend',
-      fundingAccountRef: accountRef,
+      accountRefs: [accountRef],
       apply: true,
     });
 
@@ -480,7 +494,7 @@ describe('CLI arguments', () => {
       targetAmount: 15_000.25,
       targetMonthKey: '2027-12',
       goalType: 'spend',
-      fundingAccountRef: accountRef,
+      accountRefs: [accountRef],
       apply: true,
     });
 
