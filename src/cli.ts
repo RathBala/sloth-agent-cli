@@ -2459,9 +2459,7 @@ export async function runCli(
     }
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
-    const headers = { ...requestHeaders(token),
-      ...((parsed.command.startsWith('goals-') || parsed.command.startsWith('scenarios-')) ? { 'X-Sloth-Goal-Funding-Version': '2' } : {}),
-    };
+    const headers = requestHeaders(token);
 
     if (parsed.command === 'budget-fill' || parsed.command === 'budget-fund-ahead') {
       const payload = { scope: parsed.scope, mode: parsed.mode,

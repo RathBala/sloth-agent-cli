@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.1 - 2026-09-22
+
+- Use the canonical multi-account Goal API without temporary release negotiation.
+
 ## 0.29.0 - 2026-09-22
 
 - Fund Goals automatically from several personal accounts using repeated `--account-ref` flags.

@@ -114,7 +114,7 @@ describe('Goal funding files', () => {
     });
     expect(code).toBe(0);
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/goals/preview'), expect.objectContaining({
-      headers: expect.objectContaining({ 'X-Sloth-Goal-Funding-Version': '2' }),
+      headers: { Accept: 'application/json', Authorization: 'Bearer sloth_pat_test', 'User-Agent': expect.stringMatching(/^sloth-agent\//), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Robot', targetAmount: 100, goalType: 'spend', funding }),
     }));
     fetchMock.mockClear();
