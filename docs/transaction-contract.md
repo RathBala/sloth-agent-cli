@@ -144,3 +144,13 @@ server's release compatibility check usable before the refactored CLI is publish
 The drift check normalizes CRLF to LF before comparing source text, so platform
 checkout line endings do not count as schema changes. Both line-ending forms are
 covered by the regression test; changed fields and fixtures still fail the check.
+
+## Budget Cashflow contract
+
+`budgetCashflow.ts` and `budgetCashflowFixtures.ts` follow the same ownership and
+synchronization path. The browser and installed CLI use the same synthetic
+account-outcome fixture. The paired package check calls the real server-owned
+calculator, validates its response and compares the installed command's JSON.
+Only the server calculates planned spending and dates; the CLI validates and
+prints its response. `budget cashflow --scope personal|joint` is read-only and
+adds no CLI telemetry or credential storage.

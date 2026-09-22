@@ -514,6 +514,30 @@ trustworthy period plan exists. It is `null` when it does not; activity still
 returns. The response includes only the period budget currency and silently
 ignores rows in other currencies. This command is read-only.
 
+Estimate the backing account balance through the current budget end date:
+
+```bash
+sloth-agent budget cashflow --scope personal
+sloth-agent budget cashflow --scope joint
+```
+
+Scope is required. This cached, read-only command requires `agent:read`; it never
+refreshes banks or saves preferences. Choose one backing account per budget in
+Settings first. An unavailable result gives a reason instead of a zero balance.
+Available JSON includes `account`, `period`, `startingBalancePence`,
+`remainingSpendingPence`, `closingBalancePence`, `firstNegativeDate`,
+`minimumBalancePence`, `items`, and `dailyBalances`. Missing or old update times
+are flagged stale. If both budgets use the same account, their spending is
+combined once; an earlier end for the other budget is flagged as incomplete.
+
+The calculation subtracts booked spending from planned amounts. For example,
+£400 planned, £100 assigned and £50 spent leaves £350 to forecast. Moving assigned
+budget money does not move bank cash or change this forecast. Dates use spending
+history from at least two of the last three periods; otherwise the amount falls
+tomorrow, or today when the period ends today. Future income and transfers are
+excluded. Pending payments are not reconciled and may be counted twice against
+the cached balance and remaining plan. There is no `--period` or `--apply` option.
+
 Update selected line-item amounts by creating `budget.json`:
 
 ```json

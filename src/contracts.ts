@@ -1,3 +1,4 @@
+import { budgetCashflowResponseSchema } from './generated/agent-v1/budgetCashflow.js';
 import { goalBudgetRefSchema, goalBudgetsResponseSchema } from './generated/agent-v1/goalBudgets.js';
 import { agentTransactionsWireResponseSchema } from './generated/agent-v1/transactions.js';
 import { transactionRefreshStatusSchema } from './generated/agent-v1/transactionRefresh.js';
@@ -94,6 +95,7 @@ type ApiCommand =
   | 'portfolio'
   | 'budget'
   | 'budget-status'
+  | 'budget-cashflow'
   | 'budget-move'
   | 'budget-update'
   | 'categories'
@@ -1591,6 +1593,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
       ? isPortfolioResponse(value)
     : command === 'budget' || command === 'budget-update'
       ? isBudgetResponse(value)
+    : command === 'budget-cashflow'
+      ? budgetCashflowResponseSchema.safeParse(value).success
     : command === 'budget-status'
       ? isBudgetActivityStatusResponse(value)
     : command === 'budget-move'

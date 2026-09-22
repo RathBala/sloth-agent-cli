@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.28.0
+
+- Read budget-based Cashflow with `budget cashflow --scope personal|joint`, including account shortfalls, freshness and estimate limitations.
+- Read temporary budgets with `goal-budgets` and filter their lifetime spending with `transactions --goal-budget-ref`.
+- Assign personal or joint spending to a temporary budget using the existing assignment command.
+
 ## 0.27.1
 
 - Finish the email-only Rules response contract and remove the temporary rollout reader.
@@ -20,11 +26,6 @@
 - Require the reviewed preview fingerprint for funding writes and reject stale previews.
 - Share validated funding contracts with the server and test complete funding commands in the packed CLI.
 
-
-## Unreleased
-
-- Read temporary budgets with `goal-budgets` and filter their lifetime spending with `transactions --goal-budget-ref`.
-- Assign personal or joint spending to a temporary budget using the existing assignment command.
 
 ## 0.24.0 - 2026-09-06
 

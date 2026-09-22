@@ -81,6 +81,7 @@ export function usageText(): string {
     '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
+    '  sloth-agent budget cashflow --scope personal|joint [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
     '  sloth-agent budget fill --scope personal|joint --mode auto|manual [--input FILE] [--apply --expected-preview HASH]',
@@ -558,6 +559,7 @@ export function budgetHelpText(): string {
     'Commands:',
     '  sloth-agent budget         Read one budget period.',
     '  sloth-agent budget status  Read assigned, spent, and available money.',
+    '  sloth-agent budget cashflow  Estimate account shortfalls from remaining planned spending.',
     '  sloth-agent budget update  Preview or update planned line-item amounts.',
     '  sloth-agent budget move    Preview or move assigned money.',
     '  sloth-agent budget fill    Preview or fill category pots from To Assign.',
@@ -584,6 +586,41 @@ export function budgetHelpText(): string {
     '  funding contains current stored to-assign and reserve amounts when that period exists.',
     '  categories[].lineItems contains line-item IDs, names, and planned amounts in pence.',
     '  Categories also include plannedPence and assignedPence.',
+  ].join('\n');
+}
+
+export function budgetCashflowHelpText(): string {
+  return [
+    'Sloth Agent CLI — budget cashflow',
+    '',
+    'Estimate whether a budget backing account will fall below zero before the current period ends.',
+    '',
+    'Usage:',
+    '  sloth-agent budget cashflow --scope personal|joint [--base-url URL]',
+    '',
+    'Options:',
+    '  --scope personal|joint  Required. Use the personal or joint current budget.',
+    '  --base-url URL          Optional. Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access and calculation:',
+    '  This command is read-only and requires agent:read. It never refreshes banks or changes budgets.',
+    '  Uses the cached balance and remaining planned spending, not assigned amounts.',
+    '  Each budget needs one backing account. Budgets using the same account are combined once.',
+    '  Past spending only reduces the remaining plan. History estimates dates; without useful history, spending falls tomorrow (today on the final day).',
+    '  Future income and transfers are excluded; pending payments may be counted twice.',
+    '  No --period or --apply option. Reallocating assigned money does not change this estimate or move bank money.',
+    '',
+    'Output:',
+    '  JSON with status available or unavailable, asOf, scope and limitations.',
+    '  Available results include the exact period, account, balance freshness, warnings, items and dailyBalances.',
+    '  Amounts are integer pence: startingBalancePence, remainingSpendingPence, minimumBalancePence and closingBalancePence.',
+    '  firstNegativeDate is null when no shortfall is estimated; unavailable results give a reason instead of a zero balance.',
+    '',
+    'Examples:',
+    '  sloth-agent budget cashflow --scope personal',
+    '  sloth-agent budget cashflow --scope joint',
   ].join('\n');
 }
 
@@ -1637,6 +1674,7 @@ export function commandHelpText(topic: HelpTopic): string {
     portfolio: portfolioHelpText,
     budget: budgetHelpText,
     'budget-status': budgetStatusHelpText,
+    'budget-cashflow': budgetCashflowHelpText,
     'budget-move': budgetMoveHelpText,
     'budget-fill': () => budgetFundingHelpText(),
     'budget-fund-ahead': () => budgetFundingHelpText(true),
@@ -2826,13 +2864,13 @@ export async function runCli(
       return 0;
     }
 
-    if (parsed.command === 'budget' || parsed.command === 'budget-status') {
+    if (parsed.command === 'budget' || parsed.command === 'budget-status' || parsed.command === 'budget-cashflow') {
       const query = new URLSearchParams({ scope: parsed.scope });
-      if (parsed.periodKey !== undefined) {
+      if ('periodKey' in parsed && parsed.periodKey !== undefined) {
         query.set('periodKey', parsed.periodKey);
       }
       const response = await fetchImplementation(
-        `${baseUrl}/api/agent/v1/${parsed.command === 'budget' ? 'budgets' : 'budget-status'}?${query.toString()}`,
+        `${baseUrl}/api/agent/v1/${parsed.command === 'budget' ? 'budgets' : parsed.command}?${query.toString()}`,
         {
           method: 'GET',
           headers: parsed.command === 'budget-status'

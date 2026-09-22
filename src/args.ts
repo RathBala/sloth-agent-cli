@@ -51,6 +51,7 @@ export type HelpTopic =
   | 'budget-fill'
   | 'budget-fund-ahead'
   | 'budget-status'
+  | 'budget-cashflow'
   | 'budget-move'
   | 'budget-update'
   | 'categories'
@@ -90,6 +91,7 @@ export type HelpTopic =
   | 'ask-partner';
 
 export type ParsedCommand =
+  | { command: 'budget-cashflow'; baseUrl?: string; scope: 'personal' | 'joint' }
   | { command: 'budget-fill'; baseUrl?: string; scope: 'personal' | 'joint'; mode: 'auto' | 'manual' | 'fund-ahead'; periodKey?: string; input?: string; expectedPreview?: string; apply: boolean }
   | { command: 'budget-fund-ahead'; baseUrl?: string; scope: 'personal' | 'joint'; mode: 'auto' | 'manual' | 'fund-ahead'; periodKey?: string; input?: string; expectedPreview?: string; apply: boolean }
   | { command: 'help'; topic?: HelpTopic }
@@ -922,6 +924,14 @@ function parsePortfolio(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
+  if (args[0] === 'cashflow') {
+    args.shift();
+    const { values, apply } = parseNamedOptions(args, 'budget cashflow', new Set(['--scope']));
+    if (apply) throw new UsageError('budget cashflow is read-only; --apply is not accepted');
+    const scope = requiredOption(values, '--scope', 'budget cashflow');
+    if (scope !== 'personal' && scope !== 'joint') throw new UsageError('--scope must be personal or joint');
+    return withBaseUrl({ command: 'budget-cashflow', scope }, baseUrl);
+  }
   if (args[0] === 'fill' || args[0] === 'fund-ahead') {
     const name = args.shift()!;
     const { values, apply } = parseNamedOptions(args, `budget ${name}`, new Set([
@@ -1748,6 +1758,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'fill') return 'budget-fill';
     if (subcommand === 'fund-ahead') return 'budget-fund-ahead';
     if (subcommand === 'status') return 'budget-status';
+    if (subcommand === 'cashflow') return 'budget-cashflow';
     if (subcommand === 'update') return 'budget-update';
     if (subcommand === 'move') return 'budget-move';
     return 'budget';

@@ -18,7 +18,7 @@ if (sourceIndex < 0 || !args[sourceIndex + 1]
 const sourceRoot = path.resolve(args[sourceIndex + 1]);
 const source = path.join(sourceRoot, 'server/src/contracts/public/agent-v1');
 const destination = path.join(root, 'src/generated/agent-v1');
-const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts', 'budgetFunding.ts', 'goalBudgets.ts'];
+const files = ['transactions.ts', 'transactionRefresh.ts', 'transactionFixtures.ts', 'budgetFunding.ts', 'goalBudgets.ts', 'budgetCashflow.ts', 'budgetCashflowFixtures.ts'];
 const header = '// Generated from sloth-budget/server/src/contracts/public/agent-v1. Do not edit.\n';
 const zodVersion = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'server/package.json'), 'utf8')).dependencies['zod-v4'];
 const localVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).dependencies['zod-v4'];
