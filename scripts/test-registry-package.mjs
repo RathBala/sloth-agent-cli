@@ -55,6 +55,7 @@ try {
         PATH: cleanPath,
         npm_config_cache: path.join(temporaryDirectory, 'npm-cache'),
         npm_config_prefer_online: 'true',
+        npm_config_full_metadata: 'true',
       },
     },
   ).trim();

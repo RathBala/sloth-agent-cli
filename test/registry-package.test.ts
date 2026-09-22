@@ -30,6 +30,7 @@ describe('published package verification', () => {
       fs.writeFileSync(process.env.CAPTURE_PATH, JSON.stringify({
         argv: process.argv.slice(2),
         cwd: process.cwd(),
+        fullMetadata: process.env.npm_config_full_metadata,
         entries: fs.readdirSync(process.cwd()),
         pathEntries: process.env.PATH.split(process.platform === 'win32' ? ';' : ':'),
       }));
@@ -93,6 +94,7 @@ describe('published package verification', () => {
       ],
       cwd: expect.not.stringContaining(projectRoot),
       entries: [],
+      fullMetadata: 'true',
     });
     expect(capture.pathEntries).not.toEqual(
       expect.arrayContaining([expect.stringContaining(projectRoot)]),

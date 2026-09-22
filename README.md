@@ -1075,6 +1075,8 @@ After npm accepts the package, the workflow verifies the exact published
 version with `npm run test:registry -- VERSION`. That script runs `npm exec`
 from a fresh temporary directory with an isolated npm cache, so a checkout's
 older local `sloth-agent` executable cannot satisfy the registry smoke test.
+It requests full registry metadata because the abbreviated install index can lag
+behind an accepted publication.
 The temporary directory is removed after the check.
 
 ### Fill pots and fund ahead
