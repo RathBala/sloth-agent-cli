@@ -10,6 +10,7 @@ import {
   parseArgs,
   resolveBaseUrl,
 } from './args.js';
+import { budgetResetResponseSchema } from './generated/agent-v1/budgetReset.js';
 import { budgetFundingOverridesSchema, budgetFundingResponseSchema } from './generated/agent-v1/budgetFunding.js';
 import { ICON_KEYS } from './category-metadata.js';
 import {
@@ -85,6 +86,7 @@ export function usageText(): string {
     '  sloth-agent budget cashflow --scope personal|joint [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
+    '  sloth-agent budget reset to-assign|assigned --scope personal|joint [--period YYYY-MM] [--apply --expected-preview HASH]',
     '  sloth-agent budget fill --scope personal|joint --mode auto|manual [--input FILE] [--apply --expected-preview HASH]',
     '  sloth-agent budget fund-ahead --scope personal|joint [--apply --expected-preview HASH]',
     '  sloth-agent budget move --scope personal|joint [--period YYYY-MM]',
@@ -563,6 +565,7 @@ export function budgetHelpText(): string {
     '  sloth-agent budget cashflow  Estimate account shortfalls from remaining planned spending.',
     '  sloth-agent budget update  Preview or update planned line-item amounts.',
     '  sloth-agent budget move    Preview or move assigned money.',
+    '  sloth-agent budget reset   Preview or reset To Assign or assigned category funds.',
     '  sloth-agent budget fill    Preview or fill category pots from To Assign.',
     '  sloth-agent budget fund-ahead  Preview or reserve all To Assign for next period.',
     '',
@@ -692,6 +695,46 @@ export function budgetUpdateHelpText(): string {
     'Output:',
     '  Preview mode returns dryRun, endpoint, method, and the validated payload.',
     '  Apply mode returns the complete persisted budget response.',
+  ].join('\n');
+}
+
+export function budgetResetHelpText(): string {
+  return [
+    'Sloth Agent CLI: budget reset', '',
+    'Reset To Assign or assigned category funds for the current budget period.', '',
+    'Commands:',
+    '  sloth-agent budget reset to-assign  Set To Assign to zero; keep category funds.',
+    '  sloth-agent budget reset assigned   Set all assigned category funds to zero; keep To Assign.', '',
+    'Usage:',
+    '  sloth-agent budget reset to-assign|assigned --scope personal|joint [--period YYYY-MM] [--apply --expected-preview HASH] [--base-url URL]', '',
+    'Inputs:',
+    '  to-assign|assigned      Required. Choose which balance to reset.',
+    '  --scope personal|joint  Required. Budget ownership scope.',
+    '  --period YYYY-MM        Optional. Defaults to the current configured Sloth period.',
+    '                         Historical and future periods cannot be reset.',
+    '  --apply                 Optional. Save the reset atomically.',
+    '  --expected-preview HASH Required with --apply. Copy previewFingerprint from a fresh preview.',
+    '  --base-url URL          Optional API origin override.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES, '',
+    'Preview and writes:',
+    '  Without --apply, contacts Sloth Money for a read-only preview (agent:read required).',
+    '  With --apply, requires agent:write and the same target, scope, and period as the preview.',
+    '  Changed balances reject the write. Preview again before retrying.',
+    '  No automatic retry after conflict or uncertain response. Check the budget first.',
+    '  An already-reset balance writes nothing (applied false, noOp true).',
+    '  Assigned reset also clears category carryover and previous-period overspending.',
+    '  It does not return assigned funds to To Assign or change transaction categories.',
+    '  Both resets preserve plans, snapshots, bank balances, and next-period or held income reserves.',
+    '  No bank refresh or transfers occur. Open a missing current budget in Sloth Money first.', '',
+    'Output:',
+    '  JSON: scope, target, periodKey, currency, previewFingerprint, applied, noOp,',
+    '  toAssignBeforePence, toAssignAfterPence, and categories with IDs/names and assigned before/after.',
+    '  Amounts are whole-number pence; negative balances can also be reset.', '',
+    'Examples:',
+    '  sloth-agent budget reset to-assign --scope personal',
+    '  sloth-agent budget reset assigned --scope joint',
+    '  sloth-agent budget reset assigned --scope joint --apply --expected-preview <previewFingerprint>', '',
   ].join('\n');
 }
 
@@ -1687,6 +1730,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'budget-status': budgetStatusHelpText,
     'budget-cashflow': budgetCashflowHelpText,
     'budget-move': budgetMoveHelpText,
+    'budget-reset': budgetResetHelpText,
     'budget-fill': () => budgetFundingHelpText(),
     'budget-fund-ahead': () => budgetFundingHelpText(true),
     'budget-update': budgetUpdateHelpText,
@@ -2460,6 +2504,21 @@ export async function runCli(
     const credential = await resolveCredential(environment, baseUrl, getCredentialStore);
     token = credential.token;
     const headers = requestHeaders(token);
+
+    if (parsed.command === 'budget-reset') {
+      const payload = { scope: parsed.scope, target: parsed.target,
+        ...(parsed.periodKey ? { periodKey: parsed.periodKey } : {}),
+        ...(parsed.apply ? { expectedPreview: parsed.expectedPreview } : {}),
+      };
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1/budget-resets${parsed.apply ? '' : '/preview'}`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const checked = budgetResetResponseSchema.safeParse(await parseHttpResponse(response, token));
+      if (!checked.success) throw new Error('Sloth Money returned an invalid budget reset response');
+      writeJson(writeStdout, checked.data);
+      return 0;
+    }
 
     if (parsed.command === 'budget-fill' || parsed.command === 'budget-fund-ahead') {
       const payload = { scope: parsed.scope, mode: parsed.mode,

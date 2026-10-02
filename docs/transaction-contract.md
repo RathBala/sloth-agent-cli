@@ -154,3 +154,16 @@ calculator, validates its response and compares the installed command's JSON.
 Only the server calculates planned spending and dates; the CLI validates and
 prints its response. `budget cashflow --scope personal|joint` is read-only and
 adds no CLI telemetry or credential storage.
+
+## Budget reset contract
+
+`budgetReset.ts` is also owned by the server public-contract directory and copied
+by `contracts:sync`. Strict runtime schemas guard requests on the API and results
+on the CLI. Run the paired package test to exercise both resets through the
+installed executable against the real reset service over loopback HTTP, then
+reread the persisted synthetic state. No production credentials or writes occur.
+
+For local verification, use `npm run test:package -- --server-repo PATH` rather
+than passing raw `dist/bin.js` to the server's `--cli-bin` option. The package
+check installs an executable binary with the correct permissions. To inspect
+built source help directly, run `node dist/bin.js budget reset --help`.

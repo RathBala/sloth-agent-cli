@@ -48,6 +48,7 @@ export type HelpTopic =
   | 'investments'
   | 'portfolio'
   | 'budget'
+  | 'budget-reset'
   | 'budget-fill'
   | 'budget-fund-ahead'
   | 'budget-status'
@@ -92,6 +93,7 @@ export type HelpTopic =
 
 export type ParsedCommand =
   | { command: 'budget-cashflow'; baseUrl?: string; scope: 'personal' | 'joint' }
+  | { command: 'budget-reset'; baseUrl?: string; scope: 'personal' | 'joint'; target: 'to-assign' | 'assigned'; periodKey?: string; expectedPreview?: string; apply: boolean }
   | { command: 'budget-fill'; baseUrl?: string; scope: 'personal' | 'joint'; mode: 'auto' | 'manual' | 'fund-ahead'; periodKey?: string; input?: string; expectedPreview?: string; apply: boolean }
   | { command: 'budget-fund-ahead'; baseUrl?: string; scope: 'personal' | 'joint'; mode: 'auto' | 'manual' | 'fund-ahead'; periodKey?: string; input?: string; expectedPreview?: string; apply: boolean }
   | { command: 'help'; topic?: HelpTopic }
@@ -926,6 +928,22 @@ function parsePortfolio(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
+  if (args[0] === 'reset') {
+    args.shift();
+    const target = args.shift();
+    if (target !== 'to-assign' && target !== 'assigned') throw new UsageError('budget reset requires to-assign or assigned');
+    const { values, apply } = parseNamedOptions(args, 'budget reset', new Set(['--scope', '--period', '--expected-preview']));
+    const scope = requiredOption(values, '--scope', 'budget reset');
+    if (scope !== 'personal' && scope !== 'joint') throw new UsageError('--scope must be personal or joint');
+    const expectedPreview = values.get('--expected-preview');
+    if (apply && !expectedPreview) throw new UsageError('--apply requires --expected-preview from a fresh reset preview');
+    if (expectedPreview && (!apply || !/^[a-f0-9]{64}$/.test(expectedPreview))) throw new UsageError('--expected-preview requires --apply and a 64-character preview fingerprint');
+    const period = values.get('--period');
+    return withBaseUrl({ command: 'budget-reset', scope, target, apply,
+      ...(period ? { periodKey: parseGoalMonthKey(period, '--period') } : {}),
+      ...(expectedPreview ? { expectedPreview } : {}),
+    }, baseUrl);
+  }
   if (args[0] === 'cashflow') {
     args.shift();
     const { values, apply } = parseNamedOptions(args, 'budget cashflow', new Set(['--scope']));
@@ -1773,6 +1791,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     return 'line-items';
   }
   if (command === 'budget') {
+    if (subcommand === 'reset') return 'budget-reset';
     if (subcommand === 'fill') return 'budget-fill';
     if (subcommand === 'fund-ahead') return 'budget-fund-ahead';
     if (subcommand === 'status') return 'budget-status';

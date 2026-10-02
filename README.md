@@ -108,6 +108,7 @@ sloth-agent budget --help
 sloth-agent budget status --help
 sloth-agent budget update --help
 sloth-agent budget move --help
+sloth-agent budget reset --help
 sloth-agent categories --help
 sloth-agent categories create --help
 sloth-agent line-items --help
@@ -574,6 +575,33 @@ period and everything after it. Earlier and historical periods remain unchanged.
 
 Without `--apply`, the CLI validates the file locally and does not load a token
 or contact Sloth Money. Applying requires a write-enabled token.
+
+Reset current-period balances (CLI 0.30.0 or newer):
+
+```bash
+sloth-agent budget reset to-assign --scope personal
+sloth-agent budget reset assigned --scope joint
+# Copy previewFingerprint from the matching preview:
+sloth-agent budget reset assigned --scope joint --apply --expected-preview <previewFingerprint>
+```
+
+`to-assign` sets To Assign to zero and keeps assigned category funds. `assigned`
+sets all assigned category funds to zero and keeps To Assign. It also clears
+category carryover and previous-period overspending, using the same rule as the
+app's **Reset assigned funds** action. Hidden categories and negative balances
+are included. Neither action returns money to another pot or moves bank money.
+Plans, frozen snapshots, transaction categories, bank balances, next-period
+reserve, and held future income stay unchanged.
+
+Scope is required. `--period YYYY-MM` defaults to the current configured Sloth
+period; historical and future periods cannot be reset. Open a missing current
+budget in Sloth Money first. Preview contacts the API with `agent:read` and
+writes nothing. Apply needs `agent:write`, the same inputs, and the preview's
+fingerprint. If balances change, preview again. After an uncertain response,
+check the budget before retrying; the CLI never automatically retries a reset.
+An already-reset balance returns `noOp: true`, `applied: false`, and writes
+nothing. JSON shows To Assign and each stored category before and after, in
+whole-number pence, alongside IDs, names, scope, period, and currency.
 
 Move current assigned money between two categories, or use the reserved
 `to-assign` ID to move money to or from To Assign:

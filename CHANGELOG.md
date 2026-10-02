@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.30.0 - 2026-10-02
+
+- Add `budget reset to-assign` and `budget reset assigned` for personal and joint
+  current-period budgets. Read-only previews show the affected balances; writes
+  require the matching preview fingerprint and reject changed budget state.
+  Plans, snapshots, transaction categories, bank balances, and reserves stay intact.
+  Requires the paired Agent API deployment before use.
+
 ## 0.29.1 - 2026-09-22
 
 - Use the canonical multi-account Goal API without temporary release negotiation.
