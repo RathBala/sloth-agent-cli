@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.31.0 - 2026-10-04
+
+- Add read-only `budget history` for available target metadata, period dates
+  and paginated recorded before/after saves. Older history is not backfilled.
+  Requires the matching backend deployment.
 ## 0.30.0 - 2026-10-02
 
 - Add `budget reset to-assign` and `budget reset assigned` for personal and joint

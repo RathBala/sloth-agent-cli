@@ -1152,3 +1152,35 @@ assigned amounts before/after, proposed additions, shortfall, total assigned,
 and To Assign/reserve before/after. Fund-ahead returns no category allocations.
 The versioned funding schema is generated from `sloth-budget` with the existing
 `contracts:sync` command, alongside transaction schemas.
+
+## Budget save history
+
+`sloth-agent budget history --scope personal --period 2026-09` reads available
+budget metadata and recorded saves. Use `--scope joint` for a linked joint
+budget. Omit `--period` for the current Sloth period. `--limit` accepts 1–100
+(default 20); pass `nextCursor` as `--cursor` with the same scope and period for
+the next page. This requires `agent:read` and never changes financial data.
+
+JSON includes stored/settings-derived period dates (future dates are
+provisional), create/capture/update metadata, and newest-first entries with
+save time, actor (`self`, `other`, `unknown`), source, and before/after changes
+in integer pence. `requestedPeriodKey` identifies the originally selected
+period when the save overwrites later explicit plans. Inherited periods do not
+receive duplicate history. Missing old metadata is null/unknown;
+`historyCoverage=recorded_saves_only` means past saves were not reconstructed.
+Line-item creation/renaming is included. Assigned-money changes keep their
+existing movement records.
+
+Available in CLI 0.31.0 or newer with the matching Sloth Budget API deployment.
+
+Local checks, without sign-in or production writes:
+
+```sh
+npm test -- test/budget-history.test.ts
+npm run build
+node dist/bin.js budget history --help
+```
+
+For a clean installed-package and paired API check, run
+`npm run test:package -- --server-repo /absolute/path/to/sloth-budget`.
+The paired check uses synthetic data over loopback HTTP; no real PAT is needed.

@@ -167,3 +167,7 @@ For local verification, use `npm run test:package -- --server-repo PATH` rather
 than passing raw `dist/bin.js` to the server's `--cli-bin` option. The package
 check installs an executable binary with the correct permissions. To inspect
 built source help directly, run `node dist/bin.js budget reset --help`.
+
+Budget history also shares `budgetHistory.ts` and synthetic
+`budgetHistoryFixtures.ts` from the same canonical server directory. The
+packed-package gate validates `budget history` and its nested help.

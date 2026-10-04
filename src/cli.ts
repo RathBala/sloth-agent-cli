@@ -83,6 +83,7 @@ export function usageText(): string {
     '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
+    '  sloth-agent budget history  Read budget metadata and recorded save history.',
     '  sloth-agent budget cashflow --scope personal|joint [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
@@ -562,6 +563,7 @@ export function budgetHelpText(): string {
     'Commands:',
     '  sloth-agent budget         Read one budget period.',
     '  sloth-agent budget status  Read assigned, spent, and available money.',
+    '  sloth-agent budget history  Read budget metadata and recorded save history.',
     '  sloth-agent budget cashflow  Estimate account shortfalls from remaining planned spending.',
     '  sloth-agent budget update  Preview or update planned line-item amounts.',
     '  sloth-agent budget move    Preview or move assigned money.',
@@ -593,6 +595,40 @@ export function budgetHelpText(): string {
   ].join('\n');
 }
 
+export function budgetHistoryHelpText(): string {
+  return [
+    'Sloth Agent CLI — budget history',
+    '',
+    'Read when a budget was saved, who saved it, and what changed.',
+    '',
+    'Usage:',
+    '  sloth-agent budget history --scope personal|joint [--period YYYY-MM] [--limit N] [--cursor CURSOR] [--base-url URL]',
+    '',
+    'Options:',
+    '  --scope personal|joint  Required. Budget ownership scope.',
+    '  --period YYYY-MM        Optional. Month containing the period start; defaults to the current Sloth period.',
+    '  --limit N               Optional. Entries per page, 1–100; defaults to 20.',
+    '  --cursor CURSOR         Optional. nextCursor from the previous page, for the same scope and period.',
+    '  --base-url URL          Optional. Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access:',
+    '  This command is read-only and requires agent:read. It does not accept --apply.',
+    '',
+    'Output:',
+    '  JSON with period dates, available metadata, newest saves first, and nextCursor (null at the end).',
+    '  Future dates are provisional. dateRangeSource distinguishes stored dates from current settings.',
+    '  entries show savedAt, actor (self/other/unknown), source (ui/agent/system/unknown), and before/after changes.',
+    '  Money changes use integer pence. Paths identify categories and line items by their stable IDs.',
+    '  requestedPeriodKey links changes propagated to later saved plans to the originally selected period.',
+    '  History covers recorded saves only; older saves cannot be reconstructed. Missing metadata is null or unknown.',
+    '',
+    'Example:',
+    '  sloth-agent budget history --scope personal --period 2026-09 --limit 20',
+  ].join('\n');
+}
+
 export function budgetCashflowHelpText(): string {
   return [
     'Sloth Agent CLI — budget cashflow',
@@ -600,6 +636,7 @@ export function budgetCashflowHelpText(): string {
     'Estimate whether a budget backing account will fall below zero before the current period ends.',
     '',
     'Usage:',
+    '  sloth-agent budget history  Read budget metadata and recorded save history.',
     '  sloth-agent budget cashflow --scope personal|joint [--base-url URL]',
     '',
     'Options:',
@@ -623,7 +660,9 @@ export function budgetCashflowHelpText(): string {
     '  firstNegativeDate is null when no shortfall is estimated; unavailable results give a reason instead of a zero balance.',
     '',
     'Examples:',
+    '  sloth-agent budget history  Read budget metadata and recorded save history.',
     '  sloth-agent budget cashflow --scope personal',
+    '  sloth-agent budget history  Read budget metadata and recorded save history.',
     '  sloth-agent budget cashflow --scope joint',
   ].join('\n');
 }
@@ -1728,6 +1767,7 @@ export function commandHelpText(topic: HelpTopic): string {
     portfolio: portfolioHelpText,
     budget: budgetHelpText,
     'budget-status': budgetStatusHelpText,
+    'budget-history': budgetHistoryHelpText,
     'budget-cashflow': budgetCashflowHelpText,
     'budget-move': budgetMoveHelpText,
     'budget-reset': budgetResetHelpText,
@@ -2951,10 +2991,14 @@ export async function runCli(
       return 0;
     }
 
-    if (parsed.command === 'budget' || parsed.command === 'budget-status' || parsed.command === 'budget-cashflow') {
+    if (parsed.command === 'budget' || parsed.command === 'budget-status' || parsed.command === 'budget-cashflow' || parsed.command === 'budget-history') {
       const query = new URLSearchParams({ scope: parsed.scope });
       if ('periodKey' in parsed && parsed.periodKey !== undefined) {
         query.set('periodKey', parsed.periodKey);
+      }
+      if (parsed.command === 'budget-history') {
+        query.set('limit', String(parsed.limit));
+        if (parsed.cursor) query.set('cursor', parsed.cursor);
       }
       const response = await fetchImplementation(
         `${baseUrl}/api/agent/v1/${parsed.command === 'budget' ? 'budgets' : parsed.command}?${query.toString()}`,

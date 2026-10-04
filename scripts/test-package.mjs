@@ -116,6 +116,7 @@ try {
   assert.match(help, /sloth-agent investments/);
   assert.match(help, /sloth-agent budget --scope personal\|joint/);
   assert.match(help, /sloth-agent budget status/);
+  assert.match(help, /sloth-agent budget history/);
   assert.match(help, /sloth-agent budget cashflow/);
   assert.match(help, /sloth-agent budget update/);
   assert.match(help, /sloth-agent budget move/);
@@ -145,7 +146,8 @@ try {
     [['accounts', 'update', '--help'], [/--institution-name NAME/, /--ownership individual\|joint/, /--goal-funding-account true\|false/, /Without --apply/, /Partner-owned/, /agent:write/, /Account not found/]],
     [['accounts', 'remove', '--help'], [/archive/, /retaining its underlying records/, /Without --apply/, /changed false/]],
     [['investments', '--help'], [/cache-only/, /provider-native/, /holdings/, /agent:read/, /Investment account not found/]],
-    [['budget', '--help'], [/sloth-agent budget\s+Read one budget period\./, /budget status/, /budget cashflow/, /budget update/, /budget move/, /budget reset/, /--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
+    [['budget', '--help'], [/sloth-agent budget\s+Read one budget period\./, /budget status/, /budget history/, /budget cashflow/, /budget update/, /budget move/, /budget reset/, /--scope personal\|joint/, /periodStatus/, /funding/, /read-only/]],
+    [['budget', 'history', '--help'], [/--scope personal\|joint/, /--period YYYY-MM/, /--limit N/, /--cursor CURSOR/, /read-only/, /older saves/, /JSON/]],
     [['budget', 'cashflow', '--help'], [/--scope personal\|joint/, /read-only/, /pending/, /firstNegativeDate/, /planned spending/, /JSON/]],
     [['budget', 'status', '--help'], [/--period YYYY-MM/, /historical periods/, /moneyInPence/, /moneyOutPence/, /uncategorized/, /budget is null/, /read-only/, /refresh/]],
     [['budget', 'update', '--help'], [/--input FILE/, /plannedPence/, /Without --apply/, /every explicit future plan/, /Historical periods cannot be changed/]],
