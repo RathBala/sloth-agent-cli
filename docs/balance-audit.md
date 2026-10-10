@@ -122,7 +122,7 @@ What to check: audit appears in top-level and budget help; Now stays current whe
 filtering historical checkpoints; unavailable timestamps remain null; signed
 differences are consistent; the paired check passes with no real credentials.
 
-## Release order and current boundary
+## Release order and completed release
 
 The coordinated release is authorized. CLI 0.32.0 introduces the additive command.
 The backend candidate comes from `codex/balance-audit`, based on main
@@ -139,8 +139,23 @@ are excluded. Release the backend before the CLI so existing consumers keep work
    with the published version, run
    sloth-site release/deploy-output checks, deploy docs, and verify the public page.
 
-Live index readiness, backend health, the published package and public docs remain
-release obligations. Verify each obligation against the released commit, rather than inferring runtime state from a push.
+The release completed on 10 October 2026. Backend `0e914dc778024ff989950fb94e954ea5640149b0`
+is on main, Railway reports SUCCESS, and the matching Netlify app deployment is
+published. Both required Firestore indexes are READY in `budgie-dc9f6`.
+Live personal and joint reads passed shared-schema validation, filtered history,
+pagination and current-period isolation without requesting a provider refresh.
+
+CLI tag `v0.32.0` points to reviewed commit `8d26bfa955ecef17810bb205cb80e5697399e7b4`.
+The [trusted publication workflow](https://github.com/RathBala/sloth-agent-cli/actions/runs/38041199977)
+passed, including a fresh registry install. Both existing local installations were
+updated to 0.32.0 and passed command help and live read checks.
+Public docs `ae6967d6e13412ab617c90086b13f6a23a6c3eca` are on main and published by
+Netlify. The production page shows audit availability in CLI 0.32.0 and retains
+the newer hosted-MCP guidance. Desktop and mobile production screenshots were inspected.
+
+For future releases, wait for the publication workflow's registry-install check
+to pass before running the public docs build or updating installed clients.
+An accepted npm publication can precede public registry availability.
 
 ## Requirement closure
 
@@ -154,7 +169,7 @@ release obligations. Verify each obligation against the released commit, rather 
 | Read-only financial interaction | Implemented: GET, agent:read, cached reader; installed test has no writable DB methods and asserts unchanged stored state |
 | Paired contracts/help/package tests | Implemented: server-owned Zod schema and fixture, generated CLI, help tests, installed loopback runner |
 | Source docs, privacy and surface inventory | Implemented: this file, README, changelog, server feature/tracking docs, sibling public page and deploy-output checks |
-| Deployment and publication | Authorized coordinated release; execute and verify the release order above |
+| Deployment and publication | Implemented: exact-commit Railway and Netlify deployments, READY indexes, trusted v0.32.0 publication, fresh registry install and live reads |
 
 ## Final validation and review evidence
 
@@ -167,7 +182,7 @@ release obligations. Verify each obligation against the released commit, rather 
   Node 22 `yarn test` (2,902 passing, 13 intentionally skipped), server build,
   capture regression, and `yarn test:e2e:preview
   tests/budget-reconciliation-preview.spec.ts --project=chromium` (three passing).
-- Release verification runs `SLOTH_E2E_AUTH_PORT=9199 SLOTH_FUNDING_CLI_REPO=/Users/rathbala/Code/sloth-agent-cli yarn test:e2e` in the integrated backend. The alternate Auth port preserves another project's review preview on 9099. The runner, browser SDK and Admin client share the explicit loopback port, with mismatch and temporary-config cleanup regressions.
+- Release verification: `SLOTH_E2E_AUTH_PORT=9199 SLOTH_FUNDING_CLI_REPO=/Users/rathbala/Code/sloth-agent-cli yarn test:e2e` passed all 90 preview and 81 emulator checks in the integrated backend. One earlier transaction round-trip assertion timed out; it passed both in isolation and in the complete rerun on the unchanged candidate. The alternate Auth port preserves another project's review preview on 9099. The runner, browser SDK and Admin client share the explicit loopback port, with mismatch, receiving-client and temporary-config cleanup regressions (31 focused tests passed).
 - Site: `yarn build`, developer CLI checks, public-site readiness, tracking,
   typecheck and touched-file formatting checks. Desktop 1440×1000 and mobile
   390×844 screenshots were inspected with no page-level horizontal overflow.
