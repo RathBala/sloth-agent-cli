@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.32.0 - 2026-10-10
+
+- Add read-only `budget audit` for the current Balance audit comparison and
+  paginated recorded checkpoints. Scope is required; `--period` filters history
+  while Now always describes the current period. Missing amounts and source bank
+  timestamps remain null. Requires the paired backend and Firestore indexes.
+
 ## 0.31.0 - 2026-10-04
 
 - Add read-only `budget history` for available target metadata, period dates

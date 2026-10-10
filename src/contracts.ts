@@ -1,3 +1,4 @@
+import { budgetAuditResponseSchema } from './generated/agent-v1/budgetAudit.js';
 import { budgetHistoryResponseSchema } from './generated/agent-v1/budgetHistory.js';
 import { budgetCashflowResponseSchema } from './generated/agent-v1/budgetCashflow.js';
 import { agentGoalSchema, agentForecastBasisSchema, agentGoalsResponseSchema, agentGoalPreviewResponseSchema, agentGoalMutationResponseSchema } from './generated/agent-v1/goals.js';
@@ -96,6 +97,7 @@ type ApiCommand =
   | 'portfolio'
   | 'budget'
   | 'budget-status'
+  | 'budget-audit'
   | 'budget-history'
   | 'budget-cashflow'
   | 'budget-move'
@@ -1498,6 +1500,8 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
       ? isPortfolioResponse(value)
     : command === 'budget' || command === 'budget-update'
       ? isBudgetResponse(value)
+    : command === 'budget-audit'
+      ? budgetAuditResponseSchema.safeParse(value).success
     : command === 'budget-history'
       ? budgetHistoryResponseSchema.safeParse(value).success
     : command === 'budget-cashflow'
@@ -1555,4 +1559,16 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
     throw new ApiError(`Invalid ${label} response from the Agent API`);
   }
   return value;
+}
+
+export function parseBudgetAuditResponse(
+  value: unknown,
+  expected: { scope: 'personal' | 'joint'; periodKey?: string },
+): unknown {
+  const result = budgetAuditResponseSchema.safeParse(value);
+  if (!result.success || result.data.scope !== expected.scope
+    || result.data.checkpointPeriodKey !== (expected.periodKey ?? null)) {
+    throw new ApiError('Invalid budget-audit response from the Agent API');
+  }
+  return result.data;
 }

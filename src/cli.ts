@@ -17,6 +17,7 @@ import {
   type AssignmentPayload,
   type AssignmentOperationResponse,
   parseApiResponse,
+  parseBudgetAuditResponse,
   parseAssignmentOperationResponse,
   toLegacyAssignmentResponse,
   validateAssignmentPayload,
@@ -84,6 +85,7 @@ export function usageText(): string {
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget history  Read budget metadata and recorded save history.',
+    '  sloth-agent budget audit    Read the current cash comparison and recorded checkpoints.',
     '  sloth-agent budget cashflow --scope personal|joint [--base-url URL]',
     '  sloth-agent budget update --scope personal|joint [--period YYYY-MM]',
     '    --input budget.json [--apply] [--base-url URL]',
@@ -564,6 +566,7 @@ export function budgetHelpText(): string {
     '  sloth-agent budget         Read one budget period.',
     '  sloth-agent budget status  Read assigned, spent, and available money.',
     '  sloth-agent budget history  Read budget metadata and recorded save history.',
+    '  sloth-agent budget audit    Read the current cash comparison and recorded checkpoints.',
     '  sloth-agent budget cashflow  Estimate account shortfalls from remaining planned spending.',
     '  sloth-agent budget update  Preview or update planned line-item amounts.',
     '  sloth-agent budget move    Preview or move assigned money.',
@@ -592,6 +595,44 @@ export function budgetHelpText(): string {
     '  funding contains current stored to-assign and reserve amounts when that period exists.',
     '  categories[].lineItems contains line-item IDs, names, and planned amounts in pence.',
     '  Categories also include plannedPence and assignedPence.',
+  ].join('\n');
+}
+
+export function budgetAuditHelpText(): string {
+  return [
+    'Sloth Agent CLI: budget audit',
+    '',
+    'Compare budget remaining with the Balance audit checkpoint balance and read recorded history.',
+    '',
+    'Usage:',
+    '  sloth-agent budget audit --scope personal|joint [--period YYYY-MM] [--limit N] [--cursor CURSOR] [--base-url URL]',
+    '',
+    'Options:',
+    '  --scope personal|joint  Required. Keep personal and joint money separate.',
+    '  --period YYYY-MM        Optional. Filter checkpoints by budget period; omit for all periods. Now always uses the current period.',
+    '  --limit N               Optional. Checkpoints per page, integer 1 to 100; defaults to 20.',
+    '  --cursor CURSOR         Optional. nextCursor from the previous page, with the same scope and period filter.',
+    '  --base-url URL          Optional. Override the API origin.',
+    '  -h, --help              Show this help.',
+    ...API_ORIGIN_HELP_LINES,
+    '',
+    'Access:',
+    '  This command is read-only and requires agent:read. Never refreshes banks, writes checkpoints, or accepts --apply.',
+    '',
+    'Output:',
+    '  JSON with current (Now), checkpoints (newest first), and nextCursor (null at the end).',
+    '  Money uses integer pence. differencePence is budget remaining minus account balance.',
+    '  Now uses the live saved budget and booked transactions against the latest eligible checkpoint balance.',
+    '  verificationStatus explains unavailable balances; unavailable amounts and times remain null.',
+    '  Freshness follows the UI: 24 hours from checkpoint capture, invalidated by later backing-account saves.',
+    '  sourceCapturedAt is checkpoint capture time. sourceBalanceAt is the bank balance time when recorded.',
+    '  Existing checkpoints lack sourceBalanceAt. Current account timestamps cannot reconstruct historical times.',
+    '  Checkpoints locate changes between recorded observations, not their causes or missing history.',
+    '  budget history remains the separate budget save history command.',
+    '',
+    'Examples:',
+    '  sloth-agent budget audit --scope personal --limit 20',
+    '  sloth-agent budget audit --scope joint --period 2026-09',
   ].join('\n');
 }
 
@@ -1767,6 +1808,7 @@ export function commandHelpText(topic: HelpTopic): string {
     portfolio: portfolioHelpText,
     budget: budgetHelpText,
     'budget-status': budgetStatusHelpText,
+    'budget-audit': budgetAuditHelpText,
     'budget-history': budgetHistoryHelpText,
     'budget-cashflow': budgetCashflowHelpText,
     'budget-move': budgetMoveHelpText,
@@ -2991,12 +3033,12 @@ export async function runCli(
       return 0;
     }
 
-    if (parsed.command === 'budget' || parsed.command === 'budget-status' || parsed.command === 'budget-cashflow' || parsed.command === 'budget-history') {
+    if (parsed.command === 'budget' || parsed.command === 'budget-status' || parsed.command === 'budget-cashflow' || parsed.command === 'budget-history' || parsed.command === 'budget-audit') {
       const query = new URLSearchParams({ scope: parsed.scope });
       if ('periodKey' in parsed && parsed.periodKey !== undefined) {
         query.set('periodKey', parsed.periodKey);
       }
-      if (parsed.command === 'budget-history') {
+      if (parsed.command === 'budget-history' || parsed.command === 'budget-audit') {
         query.set('limit', String(parsed.limit));
         if (parsed.cursor) query.set('cursor', parsed.cursor);
       }
@@ -3010,7 +3052,10 @@ export async function runCli(
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         },
       );
-      const data = parseApiResponse(parsed.command, await parseHttpResponse(response, token));
+      const body = await parseHttpResponse(response, token);
+      const data = parsed.command === 'budget-audit'
+        ? parseBudgetAuditResponse(body, parsed)
+        : parseApiResponse(parsed.command, body);
       writeJson(writeStdout, data);
       return 0;
     }

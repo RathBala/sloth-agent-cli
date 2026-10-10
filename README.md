@@ -1184,3 +1184,41 @@ node dist/bin.js budget history --help
 For a clean installed-package and paired API check, run
 `npm run test:package -- --server-repo /absolute/path/to/sloth-budget`.
 The paired check uses synthetic data over loopback HTTP; no real PAT is needed.
+
+## Balance audit
+
+```sh
+sloth-agent budget audit --scope personal --limit 20
+sloth-agent budget audit --scope joint --period 2026-09
+```
+
+Read the UI's current cash comparison and recorded reconciliation checkpoints.
+Requires `agent:read`. This command never refreshes banks, creates checkpoints,
+or accepts `--apply`. It remains separate from `budget history`, which records
+budget plan saves rather than cash reconciliation.
+
+`current` always uses the current Sloth period's saved budget and cached booked
+transactions against the latest eligible checkpoint balance. `--period YYYY-MM`
+filters checkpoints only; omit it for history across all periods. `--limit` is
+an integer from 1 to 100, default 20. Pass `nextCursor` as `--cursor` using the
+same scope and period filter; null marks the end. Incompatible or missing
+cursors return a conflict, so restart without the cursor.
+
+Amounts are integer pence. `differencePence` is budget remaining minus account
+balance; positive means the budget is above the account. Unavailable amounts
+and timestamps remain null. `verificationStatus` preserves reasons such as
+`not_configured`, `multiple_backing_accounts`, and `stale_balance`. Now follows
+the UI's 24-hour freshness rule from checkpoint capture time, and later saves
+of backing accounts invalidate the previous comparison.
+
+Historical rows include scope, period, currency, amounts, verification at
+capture, selected account count, capture time and source. Now identifies its
+source checkpoint and source period separately. `sourceBalanceAt` is the source
+bank balance timestamp when recorded. Existing checkpoints lack it; the API
+does not substitute the account's present-day timestamp or decode an ID to
+guess it. `historyCoverage=recorded_checkpoints_only` means observations can
+locate intervals where values changed, but cannot establish causes, recreate
+missing checkpoints, or supply a pot movement ledger.
+
+See [balance-audit.md](docs/balance-audit.md) for ownership, local checks and
+release order. Available in CLI 0.32.0 or newer with the matching Sloth Budget API deployment.

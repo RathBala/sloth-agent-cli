@@ -1,3 +1,4 @@
+import { budgetAuditCursorSchema } from './generated/agent-v1/budgetAudit.js';
 import { budgetHistoryCursorSchema } from './generated/agent-v1/budgetHistory.js';
 import { UsageError } from './errors.js';
 import { isAccountRef } from './account-ref.js';
@@ -53,6 +54,7 @@ export type HelpTopic =
   | 'budget-fill'
   | 'budget-fund-ahead'
   | 'budget-status'
+  | 'budget-audit'
   | 'budget-history'
   | 'budget-cashflow'
   | 'budget-move'
@@ -94,6 +96,7 @@ export type HelpTopic =
   | 'ask-partner';
 
 export type ParsedCommand =
+  | { command: 'budget-audit'; baseUrl?: string; scope: 'personal' | 'joint'; periodKey?: string; limit: number; cursor?: string }
   | { command: 'budget-history'; baseUrl?: string; scope: 'personal' | 'joint'; periodKey?: string; limit: number; cursor?: string }
   | { command: 'budget-cashflow'; baseUrl?: string; scope: 'personal' | 'joint' }
   | { command: 'budget-reset'; baseUrl?: string; scope: 'personal' | 'joint'; target: 'to-assign' | 'assigned'; periodKey?: string; expectedPreview?: string; apply: boolean }
@@ -931,18 +934,20 @@ function parsePortfolio(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function parseBudget(args: string[], baseUrl?: string): ParsedCommand {
-  if (args[0] === 'history') {
-    args.shift();
-    const { values, apply } = parseNamedOptions(args, 'budget history', new Set(['--scope', '--period', '--limit', '--cursor']));
-    if (apply) throw new UsageError('budget history is read-only; --apply is not accepted');
-    const scope = requiredOption(values, '--scope', 'budget history');
+  if (args[0] === 'audit' || args[0] === 'history') {
+    const subcommand = args.shift() as 'audit' | 'history';
+    const label = `budget ${subcommand}`;
+    const { values, apply } = parseNamedOptions(args, label, new Set(['--scope', '--period', '--limit', '--cursor']));
+    if (apply) throw new UsageError(`${label} is read-only; --apply is not accepted`);
+    const scope = requiredOption(values, '--scope', label);
     if (scope !== 'personal' && scope !== 'joint') throw new UsageError('--scope must be personal or joint');
     const limit = Number(values.get('--limit') ?? '20');
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new UsageError('--limit must be an integer between 1 and 100');
     const period = values.get('--period');
     const cursor = values.get('--cursor');
-    if (cursor && !budgetHistoryCursorSchema.safeParse(cursor).success) throw new UsageError('--cursor must be a save ID returned in nextCursor');
-    return withBaseUrl({ command: 'budget-history', scope, limit,
+    const cursorSchema = subcommand === 'audit' ? budgetAuditCursorSchema : budgetHistoryCursorSchema;
+    if (cursor && !cursorSchema.safeParse(cursor).success) throw new UsageError(`--cursor must be the nextCursor returned by ${label}`);
+    return withBaseUrl({ command: subcommand === 'audit' ? 'budget-audit' : 'budget-history', scope, limit,
       ...(period ? { periodKey: parseGoalMonthKey(period, '--period') } : {}), ...(cursor ? { cursor } : {}),
     }, baseUrl);
   }
@@ -1813,6 +1818,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (subcommand === 'fill') return 'budget-fill';
     if (subcommand === 'fund-ahead') return 'budget-fund-ahead';
     if (subcommand === 'status') return 'budget-status';
+    if (subcommand === 'audit') return 'budget-audit';
     if (subcommand === 'history') return 'budget-history';
     if (subcommand === 'cashflow') return 'budget-cashflow';
     if (subcommand === 'update') return 'budget-update';
