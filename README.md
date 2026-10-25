@@ -1324,3 +1324,38 @@ Removal input is `{propertyId,expected,includeMortgage}`. Set includeMortgage:tr
 only when removing a property and its linked mortgage together. Run `wealth
 properties remove --input remove.json` to preview, then add `--apply` to remove.
 Removal records no sale or cash proceeds. Every nested command supports `--help`.
+
+## Household goals and sequential contributions
+
+`sloth-agent goals joint list` returns shared details, your private funding and your partner’s aggregate progress. The returned `defaultViewerShareBasisPoints` only prefills a new goal. If it is `null`, existing partner settings conflict: choose and review the split explicitly before creating the goal. Save the split you reviewed: later household-default changes leave existing goals unchanged.
+
+Save this as `household-goal.json`:
+
+```json
+{"name":"Baby preparation","totalAmount":3000,"viewerShareBasisPoints":6000,"goalType":"spend"}
+```
+
+```sh
+sloth-agent goals joint create --input household-goal.json
+sloth-agent goals joint create --input household-goal.json --apply
+sloth-agent goals joint list
+```
+
+The signed-in person owns the 60% share (£1,800); the partner owns £1,200. Either partner can edit shared details. Each person selects their own accounts and priority. Omitted funding remains incomplete. Use `goals update --goal-id GOAL_ID --account-ref ACCOUNT_REF --apply` with IDs from your goal and account lists to choose your accounts.
+
+To convert a personal goal, save only `totalAmount` and `viewerShareBasisPoints` in `conversion.json`, then run `sloth-agent goals joint convert --goal-id GOAL_ID --input conversion.json`. Add `--apply` to save. Conversion preserves its ID, accounts, priority and applicable history. Shared updates and deletion require `expectedRevision` from the latest joint-goal read. An omitted split stays unchanged. A spending budget prevents deletion so its history stays available; mark the goal spent instead.
+
+Read `sloth-agent scenarios routing read`, then save `routing.json` with its `forecastBasis.activeScenarioRevision` and exact goal/account IDs:
+
+```json
+{"expectedRevision":1,"routing":{"goalIds":["GOAL_ID"],"sourceAccountRefs":["ACCOUNT_REF"]}}
+```
+
+```sh
+sloth-agent scenarios routing save --input routing.json
+sloth-agent scenarios routing save --input routing.json --apply
+```
+
+Routing consumes selected existing recurring entries once, follows personal goal priority, fills assigned accounts and passes the remainder onward in the same month. It stops at the final funded personal share. Other recurring entries and account-specific one-offs continue. Dated schedule changes remain authoritative; null inherits and zero stops. A routing value of `null` restores direct account contributions; an empty goal list stops the selected entries. Missing funding is incomplete. No money moves between accounts.
+
+All writes preview remotely by default. Previews need `agent:read`; `--apply` needs `agent:write`. Results remain JSON on stdout, credentials retain the existing storage contract, and the CLI adds no telemetry. Use each command’s `--help` for its input contract.

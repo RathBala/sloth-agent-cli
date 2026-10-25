@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.0 - 2026-10-25
+
+- Add household goal create, convert, update and delete commands with saved split snapshots, personal caps, private funding and revision checks.
+- Add sequential contribution routing using existing account schedules and goal priority, with actual forecast previews before applying.
+- Accept valid two-decimal amounts such as 1232.63 through the canonical monetary validator.
+
 ## 0.33.1 - 2026-10-25
 
 - Clarify that `ask-partner` returns an answer page for the recipient. Copy the returned message into WhatsApp; the command does not send it.

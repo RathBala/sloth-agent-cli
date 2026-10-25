@@ -36,8 +36,11 @@ const helpRoutes = [
   ['receipts'], ['receipts', 'extract'], ['receipts', 'get'], ['receipts', 'attach'], ['receipts', 'remove'],
   ['goals'], ['goals', 'list'], ['goals', 'create'], ['goals', 'update'],
   ['goals', 'mark-spent'], ['goals', 'restore'], ['goals', 'delete'],
+  ['goals', 'joint'], ['goals', 'joint', 'list'], ['goals', 'joint', 'create'],
+  ['goals', 'joint', 'convert'], ['goals', 'joint', 'update'], ['goals', 'joint', 'delete'],
   ['scenarios'], ['scenarios', 'list'], ['scenarios', 'create'],
   ['scenarios', 'update'], ['scenarios', 'activate'], ['scenarios', 'delete'],
+  ['scenarios', 'routing'], ['scenarios', 'routing', 'read'], ['scenarios', 'routing', 'save'],
   ['ask-partner'],
 ];
 
@@ -61,12 +64,14 @@ const nestedCommands = new Map([
   ['line-items', ['create', 'rename']],
   ['rules', ['list', 'get', 'set', 'delete', 'scan-contract']],
   ['receipts', ['extract', 'get', 'attach', 'remove']],
-  ['goals', ['list', 'create', 'update', 'mark-spent', 'restore', 'delete']],
-  ['scenarios', ['list', 'create', 'update', 'activate', 'delete']],
+  ['goals', ['list', 'create', 'update', 'mark-spent', 'restore', 'delete', 'joint']],
+  ['goals joint', ['list', 'create', 'convert', 'update', 'delete']],
+  ['scenarios', ['list', 'create', 'update', 'activate', 'delete', 'routing']],
+  ['scenarios routing', ['read', 'save']],
   ['partner', ['status']],
 ]);
 const normalizedTopLevelHelp = helpByRoute.get('').replace(/\s+/g, ' ');
-for (const route of helpRoutes.filter(route => route.length > 0)) {
+for (const route of helpRoutes.filter(route => route.length > 0 && route.length <= 2)) {
   const command = route.at(-1) === 'list'
     ? `sloth-agent ${route.slice(0, -1).join(' ')} [list]`
     : `sloth-agent ${route.join(' ')}`;

@@ -2,11 +2,12 @@
 import { z } from 'zod-v4';
 import { agentAccountRefSchema } from './transactions.js';
 const trimmedStringSchema = z.string().trim().min(1);
-export const agentGoalAmountSchema = z.number()
+export const agentMoneyAmountSchema = z.number()
   .finite()
-  .positive()
+  .nonnegative()
   .max(Number.MAX_SAFE_INTEGER / 100)
   .multipleOf(0.01);
+export const agentGoalAmountSchema = agentMoneyAmountSchema.positive();
 
 export const goalAccountAllocationSchema = z.object({
   accountRef: agentAccountRefSchema,
@@ -59,13 +60,13 @@ export const agentForecastBasisSchema = z.object({
 
 const plannedGoalFields = {
   name: trimmedStringSchema,
-  targetAmount: z.number().finite().positive(),
+  targetAmount: z.number().finite().nonnegative(),
   targetMonthKey: agentGoalMonthKeySchema.nullable(),
   forecastMonthKey: agentGoalMonthKeySchema.nullable(),
   goalType: z.enum(['keep', 'spend']),
   effectivePriority: z.number().int().positive(),
-  funding: goalFundingConfigurationSchema,
-  fundingAccounts: z.array(z.object({ accountRef: agentAccountRefSchema, label: trimmedStringSchema.nullable() }).strict()).min(1),
+  funding: z.union([goalFundingConfigurationSchema, z.object({ mode: z.literal('automatic'), accountRefs: z.array(agentAccountRefSchema).length(0) }).strict(), z.object({ mode: z.literal('explicit'), allocations: z.array(goalAccountAllocationSchema).min(1) }).strict()]),
+  fundingAccounts: z.array(z.object({ accountRef: agentAccountRefSchema, label: trimmedStringSchema.nullable() }).strict()),
   hasMissingAccounts: z.boolean(),
   savedAmount: z.number().finite().nonnegative(),
   progressPercent: z.number().finite().min(0).max(100),
@@ -78,6 +79,7 @@ export const agentGoalSchema = z.object({
   ...plannedGoalFields,
   spentAt: z.iso.datetime().nullable(),
   sharedWithPartner: z.boolean(),
+  household: z.object({ totalAmount: agentGoalAmountSchema, viewerShareBasisPoints: z.number().int().min(0).max(10_000), revision: z.number().int().positive() }).strict().nullable().optional(),
 }).strict();
 
 export const agentGoalPreviewSchema = z.object(plannedGoalFields).strict();

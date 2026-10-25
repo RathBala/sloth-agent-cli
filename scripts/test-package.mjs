@@ -143,6 +143,11 @@ try {
   assert.match(help, /Every nested subcommand has its own help/);
 
   const commandHelpCases = [
+    [['goals', 'joint', '--help'], [/goals joint create/, /goals joint convert/, /goals joint update/, /goals joint delete/]],
+    [['goals', 'joint', 'create', '--help'], [/viewerShareBasisPoints/, /--input FILE/, /--apply/, /agent:read/]],
+    [['goals', 'joint', 'update', '--help'], [/expectedRevision/, /Omitted fields stay unchanged/]],
+    [['scenarios', 'routing', '--help'], [/scenarios routing read/, /scenarios routing save/]],
+    [['scenarios', 'routing', 'save', '--help'], [/expectedRevision/, /sourceAccountRefs/, /empty goal list/]],
     [['goal-budgets', '--help'], [/read-only/, /budgetRef/, /closed/]],
     [['auth', 'login', '--help'], [/hidden prompt/]],
     [['accounts', '--help'], [/accounts list/, /accounts update/, /accounts remove/, /existing Sloth account inventory/, /read-only/, /accountRef/, /isGoalFundingAccount/]],

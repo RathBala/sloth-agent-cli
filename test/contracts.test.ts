@@ -60,6 +60,13 @@ describe('scenario contracts', () => {
       .toBe(agentApiV1ScenarioMutationResponse);
   });
 
+  it('accepts exact two-decimal contributions including 1232.63', () => {
+    const response = { ...agentApiV1ScenariosResponse, scenarios: agentApiV1ScenariosResponse.scenarios.map(scenario => ({
+      ...scenario, options: scenario.options.map(option => ({ ...option, contributions: option.contributions.map(contribution => ({ ...contribution, recurringAmount: 1232.63 })) })),
+    })) };
+    expect(parseApiResponse('scenarios-list', response)).toEqual(response);
+  });
+
   it('rejects unexpected financial or option fields', () => {
     expect(() => parseApiResponse('scenarios-list', {
       ...agentApiV1ScenariosResponse,

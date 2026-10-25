@@ -1,3 +1,4 @@
+import { agentMoneyAmountSchema } from './generated/agent-v1/goals.js';
 import { budgetAuditResponseSchema } from './generated/agent-v1/budgetAudit.js';
 import { budgetHistoryResponseSchema } from './generated/agent-v1/budgetHistory.js';
 import { budgetCashflowResponseSchema } from './generated/agent-v1/budgetCashflow.js';
@@ -1320,10 +1321,7 @@ function isGoalDeleteResponse(value: unknown): boolean {
 }
 
 function isScenarioAmount(value: unknown): value is number {
-  return typeof value === 'number'
-    && Number.isFinite(value)
-    && value >= 0
-    && Math.abs(value * 100 - Math.round(value * 100)) < Number.EPSILON * 100;
+  return agentMoneyAmountSchema.safeParse(value).success;
 }
 
 function isScenarioContribution(value: unknown): boolean {

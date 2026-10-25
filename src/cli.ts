@@ -1,3 +1,4 @@
+import { jointHelpText, jointRequest } from './joint-goals.js';
 import { wealthHelpText, wealthRequest } from './wealth.js';
 import { goalFundingConfigurationSchema, fundingMatchesTarget, type GoalFundingConfiguration } from './generated/agent-v1/goals.js';
 import { createHash } from 'node:crypto';
@@ -118,6 +119,7 @@ export function usageText(): string {
     '  sloth-agent receipts remove --transaction-ref REF --revision N [--apply]',
     '  sloth-agent goal-budgets [--base-url URL]',
     '  sloth-agent goals [list] [--base-url URL]',
+    '  sloth-agent goals joint  Manage household goals and saved splits.',
     '  sloth-agent goals create --name NAME --target-amount AMOUNT',
     '    --type keep|spend --account-ref REF [--target-month YYYY-MM]',
     '    [--priority POSITION] [--apply] [--base-url URL]',
@@ -126,6 +128,7 @@ export function usageText(): string {
     '  sloth-agent goals restore --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent goals delete --goal-id ID [--apply] [--base-url URL]',
     '  sloth-agent scenarios [list] [--base-url URL]',
+    '  sloth-agent scenarios routing  Manage contribution routing.',
     '  sloth-agent scenarios create --month YYYY-MM --name NAME --account-ref REF',
     '    [--recurring-amount AMOUNT] [--one-off-amount AMOUNT] [--apply]',
     '  sloth-agent scenarios update --month YYYY-MM [fields] [--apply]',
@@ -1139,6 +1142,7 @@ export function goalsHelpText(): string {
     '',
     'Commands:',
     '  sloth-agent goals list      List goals; "sloth-agent goals" is equivalent.',
+    '  sloth-agent goals joint     Manage household goals and saved splits.',
     '  sloth-agent goals create    Preview or create a goal.',
     '  sloth-agent goals update    Preview or update selected goal fields.',
     '  Create/update: repeat --account-ref for automatic funding or use --funding-input FILE for a split.',
@@ -1367,6 +1371,7 @@ export function scenariosHelpText(): string {
     '',
     'Commands:',
     '  sloth-agent scenarios list       List scenarios and their options.',
+    '  sloth-agent scenarios routing  Manage contribution routing.',
     '  sloth-agent scenarios create     Create a No/Yes scenario.',
     '  sloth-agent scenarios update     Change a scenario or option.',
     '  sloth-agent scenarios activate   Make an option active.',
@@ -1802,6 +1807,7 @@ export function receiptsRemoveHelpText(): string {
 }
 
 export function commandHelpText(topic: HelpTopic): string {
+  if (topic.startsWith('goals-joint') || topic.startsWith('scenarios-routing')) return jointHelpText(topic);
   if (topic.startsWith('wealth')) return wealthHelpText(topic);
   const helpByTopic: Partial<Record<HelpTopic, () => string>> = {
     auth: authHelpText,
@@ -2436,6 +2442,19 @@ export async function runCli(
         remoteRevoked: false,
         revocationInstructions: 'Revoke the token in Sloth Money Settings > Developer access.',
       });
+      return 0;
+    }
+
+    if (parsed.command === 'joint-workflow') {
+      const request = jointRequest(parsed.joint);
+      token = (await resolveCredential(environment, baseUrl, getCredentialStore)).token;
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1${request.path}`, {
+        method: request.method, headers: { Authorization: `Bearer ${token}`, ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        ...(request.body === undefined ? {} : { body: request.body }), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const checked = request.schema.safeParse(await parseHttpResponse(response, token));
+      if (!checked.success) throw new ApiError('Sloth Money returned an invalid goal or routing response');
+      writeJson(writeStdout, checked.data);
       return 0;
     }
 

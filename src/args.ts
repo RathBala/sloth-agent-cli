@@ -1,3 +1,4 @@
+import { parseJointArgs, type JointCommand, type JointHelpTopic } from './joint-goals.js';
 import { parseWealthArgs, wealthHelpTopic, type WealthCommand, type WealthHelpTopic } from './wealth.js';
 import { budgetAuditCursorSchema } from './generated/agent-v1/budgetAudit.js';
 import { budgetHistoryCursorSchema } from './generated/agent-v1/budgetHistory.js';
@@ -40,7 +41,7 @@ export interface TransactionFilters {
   cursor?: string;
 }
 
-export type HelpTopic = WealthHelpTopic
+export type HelpTopic = JointHelpTopic | WealthHelpTopic
   | 'auth'
   | 'auth-login'
   | 'auth-status'
@@ -97,6 +98,7 @@ export type HelpTopic = WealthHelpTopic
   | 'ask-partner';
 
 export type ParsedCommand =
+  | { command: 'joint-workflow'; baseUrl?: string; joint: JointCommand }
   | { command: 'wealth'; baseUrl?: string; wealth: WealthCommand }
   | { command: 'budget-audit'; baseUrl?: string; scope: 'personal' | 'joint'; periodKey?: string; limit: number; cursor?: string }
   | { command: 'budget-history'; baseUrl?: string; scope: 'personal' | 'joint'; periodKey?: string; limit: number; cursor?: string }
@@ -1755,6 +1757,16 @@ function parseRules(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function helpTopic(argv: string[]): HelpTopic | undefined {
+  const jointIndex = argv.indexOf('joint');
+  const routingIndex = argv.indexOf('routing');
+  if (jointIndex > 0 && argv[jointIndex - 1] === 'goals') {
+    const action = argv[jointIndex + 1] ?? '';
+    return (['list', 'create', 'convert', 'update', 'delete'].includes(action) ? `goals-joint-${action}` : 'goals-joint') as JointHelpTopic;
+  }
+  if (routingIndex > 0 && argv[routingIndex - 1] === 'scenarios') {
+    const action = argv[routingIndex + 1] ?? '';
+    return (['read', 'save'].includes(action) ? `scenarios-routing-${action}` : 'scenarios-routing') as JointHelpTopic;
+  }
   const wealthIndex = argv.indexOf('wealth');
   if (wealthIndex >= 0) return wealthHelpTopic(argv.slice(wealthIndex + 1));
   const positionals: string[] = [];
@@ -1875,6 +1887,9 @@ export function parseArgs(argv: string[]): ParsedCommand {
     if (args.length) throw new UsageError('goal-budgets accepts only --base-url');
     return withBaseUrl({ command: 'goal-budgets' }, baseUrl);
   }
+
+  if (command === 'goals' && args[0] === 'joint') return withBaseUrl({ command: 'joint-workflow', joint: parseJointArgs('joint', args.slice(1)) }, baseUrl);
+  if (command === 'scenarios' && args[0] === 'routing') return withBaseUrl({ command: 'joint-workflow', joint: parseJointArgs('routing', args.slice(1)) }, baseUrl);
 
   if (command === 'goals') {
     return parseGoals(args, baseUrl);
