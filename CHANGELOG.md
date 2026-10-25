@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.33.1 - 2026-10-25
+
+- Clarify that `ask-partner` returns an answer page for the recipient. Copy the returned message into WhatsApp; the command does not send it.
+- Add sender instructions on stderr while preserving JSON-only command results on stdout.
+
 ## 0.33.0 - 2026-10-25
 
 - Add private property and mortgage reads, current tracked net worth and saved-scenario monthly wealth forecasts.

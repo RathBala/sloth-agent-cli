@@ -1576,6 +1576,10 @@ export function askPartnerHelpText(): string {
     '',
     'Output:',
     '  JSON containing requestId, publicUrl, message, expiresAt, and status.',
+    '  publicUrl is the answer page for your partner, not a message composer.',
+    '  Copy message into WhatsApp and send it to your partner. It includes the link.',
+    '  Saving a note at publicUrl records an answer and uses the single-use link.',
+    '  This command does not send a WhatsApp message.',
   ].join('\n');
 }
 
@@ -3026,6 +3030,7 @@ export async function runCli(
       );
       const data = parseApiResponse('ask-partner', await parseHttpResponse(response, token));
       writeJson(writeStdout, data);
+      writeStderr('Copy message into WhatsApp and send it to your partner. publicUrl is their answer page. Saving a note there records an answer and uses the single-use link. No WhatsApp message has been sent.\n');
       return 0;
     }
 

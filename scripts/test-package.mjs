@@ -232,7 +232,12 @@ try {
     [['scenarios', 'update', '--help'], [/--clear-recurring/, /zero explicitly stops/, /earlier recurring amount/, /requires --option-id/, /at most two decimal places/, /--base-url URL/]],
     [['scenarios', 'activate', '--help'], [/--option-id ID/, /recalculates Goals/, /selected scenario/, /--base-url URL/]],
     [['scenarios', 'delete', '--help'], [/--month YYYY-MM/, /recalculates Goals/, /deletedMonthKey/, /--base-url URL/]],
-    [['ask-partner', '--help'], [/--transaction-ref REF\s+Required/]],
+    [['ask-partner', '--help'], [
+      /--transaction-ref REF\s+Required/,
+      /publicUrl is the answer page for your partner/,
+      /Copy message into WhatsApp/,
+      /does not send a WhatsApp message/,
+    ]],
   ];
   for (const [args, expectedPatterns] of commandHelpCases) {
     const commandHelp = runCliSync(args, {

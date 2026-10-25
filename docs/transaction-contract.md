@@ -51,6 +51,12 @@ The combined package check performs that comparison first, builds and installs t
 CLI tarball in an isolated temporary directory, then runs the server's real schema
 through a loopback HTTP fixture into the installed executable. It checks metadata,
 pending data, malformed responses, empty stdout on failure, and safe diagnostics.
+The combined command also invokes `yarn test:agent-cli-contract` in the supplied
+server checkout, rebuilding its frontend and backend and replacing `server/dist`.
+Before running it, inspect that full command chain and confirm that no browser
+lane or preview is using that checkout. A source-only `contracts:check` does not
+perform those builds.
+
 Temporary installs and the loopback server are cleaned up automatically. These
 checks use synthetic local data and require no sign-in or real PAT.
 

@@ -1052,6 +1052,12 @@ sloth-agent ask-partner \
 The value shown is a placeholder. Copy the exact `transactionRef` from
 `sloth-agent transactions` output.
 
+The JSON `message` includes the secure link. Copy `message` into WhatsApp and
+send it to your partner. `publicUrl` opens their answer page, not a message
+composer. Saving a note there records an answer and uses the single-use link.
+The command does not send a WhatsApp message. It prints these next steps on
+stderr while keeping the JSON response unchanged on stdout.
+
 ## Configuration and output
 
 The CLI defaults to `https://budget.slothmoney.app`. For local development,
@@ -1184,6 +1190,10 @@ node dist/bin.js budget history --help
 For a clean installed-package and paired API check, run
 `npm run test:package -- --server-repo /absolute/path/to/sloth-budget`.
 The paired check uses synthetic data over loopback HTTP; no real PAT is needed.
+It also runs the backend repository's `test:agent-cli-contract`, including frontend
+and backend builds that replace `dist` and `server/dist`. Run it only in your
+own paired checkout after its browser lanes and previews have stopped. Use
+`npm run contracts:check -- --server-repo PATH` for source-only schema comparison.
 
 ## Balance audit
 

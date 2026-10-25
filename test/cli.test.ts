@@ -571,6 +571,9 @@ describe('CLI execution', () => {
         'no preview mode',
         'write-enabled token',
         'Allow changes',
+        'publicUrl is the answer page for your partner',
+        'Copy message into WhatsApp',
+        'does not send a WhatsApp message',
       ]],
     ];
 
@@ -2344,6 +2347,11 @@ describe('CLI execution', () => {
       ...io,
     })).toBe(0);
     expect(JSON.parse(io.stdout.join('')).requestId).toBe('ter_1');
+    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1ExplanationResponse);
+    expect(io.stderr.join('')).toContain('Copy message into WhatsApp and send it to your partner');
+    expect(io.stderr.join('')).toContain('publicUrl is their answer page');
+    expect(io.stderr.join('')).toContain('Saving a note there records an answer');
+    expect(io.stderr.join('')).not.toContain(agentApiV1ExplanationResponse.publicUrl);
   });
 
   it('keeps diagnostics on stderr and redacts the token', async () => {
