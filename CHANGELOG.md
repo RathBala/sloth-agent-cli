@@ -338,3 +338,9 @@
 - Preview or apply transaction assignments.
 - Create partner clarification links.
 - Validate commands, payloads, API responses, and production URL safety.
+
+## Unreleased
+
+- Add private property and mortgage reads, current tracked net worth and saved-scenario monthly wealth forecasts.
+- Add PDF/image extraction, editable document review, live validation previews and atomic save with conflict/retry protection.
+- Add property and mortgage save/remove commands, including linked-mortgage removal consequences and command-specific help.

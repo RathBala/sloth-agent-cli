@@ -1,3 +1,4 @@
+import { wealthHelpText, wealthRequest } from './wealth.js';
 import { goalFundingConfigurationSchema, fundingMatchesTarget, type GoalFundingConfiguration } from './generated/agent-v1/goals.js';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -81,6 +82,7 @@ export function usageText(): string {
     '  sloth-agent accounts update --account-ref REF [fields] [--apply]',
     '  sloth-agent accounts remove --account-ref REF [--apply]',
     '  sloth-agent investments [--account-ref REF] [--base-url URL]',
+    '  sloth-agent wealth  Read, forecast, review and manage property and mortgages.',
     '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
     '  sloth-agent budget status --scope personal|joint [--period YYYY-MM] [--base-url URL]',
@@ -1796,7 +1798,8 @@ export function receiptsRemoveHelpText(): string {
 }
 
 export function commandHelpText(topic: HelpTopic): string {
-  const helpByTopic: Record<HelpTopic, () => string> = {
+  if (topic.startsWith('wealth')) return wealthHelpText(topic);
+  const helpByTopic: Partial<Record<HelpTopic, () => string>> = {
     auth: authHelpText,
     'auth-login': authLoginHelpText,
     'auth-status': authStatusHelpText,
@@ -1852,7 +1855,7 @@ export function commandHelpText(topic: HelpTopic): string {
     'scenarios-delete': scenariosDeleteHelpText,
     'ask-partner': askPartnerHelpText,
   };
-  return helpByTopic[topic]();
+  return helpByTopic[topic]!();
 }
 
 function writeJson(write: (value: string) => void, data: unknown): void {
@@ -2429,6 +2432,22 @@ export async function runCli(
         remoteRevoked: false,
         revocationInstructions: 'Revoke the token in Sloth Money Settings > Developer access.',
       });
+      return 0;
+    }
+
+    if (parsed.command === 'wealth') {
+      const request = wealthRequest(parsed.wealth);
+      if (request.localResult !== undefined) { writeJson(writeStdout, request.localResult); return 0; }
+      token = (await resolveCredential(environment, baseUrl, getCredentialStore)).token;
+      const response = await fetchImplementation(`${baseUrl}/api/agent/v1${request.path}`, {
+        method: request.method,
+        headers: { Authorization: `Bearer ${token}`, ...(request.body === undefined ? {} : { 'Content-Type': request.contentType ?? 'application/json' }) },
+        ...(request.body === undefined ? {} : { body: typeof request.body === 'string' ? request.body : new Uint8Array(request.body).buffer }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const result = request.schema.safeParse(await parseHttpResponse(response, token));
+      if (!result.success) throw new Error('Sloth Money returned an invalid wealth response');
+      writeJson(writeStdout, result.data);
       return 0;
     }
 

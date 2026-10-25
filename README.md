@@ -1222,3 +1222,93 @@ missing checkpoints, or supply a pot movement ledger.
 
 See [balance-audit.md](docs/balance-audit.md) for ownership, local checks and
 release order. Available in CLI 0.32.0 or newer with the matching Sloth Budget API deployment.
+
+## Property, mortgages and wealth
+
+The `wealth` commands read your private property/mortgage records, current tracked
+net worth and monthly forecasts from saved active scenarios. Forecasts default to
+13 months and accept 1–1200. Account data is cached; these reads do not refresh
+banks or save forecast inputs. The existing `portfolio` command remains the
+account-focused view.
+
+```sh
+sloth-agent wealth
+sloth-agent wealth forecast --months 24
+sloth-agent wealth budget-payments
+sloth-agent wealth properties save --help
+sloth-agent wealth mortgages remove --help
+```
+
+Amounts ending in `Minor` are integer minor currency units, such as GBP pence.
+Rates and growth are annual percentages; dates use `YYYY-MM-DD`. Totals use your
+budget currency and report excluded currencies and unavailable values. Property
+is wholly owned and private. Equity cannot fund Goals.
+
+### Review and save a document
+
+Extraction supports PDF, JPEG, PNG and WebP up to 8 MiB. It requires Allow changes,
+sends the document for processing, and saves no records. Without `--apply`, extract
+only validates the local file, without credentials or upload.
+
+This example creates a new property review and uses `jq` to wrap the extracted
+draft. Sign in first or supply `SLOTH_AGENT_TOKEN` through your environment as
+explained above. Real tokens must not go in JSON files or command arguments.
+
+```sh
+sloth-agent wealth documents extract --file mortgage.pdf --apply > extracted.json
+jq '{newProperty:true,draft:.draft}' extracted.json > import.json
+sloth-agent wealth documents review --input import.json > review.json
+# Edit proposal in review.json; fill the reported missing fields.
+sloth-agent wealth documents save --input review.json
+sloth-agent wealth documents save --input review.json --apply
+sloth-agent wealth
+```
+
+For an existing property, use `{"propertyId":"ID_FROM_WEALTH_READ","draft":...}`
+in import.json. Supply `currency` for a new property if extraction found none.
+Only edit `proposal` in review.json. Preserve its stable IDs, `expected` original
+records and warnings. Review shows actual changes, missing fields and warnings.
+Missing facts retain saved values and other parts of a mixed mortgage. A suggested
+document date can be corrected; proposed borrowing is not current debt.
+
+The first save command performs a remote current-state preview. `--apply` saves
+property and mortgage together with a write-enabled token. An incomplete or stale
+review cannot overwrite records. After a conflict, read and review again. Retry a
+lost response with exactly the same IDs and approved values. Explicit JSON files
+contain financial data; remove them when no longer needed. Sloth stores neither
+original documents nor unfinished reviews.
+
+### Manual edits and removals
+
+Manual `wealth properties save` and `wealth mortgages save` take `--input FILE`.
+For example, create a property with a caller-chosen stable ID:
+
+```json
+{
+  "propertyId": "maple-home",
+  "property": {
+    "name": "Maple House",
+    "currency": "GBP",
+    "valueMinor": 40000000,
+    "valuationDate": "2026-08-15",
+    "annualGrowthPercent": 0
+  },
+  "expected": { "property": null, "mortgage": null }
+}
+```
+
+```sh
+sloth-agent wealth properties save --input property.json
+sloth-agent wealth properties save --input property.json --apply
+```
+
+Updates require complete original records from `wealth` inside `expected`.
+Mortgage inputs replace `property` with `mortgage`, including its propertyId,
+statementDate, type and one or two stable parts. Each part has id, type,
+balanceMinor, annualRatePercent and monthlyPaymentMinor. An optional budgetPayment
+has scope and lineItemId from `wealth budget-payments`.
+
+Removal input is `{propertyId,expected,includeMortgage}`. Set includeMortgage:true
+only when removing a property and its linked mortgage together. Run `wealth
+properties remove --input remove.json` to preview, then add `--apply` to remove.
+Removal records no sale or cash proceeds. Every nested command supports `--help`.

@@ -1,3 +1,4 @@
+import { parseWealthArgs, wealthHelpTopic, type WealthCommand, type WealthHelpTopic } from './wealth.js';
 import { budgetAuditCursorSchema } from './generated/agent-v1/budgetAudit.js';
 import { budgetHistoryCursorSchema } from './generated/agent-v1/budgetHistory.js';
 import { UsageError } from './errors.js';
@@ -39,7 +40,7 @@ export interface TransactionFilters {
   cursor?: string;
 }
 
-export type HelpTopic =
+export type HelpTopic = WealthHelpTopic
   | 'auth'
   | 'auth-login'
   | 'auth-status'
@@ -96,6 +97,7 @@ export type HelpTopic =
   | 'ask-partner';
 
 export type ParsedCommand =
+  | { command: 'wealth'; baseUrl?: string; wealth: WealthCommand }
   | { command: 'budget-audit'; baseUrl?: string; scope: 'personal' | 'joint'; periodKey?: string; limit: number; cursor?: string }
   | { command: 'budget-history'; baseUrl?: string; scope: 'personal' | 'joint'; periodKey?: string; limit: number; cursor?: string }
   | { command: 'budget-cashflow'; baseUrl?: string; scope: 'personal' | 'joint' }
@@ -1753,6 +1755,8 @@ function parseRules(args: string[], baseUrl?: string): ParsedCommand {
 }
 
 function helpTopic(argv: string[]): HelpTopic | undefined {
+  const wealthIndex = argv.indexOf('wealth');
+  if (wealthIndex >= 0) return wealthHelpTopic(argv.slice(wealthIndex + 1));
   const positionals: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -1860,6 +1864,8 @@ export function parseArgs(argv: string[]): ParsedCommand {
   const { args, baseUrl } = parseGlobalOptions(argv);
   const command = args.shift();
   if (!command) return { command: 'help' };
+
+  if (command === 'wealth') return withBaseUrl({ command: 'wealth', wealth: parseWealthArgs(args) }, baseUrl);
 
   if (command === 'auth') {
     return parseAuth(args, baseUrl);

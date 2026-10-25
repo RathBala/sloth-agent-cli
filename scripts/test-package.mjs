@@ -1,4 +1,5 @@
 import { testTransactionPackage } from './test-transaction-package.mjs';
+import { testWealthPackage } from './test-wealth-package.mjs';
 import assert from 'node:assert/strict';
 import {
   execFileSync,
@@ -82,6 +83,7 @@ try {
   );
   assert(fs.existsSync(executable));
   await testTransactionPackage(packagedEntryPoint);
+  await testWealthPackage(packagedEntryPoint);
   if (serverRepo) {
     execFileSync('yarn', ['test:agent-cli-contract', '--cli-bin', executable], {
       cwd: path.resolve(serverRepo), stdio: 'inherit', timeout: 120_000,
