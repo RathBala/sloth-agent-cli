@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.33.0 - 2026-10-25
+
+- Add private property and mortgage reads, current tracked net worth and saved-scenario monthly wealth forecasts.
+- Add PDF/image extraction, editable document review, live validation previews and atomic save with conflict/retry protection.
+- Add property and mortgage save/remove commands, including linked-mortgage removal consequences and command-specific help.
+
 ## 0.32.0 - 2026-10-10
 
 - Add read-only `budget audit` for the current Balance audit comparison and
@@ -338,9 +344,3 @@
 - Preview or apply transaction assignments.
 - Create partner clarification links.
 - Validate commands, payloads, API responses, and production URL safety.
-
-## Unreleased
-
-- Add private property and mortgage reads, current tracked net worth and saved-scenario monthly wealth forecasts.
-- Add PDF/image extraction, editable document review, live validation previews and atomic save with conflict/retry protection.
-- Add property and mortgage save/remove commands, including linked-mortgage removal consequences and command-specific help.

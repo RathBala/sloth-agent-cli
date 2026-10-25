@@ -1225,6 +1225,8 @@ release order. Available in CLI 0.32.0 or newer with the matching Sloth Budget A
 
 ## Property, mortgages and wealth
 
+Available in CLI 0.33.0 or newer with the matching Sloth Budget API deployment.
+
 The `wealth` commands read your private property/mortgage records, current tracked
 net worth and monthly forecasts from saved active scenarios. Forecasts default to
 13 months and accept 1–1200. Account data is cached; these reads do not refresh
