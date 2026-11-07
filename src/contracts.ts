@@ -94,7 +94,6 @@ type ApiCommand =
   | 'accounts'
   | 'accounts-update'
   | 'accounts-remove'
-  | 'investments'
   | 'portfolio'
   | 'budget'
   | 'budget-status'
@@ -1168,7 +1167,6 @@ function isAccount(value: unknown): boolean {
     && (
       value.partnerVisibility === 'private'
       || value.partnerVisibility === 'balance'
-      || value.partnerVisibility === 'holdings'
     )
   );
 }
@@ -1202,79 +1200,26 @@ function isAccountRemovalResponse(value: unknown): boolean {
   );
 }
 
-function isInvestmentHolding(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, [
-      'instrumentType',
-      'symbol',
-      'name',
-      'units',
-      'unitPriceAmount',
-      'marketValueAmount',
-      'currency',
-      'providerFreshnessAsOf',
-      'syncedAt',
-    ])
-    && typeof value.instrumentType === 'string'
-    && value.instrumentType.trim().length > 0
-    && (value.symbol === null || (typeof value.symbol === 'string' && value.symbol.trim().length > 0))
-    && typeof value.name === 'string'
-    && value.name.trim().length > 0
-    && typeof value.units === 'number'
-    && Number.isFinite(value.units)
-    && typeof value.unitPriceAmount === 'number'
-    && Number.isFinite(value.unitPriceAmount)
-    && typeof value.marketValueAmount === 'number'
-    && Number.isFinite(value.marketValueAmount)
-    && isCurrency(value.currency)
-    && (value.providerFreshnessAsOf === null || isIsoDateTime(value.providerFreshnessAsOf))
-    && isIsoDateTime(value.syncedAt)
-  );
-}
-
-function isInvestmentsResponse(value: unknown): boolean {
-  return (
-    isObject(value)
-    && hasOnlyFields(value, ['asOf', 'investmentAccounts'])
-    && isIsoDateTime(value.asOf)
-    && Array.isArray(value.investmentAccounts)
-    && value.investmentAccounts.every((account) => {
-      if (!isObject(account)) return false;
-      const { holdings, ...baseAccount } = account;
-      return (
-        isAccount(baseAccount)
-        && account.accountType === 'investments'
-        && account.source === 'connected'
-        && Array.isArray(holdings)
-        && holdings.every(isInvestmentHolding)
-      );
-    })
-  );
-}
-
 function isPortfolioAccount(value: unknown): boolean {
   return isObject(value)
     && hasOnlyFields(value, [
       'accountRef', 'ownerRole', 'accountName', 'institutionName', 'accountType',
       'ownership', 'balanceAmount', 'currency', 'source', 'lastBalanceUpdatedAt',
-      'connectionState', 'partnerVisibility', 'isGoalFundingAccount', 'holdings',
+      'connectionState', 'partnerVisibility', 'isGoalFundingAccount',
     ])
     && isAccountRef(value.accountRef)
     && (value.ownerRole === 'you' || value.ownerRole === 'partner')
     && isNullableNonEmptyString(value.accountName)
     && isNullableNonEmptyString(value.institutionName)
-    && (value.accountType === 'savings' || value.accountType === 'investments')
+    && (value.accountType === 'savings' || (value.accountType === 'investments' && value.source === 'manual'))
     && (value.ownership === 'personal' || value.ownership === 'joint')
     && (value.balanceAmount === null || (typeof value.balanceAmount === 'number' && Number.isFinite(value.balanceAmount)))
     && isCurrency(value.currency)
     && (value.source === 'connected' || value.source === 'manual')
     && (value.lastBalanceUpdatedAt === null || isIsoDateTime(value.lastBalanceUpdatedAt))
     && ['active', 'expired', 'manual', 'unknown'].includes(String(value.connectionState))
-    && ['private', 'balance', 'holdings'].includes(String(value.partnerVisibility))
-    && (value.isGoalFundingAccount === null || typeof value.isGoalFundingAccount === 'boolean')
-    && Array.isArray(value.holdings)
-    && value.holdings.every(isInvestmentHolding);
+    && ['private', 'balance'].includes(String(value.partnerVisibility))
+    && (value.isGoalFundingAccount === null || typeof value.isGoalFundingAccount === 'boolean');
 }
 
 function isPortfolioResponse(value: unknown): boolean {
@@ -1289,8 +1234,8 @@ function isPortfolioResponse(value: unknown): boolean {
     && ['mine', 'partner', 'household'].includes(String(value.view))
     && typeof value.hasPartner === 'boolean'
     && isObject(totals)
-    && hasOnlyFields(totals, ['savingsAmount', 'investmentsAmount', 'trackedAmount'])
-    && ['savingsAmount', 'investmentsAmount', 'trackedAmount'].every(field => (
+    && hasOnlyFields(totals, ['savingsAmount', 'investmentsAmount'])
+    && ['savingsAmount', 'investmentsAmount'].every(field => (
       typeof totals[field] === 'number' && Number.isFinite(totals[field])
     ))
     && Number.isSafeInteger(value.excludedCurrencyAccountCount)
@@ -1492,8 +1437,6 @@ export function parseApiResponse(command: ApiCommand, value: unknown): unknown {
       ? isAccountMutationResponse(value)
     : command === 'accounts-remove'
       ? isAccountRemovalResponse(value)
-    : command === 'investments'
-        ? isInvestmentsResponse(value)
     : command === 'portfolio'
       ? isPortfolioResponse(value)
     : command === 'budget' || command === 'budget-update'

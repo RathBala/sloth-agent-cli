@@ -1,6 +1,6 @@
 # Sloth Agent CLI
 
-Use your own agent to inspect personal and household accounts, investments, budgets, pending card activity, and partner settlement context; manage goals and forecast scenarios; move assigned budget money; update planned amounts; categorise booked transactions; and configure payment notifications through the
+Use your own agent to inspect personal and household accounts, savings, budgets, pending card activity, and partner settlement context; manage goals and forecast scenarios; move assigned budget money; update planned amounts; categorise booked transactions; and configure payment notifications through the
 [Sloth Money Agent API](https://slothmoney.app/developers/).
 
 ## Install
@@ -24,7 +24,7 @@ Create a personal access token in Sloth Money under
 **Settings > Developer access**, then choose the authentication method for
 where the CLI runs.
 
-New tokens are view-only. That is enough for `auth status`, `accounts`, `investments`, `portfolio`,
+New tokens are view-only. That is enough for `auth status`, `accounts`, `portfolio`,
 `budget`, `categories`, `transactions`, `partner status`, `goals`, and `scenarios` list. Enable **Allow changes** when
 creating the token only if the CLI must apply assignments, manage categories
 or line items, move assigned budget money, update planned budgets, manage accounts, ask a partner for an explanation, or manage goals and scenarios. Token
@@ -723,20 +723,20 @@ account identifier for transaction filtering.
 Account changes are previews unless `--apply` is present. Connected accounts
 support a private Sloth name, Goal-funding eligibility, and partner visibility. Manual current accounts support their
 institution, name, currency, and ownership. Manual balance accounts also
-support balance, Savings/Investments type, and Goal-funding eligibility.
+support balance updates and Goal-funding eligibility. Existing investment accounts retain their Investments label and manual total. They have no holdings, trades, provider sync or assumed investment return. Omit `--account-type` when updating their balance.
 Partner-owned shared accounts return an explanatory error.
 
 ```bash
 sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
-  --institution-name "Hargreaves Lansdown" \
-  --account-name "Stocks & Shares ISA" \
+  --institution-name "Savings Bank" \
+  --account-name "Cash ISA" \
   --currency GBP \
   --ownership individual \
   --balance-amount 12500.75 \
-  --account-type investments \
+  --account-type savings \
   --goal-funding-account false \
-  --partner-visibility holdings
+  --partner-visibility balance
 
 sloth-agent accounts update \
   --account-ref sloth_account_v1_... \
@@ -765,7 +765,7 @@ sloth-agent portfolio --view household
 
 The command waits up to 45 seconds for eligible linked balances to refresh,
 then returns cached data if work continues. Partner accounts appear only when
-their owner has shared the balance or linked holdings. Sharing is for household
+their owner has shared the balance. Sharing is for household
 planning only. It does not change account ownership, transaction access, Goal
 funding, or who can move money. Totals use the viewer's budget currency and
 exclude other native currencies without converting them.
@@ -781,23 +781,6 @@ is safe and returns `changed: false`.
 sloth-agent accounts remove --account-ref sloth_account_v1_...
 sloth-agent accounts remove --account-ref sloth_account_v1_... --apply
 ```
-
-Read linked investment accounts and their cached holdings:
-
-```bash
-sloth-agent investments
-sloth-agent investments --account-ref sloth_account_v1_...
-```
-
-Investment reads are cache-only and do not refresh a brokerage. Holding
-quantities, unit prices, market values, currencies, and freshness are returned
-in provider-native terms. They are not converted or guaranteed to reconcile
-to an account total reported in another currency. An investment account total
-and its nested holdings describe the same portfolio, so do not add them
-together. Do not add values in different currencies without an explicit
-conversion. Caller-owned personal and joint linked investment accounts are
-included; partner-owned accounts, manual holdings, and investment activities
-are not.
 
 List your goals:
 

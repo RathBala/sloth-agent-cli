@@ -149,12 +149,10 @@ export const wealthReadResponseSchema = z
     mortgages: z.array(mortgageSchema),
     summary: wealthSummarySchema,
     excludedCurrencyAccountCount: z.number().int().nonnegative(),
-    excludedCurrencyHoldingCount: z.number().int().nonnegative(),
     excludedCurrencyPropertyCount: z.number().int().nonnegative(),
     unavailableReasons: z.array(
       z.enum([
         'account_balance_unavailable',
-        'holding_value_unavailable',
         'calculation_unavailable',
       ]),
     ),
@@ -173,16 +171,12 @@ export const wealthForecastRowSchema = z
     goalSpendingMinor: signedMinor,
     savingsMinor: signedMinor,
     investmentsMinor: signedMinor,
-    liquidTotalMinor: signedMinor,
     interestEarnedMinor: signedMinor,
-    unrealisedGainsMinor: signedMinor,
     propertyMinor: signedMinor,
     mortgageMinor: signedMinor,
     equityMinor: signedMinor,
-    manualHoldingCostMinor: signedMinor,
     trackedNetWorthMinor: signedMinor,
     savingsOverridden: z.boolean(),
-    investmentsOverridden: z.boolean(),
     commentary: z.string(),
   })
   .strict();
@@ -200,13 +194,11 @@ export const wealthForecastResponseSchema = z
     assumptions: z
       .object({
         interestAnnualPercent: z.number().finite(),
-        investmentAnnualPercent: z.number().finite(),
       })
       .strict(),
     rows: z.array(wealthForecastRowSchema).max(1200),
     unavailableReasons: z.array(z.string()),
     excludedCurrencyAccountCount: z.number().int().nonnegative(),
-    excludedCurrencyHoldingCount: z.number().int().nonnegative(),
     excludedCurrencyPropertyCount: z.number().int().nonnegative(),
     balanceAsOf: wealthReadResponseSchema.shape.balanceAsOf,
   })

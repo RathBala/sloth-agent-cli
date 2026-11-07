@@ -27,7 +27,6 @@ import {
   agentApiV1GoalMutationResponse,
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
-  agentApiV1InvestmentsResponse,
   agentApiV1NotificationRule,
   agentApiV1PortfolioResponse,
   agentApiV1RenewalExtractionResponse,
@@ -302,7 +301,7 @@ describe('CLI execution', () => {
         '--account-name NAME', '--use-provider-name', 'mutually exclusive',
         '--balance-amount AMOUNT', '--goal-funding-account true|false',
         'Without --apply', 'write-enabled token', 'Partner-owned', 'Manual accounts',
-        '--partner-visibility private|balance|holdings', 'does not change ownership',
+        '--partner-visibility private|balance', 'does not change ownership',
         'agent:write', 'Account not found',
       ]],
       [['portfolio', '--help'], [
@@ -312,10 +311,6 @@ describe('CLI execution', () => {
       [['accounts', 'remove', '--help'], [
         '--account-ref REF', 'archive', 'retaining its underlying records',
         'Without --apply', 'changed false',
-      ]],
-      [['investments', '--help'], [
-        '--account-ref REF', 'cache-only', 'provider-native', 'holdings', 'read-only',
-        'agent:read', 'Investment account not found',
       ]],
       [['transactions', '--help'], [
         '--uncategorized[=true|false]',
@@ -850,14 +845,14 @@ describe('CLI execution', () => {
     const previewCredentialStore = vi.fn();
     expect(await runCli([
       'accounts', 'update', '--account-ref', accountRef,
-      '--institution-name', 'Hargreaves Lansdown',
-      '--account-name', 'Stocks & Shares ISA',
+      '--institution-name', 'Savings Bank',
+      '--account-name', 'Cash ISA',
       '--currency', 'gbp',
       '--ownership', 'individual',
       '--balance-amount', '12500.75',
-      '--account-type', 'investments',
+      '--account-type', 'savings',
       '--goal-funding-account', 'false',
-      '--partner-visibility', 'holdings',
+      '--partner-visibility', 'balance',
     ], {
       env: {},
       fetch: previewFetch,
@@ -871,14 +866,14 @@ describe('CLI execution', () => {
       endpoint: `https://budget.slothmoney.app/api/agent/v1/accounts/${accountRef}`,
       method: 'PATCH',
       payload: {
-        institutionName: 'Hargreaves Lansdown',
-        accountName: 'Stocks & Shares ISA',
+        institutionName: 'Savings Bank',
+        accountName: 'Cash ISA',
         currency: 'GBP',
         ownership: 'personal',
         balanceAmount: 12500.75,
-        accountType: 'investments',
+        accountType: 'savings',
         isGoalFundingAccount: false,
-        partnerVisibility: 'holdings',
+        partnerVisibility: 'balance',
       },
     });
 
@@ -1011,25 +1006,6 @@ describe('CLI execution', () => {
     expect(JSON.parse(applyIo.stdout.join(''))).toEqual(
       agentApiV1AccountRemovalResponse,
     );
-  });
-
-  it('lists a validated cache-only investment portfolio with an optional account filter', async () => {
-    const accountRef = agentApiV1InvestmentsResponse.investmentAccounts[0].accountRef;
-    const io = createIo();
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(agentApiV1InvestmentsResponse));
-
-    expect(await runCli(['investments', '--account-ref', accountRef], {
-      env: { SLOTH_AGENT_TOKEN: 'token' },
-      fetch: fetchMock,
-      ...io,
-    })).toBe(0);
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      `https://budget.slothmoney.app/api/agent/v1/investments?accountRef=${encodeURIComponent(accountRef)}`,
-      expect.objectContaining({ method: 'GET' }),
-    );
-    expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1InvestmentsResponse);
-    expect(io.stderr).toEqual([]);
   });
 
   it('lists goals as validated JSON', async () => {

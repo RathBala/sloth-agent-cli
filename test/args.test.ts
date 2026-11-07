@@ -30,7 +30,6 @@ describe('CLI arguments', () => {
       parseArgs(['accounts', '--help']),
       parseArgs(['accounts', 'update', '--help']),
       parseArgs(['accounts', 'remove', '--help']),
-      parseArgs(['investments', '--help']),
       parseArgs(['portfolio', '--help']),
       parseArgs(['categories', '--help']),
       parseArgs(['categories', 'create', '--help']),
@@ -69,7 +68,6 @@ describe('CLI arguments', () => {
       { command: 'help', topic: 'accounts' },
       { command: 'help', topic: 'accounts-update' },
       { command: 'help', topic: 'accounts-remove' },
-      { command: 'help', topic: 'investments' },
       { command: 'help', topic: 'portfolio' },
       { command: 'help', topic: 'categories' },
       { command: 'help', topic: 'categories-create' },
@@ -318,23 +316,23 @@ describe('CLI arguments', () => {
     });
     expect(parseArgs([
       'accounts', 'update', '--account-ref', accountRef,
-      '--institution-name', 'Hargreaves Lansdown',
-      '--account-name', 'Stocks & Shares ISA',
+      '--institution-name', 'Savings Bank',
+      '--account-name', 'Cash ISA',
       '--currency', 'gbp',
       '--ownership', 'joint',
       '--balance-amount', '12500.75',
-      '--account-type', 'investments',
+      '--account-type', 'savings',
       '--goal-funding-account', 'false', '--apply',
     ])).toEqual({
       command: 'accounts-update',
       accountRef,
       update: {
-        institutionName: 'Hargreaves Lansdown',
-        accountName: 'Stocks & Shares ISA',
+        institutionName: 'Savings Bank',
+        accountName: 'Cash ISA',
         currency: 'GBP',
         ownership: 'joint',
         balanceAmount: 12500.75,
-        accountType: 'investments',
+        accountType: 'savings',
         isGoalFundingAccount: false,
       },
       apply: true,
@@ -389,17 +387,6 @@ describe('CLI arguments', () => {
     ])).toThrow(/nonnegative amount/);
   });
 
-  it('parses cache-only investment portfolio filters', () => {
-    const accountRef = `sloth_account_v1_${'B'.repeat(43)}`;
-    expect(parseArgs(['investments'])).toEqual({ command: 'investments' });
-    expect(parseArgs(['investments', '--account-ref', accountRef])).toEqual({
-      command: 'investments',
-      accountRef,
-    });
-    expect(() => parseArgs(['investments', '--refresh']))
-      .toThrow(/Unknown investments option/);
-  });
-
   it('parses household portfolio views and partner visibility updates', () => {
     const accountRef = `sloth_account_v1_${'C'.repeat(43)}`;
     expect(parseArgs(['portfolio'])).toEqual({ command: 'portfolio', view: 'mine' });
@@ -420,7 +407,7 @@ describe('CLI arguments', () => {
     expect(() => parseArgs([
       'accounts', 'update', '--account-ref', accountRef,
       '--partner-visibility', 'full',
-    ])).toThrow(/private, balance, or holdings/);
+    ])).toThrow(/private or balance/);
   });
 
   it('parses goal creation options with preview as the default', () => {

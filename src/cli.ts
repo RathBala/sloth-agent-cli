@@ -82,7 +82,6 @@ export function usageText(): string {
     '  sloth-agent accounts [list] [--base-url URL]',
     '  sloth-agent accounts update --account-ref REF [fields] [--apply]',
     '  sloth-agent accounts remove --account-ref REF [--apply]',
-    '  sloth-agent investments [--account-ref REF] [--base-url URL]',
     '  sloth-agent wealth  Read, forecast, review and manage property and mortgages.',
     '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
     '  sloth-agent budget --scope personal|joint [--period YYYY-MM] [--base-url URL]',
@@ -458,9 +457,9 @@ export function accountsUpdateHelpText(): string {
     '  --currency CODE                    Three-letter currency code.',
     '  --ownership individual|joint       Manual account ownership.',
     '  --balance-amount AMOUNT             Balance-only account balance.',
-    '  --account-type savings|investments Balance-only account type.',
+    '  --account-type savings             Savings classification. Omit for existing investment balances.',
     '  --goal-funding-account true|false   Whether Goals may use this account.',
-    '  --partner-visibility private|balance|holdings',
+    '  --partner-visibility private|balance',
     '                                      What this account shares with your partner.',
     '',
     'Write behavior:',
@@ -505,37 +504,11 @@ export function accountsRemoveHelpText(): string {
   ].join('\n');
 }
 
-export function investmentsHelpText(): string {
-  return [
-    'Sloth Agent CLI — investments',
-    '',
-    'Read linked investment accounts and their cached provider-native holdings.',
-    '',
-    'Usage:',
-    '  sloth-agent investments [--account-ref REF] [--base-url URL]',
-    '',
-    'Options:',
-    '  --account-ref REF  Optional. Return one linked investment account.',
-    '  --base-url URL     Optional. Override the API origin.',
-    '  -h, --help         Show this help.',
-    ...API_ORIGIN_HELP_LINES,
-    '',
-    'Access:',
-    '  This command requires agent:read and is read-only and cache-only; it never refreshes a brokerage.',
-    '  An unknown or non-investment filter returns Investment account not found.',
-    '',
-    'Output:',
-    '  investmentAccounts contains account totals and nested holdings.',
-    '  Holding quantities, prices, market values, currencies, and freshness are',
-    '  provider-native and are not converted or guaranteed to reconcile to totals.',
-  ].join('\n');
-}
-
 export function portfolioHelpText(): string {
   return [
     'Sloth Agent CLI — portfolio',
     '',
-    'Read your savings and investments from one household planning perspective.',
+    'Read savings and manual investment balances from one household planning perspective.',
     '',
     'Usage:',
     '  sloth-agent portfolio [--view mine|partner|household] [--base-url URL]',
@@ -550,13 +523,13 @@ export function portfolioHelpText(): string {
     '  This read-only command waits up to 45 seconds for eligible linked balances to refresh.',
     '  A completed refresh updates the Budget balance audit for configured backing accounts.',
     '  A same-day cached read does not add another audit checkpoint.',
-    '  Partner shows only balances or holdings your partner explicitly shared.',
+    '  Partner shows only balances your partner explicitly shared.',
     '  Household combines your accounts with those shared balances and deduplicates joint accounts.',
     '  Shared data supports planning only. It does not assign partner accounts to Goals or change ownership.',
     '',
     'Output:',
-    '  totals gives savings, investments, and tracked amounts in the viewer currency.',
-    '  accounts includes ownerRole, freshness, sharing level, and permitted holdings.',
+    '  totals separates savings and manual investments in the viewer currency.',
+    '  accounts includes ownerRole, freshness, sharing level.',
     '  refresh reports whether eligible linked balances refreshed or cached data was returned.',
   ].join('\n');
 }
@@ -1817,7 +1790,6 @@ export function commandHelpText(topic: HelpTopic): string {
     accounts: accountsHelpText,
     'accounts-update': accountsUpdateHelpText,
     'accounts-remove': accountsRemoveHelpText,
-    investments: investmentsHelpText,
     portfolio: portfolioHelpText,
     budget: budgetHelpText,
     'budget-status': budgetStatusHelpText,
@@ -3125,10 +3097,6 @@ export async function runCli(
       ? '/api/agent/v1/accounts'
       : parsed.command === 'portfolio'
         ? `/api/agent/v1/portfolio?${new URLSearchParams({ view: parsed.view }).toString()}`
-      : parsed.command === 'investments'
-        ? `/api/agent/v1/investments${parsed.accountRef
-          ? `?${new URLSearchParams({ accountRef: parsed.accountRef }).toString()}`
-          : ''}`
       : parsed.command === 'categories'
         ? '/api/agent/v1/categories'
         : `/api/agent/v1/transactions${(() => {

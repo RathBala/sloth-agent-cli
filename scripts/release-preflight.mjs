@@ -26,7 +26,6 @@ const helpRoutes = [
   [],
   ['auth'], ['auth', 'login'], ['auth', 'status'], ['auth', 'logout'],
   ['accounts'], ['accounts', 'list'], ['accounts', 'update'], ['accounts', 'remove'],
-  ['investments'],
   ['budget'], ['budget', 'status'], ['budget', 'audit'], ['budget', 'history'], ['budget', 'cashflow'], ['budget', 'update'], ['budget', 'reset'], ['budget', 'move'], ['budget', 'fill'], ['budget', 'fund-ahead'],
   ['categories'], ['categories', 'list'], ['categories', 'create'], ['categories', 'rename'],
   ['line-items'], ['line-items', 'create'], ['line-items', 'rename'],

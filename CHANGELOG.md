@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.0
+
+- Remove the investments command, holdings and trade data, and holdings sharing.
+- Preserve existing investment accounts as manually updated totals, separate from savings.
+- Keep their goal links and planned contributions, without assumed investment returns.
+- Requires the matching investment-retirement backend release.
+
 ## 0.34.0 - 2026-10-25
 
 - Add household goal create, convert, update and delete commands with saved split snapshots, personal caps, private funding and revision checks.
@@ -72,7 +79,6 @@
 - Preview and apply Auto-fill, Manual-fill with category overrides, and Fund-ahead.
 - Require the reviewed preview fingerprint for funding writes and reject stale previews.
 - Share validated funding contracts with the server and test complete funding commands in the packed CLI.
-
 
 ## 0.24.0 - 2026-09-06
 

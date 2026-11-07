@@ -21,7 +21,7 @@ export const budgetAuditVerificationSchema = z.enum([
 export const budgetAuditSourceSchema = z.enum([
   'agent_auto', 'agent_portfolio', 'app_auto', 'balance_retry', 'transaction_retry',
   'dashboard_auto', 'dashboard_manual', 'transactions_auto', 'transactions_manual',
-  'manage_accounts_background', 'savings_investments_auto', 'account_selection_completion',
+  'manage_accounts_background', 'current_position_auto', 'account_selection_completion',
   'unspecified', 'backing_accounts_save', 'manual_balance', 'unknown',
 ]);
 

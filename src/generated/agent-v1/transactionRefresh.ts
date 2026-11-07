@@ -12,7 +12,7 @@ export type TransactionRefreshSource =
   | 'transactions_auto'
   | 'transactions_manual'
   | 'manage_accounts_background'
-  | 'savings_investments_auto'
+  | 'current_position_auto'
   | 'account_selection_completion'
   | 'unspecified';
 

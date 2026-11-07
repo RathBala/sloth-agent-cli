@@ -43,7 +43,6 @@ export const wealthReadFixture: z.infer<typeof wealthReadResponseSchema> = {
   },
   excludedCurrencyAccountCount: 0,
   excludedCurrencyPropertyCount: 0,
-  excludedCurrencyHoldingCount: 0,
   unavailableReasons: [],
   balanceAsOf: [],
 };

@@ -49,7 +49,6 @@ export type HelpTopic = JointHelpTopic | WealthHelpTopic
   | 'accounts'
   | 'accounts-update'
   | 'accounts-remove'
-  | 'investments'
   | 'portfolio'
   | 'budget'
   | 'budget-reset'
@@ -126,9 +125,9 @@ export type ParsedCommand =
       currency?: string;
       ownership?: 'personal' | 'joint';
       balanceAmount?: number;
-      accountType?: 'savings' | 'investments';
+      accountType?: 'savings';
       isGoalFundingAccount?: boolean;
-      partnerVisibility?: 'private' | 'balance' | 'holdings';
+      partnerVisibility?: 'private' | 'balance';
     };
     apply: boolean;
   }
@@ -138,7 +137,6 @@ export type ParsedCommand =
     accountRef: string;
     apply: boolean;
   }
-  | { command: 'investments'; baseUrl?: string; accountRef?: string }
   | { command: 'portfolio'; baseUrl?: string; view: 'mine' | 'partner' | 'household' }
   | {
     command: 'budget';
@@ -839,9 +837,8 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     if (
       accountTypeValue !== undefined
       && accountTypeValue !== 'savings'
-      && accountTypeValue !== 'investments'
     ) {
-      throw new UsageError('--account-type must be savings or investments');
+      throw new UsageError('--account-type must be savings');
     }
     if (sourceValue !== undefined && sourceValue !== 'true' && sourceValue !== 'false') {
       throw new UsageError('--goal-funding-account must be true or false');
@@ -850,9 +847,8 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
       partnerVisibility !== undefined
       && partnerVisibility !== 'private'
       && partnerVisibility !== 'balance'
-      && partnerVisibility !== 'holdings'
     ) {
-      throw new UsageError('--partner-visibility must be private, balance, or holdings');
+      throw new UsageError('--partner-visibility must be private or balance');
     }
     const update = {
       ...(institutionName === undefined
@@ -869,10 +865,10 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
       ...(balanceValue === undefined ? {} : { balanceAmount: parseAccountBalance(balanceValue) }),
       ...(accountTypeValue === undefined
         ? {}
-        : { accountType: accountTypeValue as 'savings' | 'investments' }),
+        : { accountType: accountTypeValue as 'savings' }),
       ...(sourceValue === undefined ? {} : { isGoalFundingAccount: sourceValue === 'true' }),
       ...(partnerVisibility === undefined ? {} : {
-        partnerVisibility: partnerVisibility as 'private' | 'balance' | 'holdings',
+        partnerVisibility: partnerVisibility as 'private' | 'balance',
       }),
     };
     if (Object.keys(update).length === 0) {
@@ -901,30 +897,6 @@ function parseAccounts(args: string[], baseUrl?: string): ParsedCommand {
     throw new UsageError(`Unknown accounts option: ${subcommand}`);
   }
   throw new UsageError(`Unknown accounts command: ${subcommand}`);
-}
-
-function parseInvestments(args: string[], baseUrl?: string): ParsedCommand {
-  let accountRef: string | undefined;
-  for (let index = 0; index < args.length; index += 1) {
-    const argument = args[index]!;
-    if (argument === '--account-ref') {
-      accountRef = setOnce(
-        accountRef,
-        parseAccountRef(readOptionValue(args, index, '--account-ref')),
-        '--account-ref',
-      );
-      index += 1;
-    } else if (argument.startsWith('--account-ref=')) {
-      accountRef = setOnce(
-        accountRef,
-        parseAccountRef(requireNonEmpty(argument.slice('--account-ref='.length), '--account-ref')),
-        '--account-ref',
-      );
-    } else {
-      throw new UsageError(`Unknown investments option: ${argument}`);
-    }
-  }
-  return withBaseUrl({ command: 'investments', ...(accountRef ? { accountRef } : {}) }, baseUrl);
 }
 
 function parsePortfolio(args: string[], baseUrl?: string): ParsedCommand {
@@ -1862,7 +1834,7 @@ function helpTopic(argv: string[]): HelpTopic | undefined {
     if (command === 'accounts' && subcommand === 'remove') return 'accounts-remove';
     return command;
   }
-  if (command === 'investments' || command === 'portfolio' || command === 'goal-budgets') return command;
+  if (command === 'portfolio' || command === 'goal-budgets') return command;
   return undefined;
 }
 
@@ -1913,10 +1885,6 @@ export function parseArgs(argv: string[]): ParsedCommand {
 
   if (command === 'accounts') {
     return parseAccounts(args, baseUrl);
-  }
-
-  if (command === 'investments') {
-    return parseInvestments(args, baseUrl);
   }
 
   if (command === 'portfolio') {

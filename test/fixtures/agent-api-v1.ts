@@ -66,61 +66,28 @@ export const agentApiV1AccountRemovalResponse = {
   accountRef: agentApiV1AccountsResponse.accounts[0].accountRef,
 } as const;
 
-export const agentApiV1InvestmentsResponse = {
-  asOf: '2026-08-01T12:00:00.000Z',
-  investmentAccounts: [{
-    ...agentApiV1AccountsResponse.accounts[0],
-    accountName: 'Coinbase portfolio',
-    institutionName: 'Coinbase',
-    accountType: 'investments',
-    balanceAmount: 6_515.5,
-    holdings: [{
-      instrumentType: 'crypto',
-      symbol: 'BTC',
-      name: 'Bitcoin',
-      units: 0.125,
-      unitPriceAmount: 52_000,
-      marketValueAmount: 6_500,
-      currency: 'GBP',
-      providerFreshnessAsOf: '2026-08-01T09:25:00.000Z',
-      syncedAt: '2026-08-01T09:30:00.000Z',
-    }],
-  }],
-} as const;
-
 export const agentApiV1PortfolioResponse = {
+  totals: { investmentsAmount: 0, savingsAmount: 10934.4 },
   asOf: '2026-08-01T12:00:00.000Z',
   currency: 'GBP',
   view: 'household',
   hasPartner: true,
-  totals: { savingsAmount: 7800, investmentsAmount: 10934.4, trackedAmount: 18734.4 },
   excludedCurrencyAccountCount: 0,
   refresh: { status: 'skipped', reason: 'all_balances_fresh', utcDate: '2026-08-01' },
   accounts: [{
     accountRef: agentApiV1AccountsResponse.accounts[1].accountRef,
     ownerRole: 'partner',
-    accountName: 'Stocks & Shares ISA',
-    institutionName: 'Vanguard',
-    accountType: 'investments',
+    accountName: 'Cash ISA',
+    institutionName: 'Savings Bank',
+    accountType: 'savings',
     ownership: 'personal',
     balanceAmount: 10934.4,
     currency: 'GBP',
     source: 'connected',
     lastBalanceUpdatedAt: '2026-08-01T09:30:00.000Z',
     connectionState: 'active',
-    partnerVisibility: 'holdings',
+    partnerVisibility: 'balance',
     isGoalFundingAccount: null,
-    holdings: [{
-      instrumentType: 'etf',
-      symbol: 'VUAG',
-      name: 'Vanguard S&P 500 UCITS ETF',
-      units: 12.345,
-      unitPriceAmount: 88.57,
-      marketValueAmount: 10934.4,
-      currency: 'GBP',
-      providerFreshnessAsOf: '2026-08-01T09:25:00.000Z',
-      syncedAt: '2026-08-01T09:30:00.000Z',
-    }],
   }],
 } as const;
 

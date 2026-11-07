@@ -28,7 +28,6 @@ import {
   agentApiV1GoalPreviewResponse,
   agentApiV1GoalsResponse,
   agentApiV1LineItemMutationResponse,
-  agentApiV1InvestmentsResponse,
   agentApiV1NotificationRule,
   agentApiV1PortfolioResponse,
   agentApiV1RenewalExtractionResponse,
@@ -37,6 +36,15 @@ import {
   agentApiV1PartnerStatusResponse,
 } from './fixtures/agent-api-v1.js';
 import { agentApiV1TransactionsResponse, agentApiV1TransactionsWithPendingResponse } from '../src/generated/agent-v1/transactionFixtures.js';
+
+it('accepts preserved manual investment balances through account and portfolio reads', () => {
+  const account = { ...agentApiV1AccountsResponse.accounts[0], accountType: 'investments', source: 'manual', connectionState: 'manual' };
+  const accounts = { ...agentApiV1AccountsResponse, accounts: [account] };
+  expect(parseApiResponse('accounts', accounts)).toBe(accounts);
+  const portfolio = { ...agentApiV1PortfolioResponse, totals: { savingsAmount: 0, investmentsAmount: 250 },
+    accounts: [{ ...agentApiV1PortfolioResponse.accounts[0], accountType: 'investments', source: 'manual', connectionState: 'manual', balanceAmount: 250 }] };
+  expect(parseApiResponse('portfolio', portfolio)).toBe(portfolio);
+});
 
 describe('household portfolio contract', () => {
   it('accepts the trusted household portfolio response and rejects leaked partner details', () => {
@@ -440,16 +448,6 @@ describe('API response validation', () => {
       .toBe(agentApiV1AccountMutationResponse);
     expect(parseApiResponse('accounts-remove', agentApiV1AccountRemovalResponse))
       .toBe(agentApiV1AccountRemovalResponse);
-    expect(parseApiResponse('investments', agentApiV1InvestmentsResponse))
-      .toBe(agentApiV1InvestmentsResponse);
-    const jointInvestments = {
-      ...agentApiV1InvestmentsResponse,
-      investmentAccounts: [{
-        ...agentApiV1InvestmentsResponse.investmentAccounts[0],
-        ownership: 'joint',
-      }],
-    };
-    expect(parseApiResponse('investments', jointInvestments)).toBe(jointInvestments);
     expect(parseApiResponse(
       'transactions',
       agentApiV1TransactionsResponse,
@@ -603,16 +601,6 @@ describe('API response validation', () => {
       ...agentApiV1AccountRemovalResponse,
       unexpected: true,
     })).toThrow(/invalid accounts-remove response/i);
-    expect(() => parseApiResponse('investments', {
-      ...agentApiV1InvestmentsResponse,
-      investmentAccounts: [{
-        ...agentApiV1InvestmentsResponse.investmentAccounts[0],
-        holdings: [{
-          ...agentApiV1InvestmentsResponse.investmentAccounts[0].holdings[0],
-          accountKey: 'private-account-key',
-        }],
-      }],
-    })).toThrow(/invalid investments response/i);
     expect(() => parseApiResponse('accounts', {
       ...agentApiV1AccountsResponse,
       accounts: [{
