@@ -13,6 +13,14 @@ synthetic booked/pending examples used by both repositories' contract tests and 
 server-to-packed-CLI test. These small, non-secret fixtures are included in the CLI
 package with the generated modules so package contents remain reproducible.
 
+`assignmentOperations.ts` owns submission receipts and progress-count validation.
+A completed POST receipt still has no item results. The CLI always reads authenticated
+GET status after submission, then validates complete ordered results before returning
+its stable `succeeded`/`failed` output. Repeated identical input retains its idempotency
+key and resumes the saved operation. No new CLI flags or help contract are introduced.
+The sibling sloth-site developer page already documents this behavior; privacy copy
+is unchanged because this fix adds no telemetry or data access.
+
 ## Runtime behavior
 
 The server transaction route parses its service result with

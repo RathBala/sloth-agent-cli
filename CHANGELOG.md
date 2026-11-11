@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Resume completed assignment operations by reading their saved results after submission. Repeating an unchanged command keeps its idempotency key and does not duplicate the write.
+
 ## 0.35.0
 
 - Remove the investments command, holdings and trade data, and holdings sharing.

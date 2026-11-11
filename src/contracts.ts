@@ -1,3 +1,4 @@
+import { agentAssignmentOperationReceiptSchema } from './generated/agent-v1/assignmentOperations.js';
 import { agentMoneyAmountSchema } from './generated/agent-v1/goals.js';
 import { budgetAuditResponseSchema } from './generated/agent-v1/budgetAudit.js';
 import { budgetHistoryResponseSchema } from './generated/agent-v1/budgetHistory.js';
@@ -761,36 +762,22 @@ function isAssignmentOperationResult(value: unknown): value is AssignmentOperati
   return false;
 }
 
+export function parseAssignmentOperationReceipt(value: unknown): AssignmentOperationResponse {
+  const parsed = agentAssignmentOperationReceiptSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new ApiError('Invalid assignment operation response from the Agent API');
+  }
+  return parsed.data;
+}
+
 export function parseAssignmentOperationResponse(
   value: unknown,
 ): AssignmentOperationResponse {
-  const validBase = isObject(value)
-    && hasOnlyFields(value, [
-      'operationId', 'status', 'itemCount', 'completedCount', 'failedCount',
-      'expiresAt', 'pollAfterMs', 'results',
-    ])
-    && typeof value.operationId === 'string'
-    && /^[a-f0-9]{64}$/.test(value.operationId)
-    && (
-      value.status === 'pending'
-      || value.status === 'processing'
-      || value.status === 'completed'
-    )
-    && Number.isSafeInteger(value.itemCount)
-    && Number(value.itemCount) >= 1
-    && Number(value.itemCount) <= 100
-    && isNonnegativeSafeInteger(value.completedCount)
-    && Number(value.completedCount) <= Number(value.itemCount)
-    && isNonnegativeSafeInteger(value.failedCount)
-    && Number(value.failedCount) <= Number(value.completedCount)
-    && isIsoDateTime(value.expiresAt)
-    && isNonnegativeSafeInteger(value.pollAfterMs)
-    && Number(value.pollAfterMs) >= 100
-    && Number(value.pollAfterMs) <= 10_000;
-
-  if (!validBase) {
+  if (!isObject(value)) {
     throw new ApiError('Invalid assignment operation response from the Agent API');
   }
+  const receipt = Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'results'));
+  parseAssignmentOperationReceipt(receipt);
 
   const isComplete = value.status === 'completed';
   const resultsAreValid = isComplete

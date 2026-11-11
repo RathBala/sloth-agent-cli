@@ -2244,8 +2244,12 @@ describe('CLI execution', () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const io = createIo();
       const fetchMock = vi.fn().mockImplementation((_url, init) => {
-        keys.push((init.headers as Record<string, string>)['Idempotency-Key']!);
-        return Promise.resolve(jsonResponse(agentApiV1AssignmentOperationStatus, 202));
+        if (init.method === 'POST') {
+          keys.push((init.headers as Record<string, string>)['Idempotency-Key']!);
+          const receipt = Object.fromEntries(Object.entries(agentApiV1AssignmentOperationStatus).filter(([key]) => key !== 'results'));
+          return Promise.resolve(jsonResponse(receipt, 202));
+        }
+        return Promise.resolve(jsonResponse(agentApiV1AssignmentOperationStatus));
       });
 
       expect(await runCli(['assign', '--input', input, '--apply'], {
@@ -2255,6 +2259,8 @@ describe('CLI execution', () => {
         ...io,
       })).toBe(1);
       expect(JSON.parse(io.stdout.join(''))).toEqual(agentApiV1AssignmentResponse);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'GET' });
     }
 
     expect(keys).toHaveLength(2);

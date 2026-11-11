@@ -21,6 +21,7 @@ import {
   parseApiResponse,
   parseBudgetAuditResponse,
   parseAssignmentOperationResponse,
+  parseAssignmentOperationReceipt,
   toLegacyAssignmentResponse,
   validateAssignmentPayload,
   validateBudgetMovementResponse,
@@ -2110,7 +2111,9 @@ async function parseAssignmentOperationHttpResponse(
       response.status,
     );
   }
-  return parseAssignmentOperationResponse(data);
+  return expectedStatus === 202
+    ? parseAssignmentOperationReceipt(data)
+    : parseAssignmentOperationResponse(data);
 }
 
 function assertAssignmentOperationMatchesPayload(
@@ -2168,8 +2171,9 @@ async function applyAssignments(
   assertAssignmentOperationMatchesPayload(operation, payload);
   const operationId = operation.operationId;
 
-  while (operation.status !== 'completed') {
-    await sleep(operation.pollAfterMs);
+  // Submission receipts never contain item results, even when already completed.
+  do {
+    if (operation.status !== 'completed') await sleep(operation.pollAfterMs);
     const statusEndpoint = `${endpoint}/${encodeURIComponent(operationId)}`;
     try {
       const nextOperation = await withAssignmentRequestRecovery(async () => {
@@ -2189,7 +2193,7 @@ async function applyAssignments(
         + 'Re-run the same command with the same assignment input to resume it.',
       );
     }
-  }
+  } while (operation.status !== 'completed');
 
   return toLegacyAssignmentResponse(operation);
 }

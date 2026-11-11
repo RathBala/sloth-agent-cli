@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseApiResponse,
   parseAssignmentOperationResponse,
+  parseAssignmentOperationReceipt,
   toLegacyAssignmentResponse,
   validateReceiptConfirmation,
   validateAssignmentPayload,
@@ -327,6 +328,16 @@ describe('assignment operation response validation', () => {
       .toBe(agentApiV1AssignmentOperationReceipt);
     expect(parseAssignmentOperationResponse(agentApiV1AssignmentOperationStatus))
       .toBe(agentApiV1AssignmentOperationStatus);
+  });
+
+  it('accepts a completed receipt but still requires results from the status endpoint', () => {
+    const receipt = Object.fromEntries(Object.entries(agentApiV1AssignmentOperationStatus).filter(([key]) => key !== 'results'));
+    expect(parseAssignmentOperationReceipt(receipt)).toEqual(receipt);
+    expect(() => parseAssignmentOperationResponse(receipt)).toThrow(/invalid assignment operation/i);
+    expect(() => parseAssignmentOperationReceipt({ ...receipt, completedCount: 0 }))
+      .toThrow(/invalid assignment operation/i);
+    expect(() => parseAssignmentOperationReceipt(agentApiV1AssignmentOperationStatus))
+      .toThrow(/invalid assignment operation/i);
   });
 
   it('converts terminal items back to the stable CLI result shape', () => {
