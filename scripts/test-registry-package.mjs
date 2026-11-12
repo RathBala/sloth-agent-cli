@@ -41,7 +41,7 @@ try {
       npmCliPath,
       'exec',
       '--yes',
-      `--package=@slothmoney/agent-cli@${version}`,
+      `--package=https://registry.npmjs.org/@slothmoney/agent-cli/-/agent-cli-${version}.tgz`,
       '--',
       'sloth-agent',
       '--version',
@@ -55,7 +55,6 @@ try {
         PATH: cleanPath,
         npm_config_cache: path.join(temporaryDirectory, 'npm-cache'),
         npm_config_prefer_online: 'true',
-        npm_config_full_metadata: 'true',
       },
     },
   ).trim();

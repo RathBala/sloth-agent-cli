@@ -1088,13 +1088,19 @@ Releases are published only through the trusted `Publish npm release` GitHub
 workflow from a reviewed `v*` tag whose version matches `package.json`. The
 workflow runs the full verification suite before publishing.
 
-After npm accepts the package, the workflow verifies the exact published
-version with `npm run test:registry -- VERSION`. That script runs `npm exec`
-from a fresh temporary directory with an isolated npm cache, so a checkout's
-older local `sloth-agent` executable cannot satisfy the registry smoke test.
-It requests full registry metadata because the abbreviated install index can lag
-behind an accepted publication.
-The temporary directory is removed after the check.
+After npm accepts the package, a separate job verifies the exact published
+version with `npm run test:registry -- VERSION`. It gives `npm exec` the version's
+public npm tarball URL, bypassing the install index that can lag behind publication.
+The check uses a fresh temporary directory and npm cache, verifies the executable's
+version and removes the temporary directory on success or failure.
+
+The job retains eight attempts with 10, 20, 30, 40, 50, 60 and 70-second waits.
+If npm still cannot serve the download, use GitHub's **Re-run failed jobs** after
+it becomes available. Only verification reruns; the successful publish job is not
+repeated. Verification has read-only repository access and no npm publishing grant.
+For an older release whose workflow did not separate these jobs, run
+`npm run test:registry -- 0.35.0` locally. This needs network access, but no Sloth
+sign-in or publishing credentials. It verifies availability without republishing.
 
 ### Fill pots and fund ahead
 

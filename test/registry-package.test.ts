@@ -16,7 +16,11 @@ afterEach(() => {
 });
 
 describe('published package verification', () => {
-  it('runs the exact registry package from a fresh directory outside the repository', () => {
+  it.each([
+    { outcome: 'available', installedVersion: '9.8.7', succeeds: true },
+    { outcome: 'wrong version', installedVersion: '9.8.6', succeeds: false },
+    { outcome: 'unavailable', installedVersion: '', succeeds: false },
+  ])('checks an isolated registry download: $outcome', ({ installedVersion, succeeds }) => {
     const fixtureDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'sloth-agent-registry-test-'));
     tempDirectories.push(fixtureDirectory);
     const repositoryTempRoot = path.join(projectRoot, 'node_modules', '.registry-test-tmp');
@@ -34,7 +38,15 @@ describe('published package verification', () => {
         entries: fs.readdirSync(process.cwd()),
         pathEntries: process.env.PATH.split(process.platform === 'win32' ? ';' : ':'),
       }));
-      process.stdout.write(process.env.EXPECTED_VERSION + '\\n');
+      if (!process.argv.includes('--package=https://registry.npmjs.org/@slothmoney/agent-cli/-/agent-cli-9.8.7.tgz')) {
+        process.stderr.write('ETARGET: abbreviated metadata has not caught up\\n');
+        process.exit(1);
+      }
+      if (!process.env.INSTALLED_VERSION) {
+        process.stderr.write('E404: package download unavailable\\n');
+        process.exit(1);
+      }
+      process.stdout.write(process.env.INSTALLED_VERSION + '\\n');
     `);
 
     const fakeBinDirectory = path.join(fixtureDirectory, 'bin');
@@ -69,7 +81,7 @@ describe('published package verification', () => {
         env: {
           ...childEnvironment,
           CAPTURE_PATH: capturePath,
-          EXPECTED_VERSION: version,
+          INSTALLED_VERSION: installedVersion,
           npm_execpath: fakeNpmScript,
           npm_node_execpath: process.execPath,
           PATH: `${fakeBinDirectory}${path.delimiter}${process.env.PATH ?? ''}`,
@@ -80,22 +92,24 @@ describe('published package verification', () => {
       },
     );
 
-    expect(result.stderr).toBe('');
-    expect(result.status).toBe(0);
+    expect(result.status).toBe(succeeds ? 0 : 1);
+    if (succeeds) expect(result.stderr).toBe('');
+    else expect(result.stderr).toContain(installedVersion ? 'registry package must report' : 'E404');
     const capture = JSON.parse(fs.readFileSync(capturePath, 'utf8'));
     expect(capture).toMatchObject({
       argv: [
         'exec',
         '--yes',
-        '--package=@slothmoney/agent-cli@9.8.7',
+        '--package=https://registry.npmjs.org/@slothmoney/agent-cli/-/agent-cli-9.8.7.tgz',
         '--',
         'sloth-agent',
         '--version',
       ],
       cwd: expect.not.stringContaining(projectRoot),
       entries: [],
-      fullMetadata: 'true',
     });
+    expect(capture.fullMetadata).toBeUndefined();
+    expect(fs.existsSync(capture.cwd)).toBe(false);
     expect(capture.pathEntries).not.toEqual(
       expect.arrayContaining([expect.stringContaining(projectRoot)]),
     );
